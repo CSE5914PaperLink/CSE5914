@@ -39,3 +39,30 @@ Thumbs.db
 # Logs
 logs
 *.log
+
+# Venv
+.venv/
+
+# --- Python / Backend ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Poetry
+.poetry-cache/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+.cache
+
+# Type checker
+.mypy_cache/
+.pyre/
+.pytype/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
