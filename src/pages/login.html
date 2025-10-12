@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - CS Paper Compare</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    
+    <!-- Firebase Authentication UI CDN -->
+    <script src="https://www.gstatic.com/firebasejs/ui/6.1.0/firebase-ui-auth.js"></script>
+    <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/6.1.0/firebase-ui-auth.css" />
+  </head>
+  <body class="bg-gray-50 min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
+      <h2 class="text-2xl font-bold text-center mb-6">Login to CS Paper Compare</h2>
+      
+      <!-- Firebase Auth UI Container -->
+      <div id="firebaseui-auth-container"></div>
+      
+      <!-- Loading message -->
+      <div id="loading" class="text-center text-gray-600">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+        Loading authentication...
+      </div>
+      
+      <div class="text-center mt-6">
+        <a href="/" class="text-blue-600 hover:underline text-sm">← Back to home</a>
+      </div>
+    </div>
+
+    <script>
+      // TODO: Replace with your actual Firebase configuration
+      const firebaseConfig = {
+        apiKey: "your-api-key",
+        authDomain: "your-project.firebaseapp.com",
+        projectId: "your-project-id",
+        storageBucket: "your-project.appspot.com",
+        messagingSenderId: "123456789",
+        appId: "your-app-id"
+      };
+
+      // Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+
+      // FirebaseUI config
+      const uiConfig = {
+        callbacks: {
+          signInSuccessWithAuthResult: function(authResult, redirectUrl) {
+            // User successfully signed in
+            console.log('User signed in:', authResult.user);
+            // Redirect to dashboard
+            window.location.href = '/app';
+            return false; // Avoid redirects after sign-in.
+          },
+          uiShown: function() {
+            // Hide loading spinner when UI is shown
+            document.getElementById('loading').style.display = 'none';
+          }
+        },
+        // Will use popup for IDP Providers sign-in flow instead of the default, redirect.
+        signInFlow: 'popup',
+        signInSuccessUrl: '/app',
+        signInOptions: [
+          // Email/password sign-in
+          firebase.auth.EmailAuthProvider.PROVIDER_ID,
+          // Google sign-in
+          firebase.auth.GoogleAuthProvider.PROVIDER_ID,
+          // GitHub sign-in
+          firebase.auth.GithubAuthProvider.PROVIDER_ID
+        ],
+        // Terms of service url/callback
+        tosUrl: '/docs',
+        // Privacy policy url/callback
+        privacyPolicyUrl: '/docs'
+      };
+
+      // Initialize the FirebaseUI Widget using Firebase
+      const ui = new firebaseui.auth.AuthUI(firebase.auth());
+
+      // Start the UI
+      ui.start('#firebaseui-auth-container', uiConfig);
+
+      // Check if user is already signed in
+      firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+          // User is signed in, redirect to dashboard
+          console.log('User already signed in:', user);
+          window.location.href = '/app';
+        }
+      });
+    </script>
+  </body>
+</html>

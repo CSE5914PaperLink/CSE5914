@@ -1,0 +1,21 @@
+{
+  "name": "cse5914",
+  "version": "1.0.0",
+  "description": "AU25 CSE5914 Team1",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "npx nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
