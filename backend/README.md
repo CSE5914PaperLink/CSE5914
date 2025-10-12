@@ -1,8 +1,4 @@
-## CSE5914 Backend (FastAPI)
-
-Lightweight FastAPI backend for the CSE5914 project. Includes a simple root endpoint and is wired for environment-based configuration.
-
----
+## CSE5914 Backend
 
 ## Requirements
 
