@@ -1,0 +1,73 @@
+# This file tells Google Cloud which files NOT to upload when building containers
+
+# Inherit rules from .gitignore (keeps your repo’s ignore logic)
+.git
+.gitignore
+
+# --- Node / Frontend ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+frontend/build/
+frontend/dist/
+frontend/.env*
+package-lock.json
+
+# --- Python / Backend ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+backend/.env*
+poetry.lock
+.pytest_cache/
+.mypy_cache/
+.pytype/
+.pyre/
+
+# --- Test / Coverage ---
+coverage/
+.coverage
+.coverage.*
+.cache
+htmlcov/
+nosetests.xml
+coverage.xml
+
+# --- IDE / OS Files ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- Local & Secrets ---
+.env
+.env.*
+service-account.json
+secrets.json
+firebase-debug.log
+firebase.json
+.firebaserc
+
+# --- Docker / Cloud ---
+docker-compose.override.yml
+docker.env
+cloudbuild.log
+
+# --- Keep these files explicitly (important for Cloud Build) ---
+!**/Dockerfile
+!**/requirements.txt
+!**/package.json
+!**/package-lock.json
+!**/Pipfile
+!**/Pipfile.lock
