@@ -200,208 +200,101 @@ paths:
         '202':
           description: Codebase linking job accepted.
 
+  /papers/{paperId}/code/{type}:
     get:
       tags: [Code]
-      summary: Get linked codebase details
-      description: Retrieves the file structure and other metadata of the codebase linked to a paper.
+      summary: Code-related operations (info, links, content, dependencies, search, commits, metrics, structure)
+      description: |
+        A consolidated GET endpoint that serves multiple code-related operations for a paper.
+        Use the `type` path parameter to select the operation. The semantics, inputs and outputs
+        match the previously-separated endpoints: `info` (repo details), `links` (GitHub links
+        found in paper), `content` (file content), `dependencies`, `search`, `commits`, `metrics`, and `structure`.
+        Certain query parameters (for example `filePath` or `q`) are only applicable to specific `type` values —
+        see each `type` note below. Each `type` preserves the original response schemas and descriptions.
       parameters:
         - in: path
           name: paperId
           required: true
           schema: { type: string }
-      responses:
-        '200':
-          description: Details of the linked codebase.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Codebase' }
-  
-  /papers/{paperId}/code-links:
-    get:
-      tags: [Code]
-      summary: Find GitHub links in a paper
-      description: Scans the full text of an ingested paper to find and extract any mentioned GitHub repository links.
-      parameters:
         - in: path
-          name: paperId
+          name: type
           required: true
-          schema: { type: string }
-      responses:
-        '200':
-          description: A list of GitHub links found in the paper.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  links:
-                    type: array
-                    items:
-                      type: string
-                      format: uri
-                      example: "https://github.com/facebookresearch/llama"
-
-  /papers/{paperId}/code/content:
-    get:
-      tags: [Code]
-      summary: Get file content from a codebase
-      description: Retrieves the content of a specific file from the linked repository.
-      parameters:
-        - in: path
-          name: paperId
-          required: true
-          schema: { type: string }
+          schema:
+            type: string
+            enum: [info, links, content, dependencies, search, commits, metrics, structure]
+          description: |
+            The operation to run on the paper's linked codebase. Use `info` to get repository metadata,
+            `links` to find GitHub links mentioned in the paper, `content` to fetch a file's contents,
+            `dependencies` to list parsed dependencies, `search` to run a keyword search over the code,
+            `commits` to retrieve commit history, `metrics` for complexity metrics, and `structure` to
+            list functions and classes in a file.
         - in: query
           name: filePath
-          required: true
           schema: { type: string }
-          example: "README.md"
-      responses:
-        '200':
-          description: The content of the file.
-          content:
-            text/plain:
-              schema:
-                type: string
-
-  /papers/{paperId}/code/dependencies:
-    get:
-      tags: [Code]
-      summary: Get dependency analysis of the codebase
-      description: Parses dependency files like requirements.txt or package.json to identify project dependencies.
-      parameters:
-        - in: path
-          name: paperId
-          required: true
-          schema: { type: string }
-      responses:
-        '200':
-          description: A list of dependencies.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  dependencies:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        name: { type: string }
-                        version: { type: string }
-
-  /papers/{paperId}/code/search:
-    get:
-      tags: [Code]
-      summary: Keyword search within the codebase
-      description: Performs a keyword search over the code in the linked repository.
-      parameters:
-        - in: path
-          name: paperId
-          required: true
-          schema: { type: string }
+          description: |
+            File path inside the linked repository. Required for `type=content`, `type=metrics`, and `type=structure`.
+            Optional for `type=commits` to restrict commit history to a single file.
         - in: query
           name: q
-          required: true
           schema: { type: string }
-          example: "augmentation"
-      responses:
-        '200':
-          description: A list of relevant code snippets matching the keyword.
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/CodeCitation' }
-
-  /papers/{paperId}/code/commits:
-    get:
-      tags: [Code]
-      summary: Get commit history
-      description: Retrieves the commit history for a specific file or the entire repository.
-      parameters:
-        - in: path
-          name: paperId
-          required: true
-          schema: { type: string }
-        - in: query
-          name: filePath
-          schema: { type: string }
-          description: "Optional: Specify a file path to get its commit history."
+          description: "Query string for keyword search. Applicable when `type=search`."
         - in: query
           name: page
           schema:
             type: integer
             default: 1
-          description: "The page number to retrieve."
+          description: "Page number for paginated responses (commits, search)."
         - in: query
           name: perPage
           schema:
             type: integer
             default: 10
             maximum: 100
-          description: "The number of commits to retrieve per page."
+          description: "Items per page for paginated responses (commits, search)."
       responses:
         '200':
-          description: A paginated list of commits.
+          description: Response varies by `type`. See the operation description for which response schema applies.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedCommits'
-
-  /papers/{paperId}/code/metrics:
-    get:
-      tags: [Code]
-      summary: Get code complexity metrics
-      description: Calculates complexity metrics for a specific file (e.g., cyclomatic complexity).
-      parameters:
-        - in: path
-          name: paperId
-          required: true
-          schema: { type: string }
-        - in: query
-          name: filePath
-          required: true
-          schema: { type: string }
-      responses:
-        '200':
-          description: Code complexity metrics.
-          content:
-            application/json:
+                oneOf:
+                  - $ref: '#/components/schemas/Codebase'
+                  - type: object
+                    properties:
+                      links:
+                        type: array
+                        items:
+                          type: string
+                          format: uri
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/CodeCitation'
+                  - $ref: '#/components/schemas/PaginatedCommits'
+                  - type: object
+                    properties:
+                      dependencies:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name: { type: string }
+                            version: { type: string }
+                  - type: object
+                    properties:
+                      cyclomaticComplexity: { type: integer }
+                      linesOfCode: { type: integer }
+                  - type: object
+                    properties:
+                      functions:
+                        type: array
+                        items: { type: string }
+                      classes:
+                        type: array
+                        items: { type: string }
+            text/plain:
               schema:
-                type: object
-                properties:
-                  cyclomaticComplexity: { type: integer }
-                  linesOfCode: { type: integer }
-
-  /papers/{paperId}/code/structure:
-    get:
-      tags: [Code]
-      summary: Get code structure
-      description: Lists all functions and classes within a given file.
-      parameters:
-        - in: path
-          name: paperId
-          required: true
-          schema: { type: string }
-        - in: query
-          name: filePath
-          required: true
-          schema: { type: string }
-      responses:
-        '200':
-          description: A list of functions and classes.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  functions:
-                    type: array
-                    items: { type: string }
-                  classes:
-                    type: array
-                    items: { type: string }
+                type: string
+  
 
   /users:
     post:
@@ -500,290 +393,214 @@ paths:
         '200':
           description: User's paper list updated.
 
-  # ---------------------------
-  # Chat (specialized operations)
-  # ---------------------------
 
-  /chat/qa:
+  # Consolidated chat action endpoints
+  /chat/{type}:
     post:
       tags: [Chat]
-      summary: Chat over papers and code (general Q&A)
-      description: Performs RAG Q&A, optionally scoped to a specific user's selected papers.
+      summary: Chat operations (qa, code-qa, summarize, outline, extract, citations, compare)
+      description: |
+        A consolidated endpoint for chat-related actions. Select the operation with the `type` path parameter.
+        The semantics, inputs, and outputs match the previously separated endpoints:
+        - qa: General Q&A over papers and optional code
+        - code-qa: Code-aware Q&A correlating paper and linked repository
+        - summarize: Summarize one or many papers
+        - outline: Generate a structured outline
+        - extract: Schema-guided information extraction
+        - citations: Generate formatted citations
+        - compare: Cross-paper comparison (narrative)
+      parameters:
+        - in: path
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [qa, code-qa, summarize, outline, extract, citations, compare]
+          description: The chat operation to execute.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [question]
-              properties:
-                question:
-                  type: string
-                  example: "How does the code handle data augmentation?"
-                userId:
-                  type: string
-                  description: "Optional: Scope the chat to a specific user's papers."
-                paperIds:
-                  type: array
-                  description: "Optionally restrict retrieval to these paper IDs."
-                  items: { type: string }
-                searchCode:
-                  type: boolean
-                  description: "If true, also search linked codebases."
-                  default: false
-                maxContexts:
-                  type: integer
-                  default: 8
-                  description: "Max retrieved chunks used for grounding."
-      responses:
-        '200':
-          description: Answer with citations.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/QAResponse' }
-
-  /chat/summarize:
-    post:
-      tags: [Chat]
-      summary: Summarize one or many papers
-      description: Produce hierarchical or bullet summaries at configurable granularity.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [paperIds]
-              properties:
-                paperIds:
-                  type: array
-                  items: { type: string }
-                  example: [paper123, paper456]
-                focus:
-                  type: string
-                  enum: [abstract, intro, methods, results, conclusion, full]
-                  default: full
-                style:
-                  type: string
-                  enum: [bullets, narrative, tl;dr]
-                  default: bullets
-                length:
-                  type: string
-                  enum: [short, medium, long]
-                  default: medium
-                includeCitations:
-                  type: boolean
-                  default: true
-      responses:
-        '200':
-          description: Summaries with optional citations
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
+              oneOf:
+                # qa
+                - type: object
+                  required: [question]
+                  properties:
+                    question:
+                      type: string
+                      example: "How does the code handle data augmentation?"
+                    userId:
+                      type: string
+                      description: "Optional: Scope the chat to a specific user's papers."
+                    paperIds:
+                      type: array
+                      description: "Optionally restrict retrieval to these paper IDs."
+                      items: { type: string }
+                    searchCode:
+                      type: boolean
+                      description: "If true, also search linked codebases."
+                      default: false
+                    maxContexts:
+                      type: integer
+                      default: 8
+                      description: "Max retrieved chunks used for grounding."
+                # code-qa
+                - type: object
+                  required: [question]
+                  properties:
+                    question:
+                      type: string
+                      example: "How is label smoothing implemented compared to the method section?"
+                    paperId:
+                      type: string
+                    repoPaths:
+                      type: array
+                      items: { type: string }
+                      description: "Optional file path filters within the linked repo."
+                    maxSnippets:
+                      type: integer
+                      default: 6
+                # summarize
+                - type: object
+                  required: [paperIds]
+                  properties:
+                    paperIds:
+                      type: array
+                      items: { type: string }
+                      example: [paper123, paper456]
+                    focus:
+                      type: string
+                      enum: [abstract, intro, methods, results, conclusion, full]
+                      default: full
+                    style:
+                      type: string
+                      enum: [bullets, narrative, tl;dr]
+                      default: bullets
+                    length:
+                      type: string
+                      enum: [short, medium, long]
+                      default: medium
+                    includeCitations:
+                      type: boolean
+                      default: true
+                # outline
+                - type: object
+                  properties:
+                    paperIds:
+                      type: array
+                      items: { type: string }
+                    depth:
+                      type: integer
+                      default: 2
+                      description: "Heading depth (1-3)."
+                    audience:
+                      type: string
+                      example: "graduate ML course"
+                # extract
+                - type: object
+                  required: [paperIds, schema]
+                  properties:
+                    paperIds:
+                      type: array
+                      items: { type: string }
+                    schema:
                       type: object
-                      properties:
-                        paperId: { type: string }
-                        summary: { type: string }
-                        citations:
-                          type: array
-                          items: { $ref: '#/components/schemas/PaperCitation' }
-
-  /chat/outline:
-    post:
-      tags: [Chat]
-      summary: Generate structured outlines
-      description: Returns a section/subsection outline for study notes, slides, or lectures based on given papers.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                paperIds:
-                  type: array
-                  items: { type: string }
-                depth:
-                  type: integer
-                  default: 2
-                  description: "Heading depth (1-3)."
-                audience:
-                  type: string
-                  example: "graduate ML course"
-      responses:
-        '200':
-          description: Outline
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  outline:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        heading: { type: string }
-                        level: { type: integer }
-                        children:
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              heading: { type: string }
-                              level: { type: integer }
-
-  /chat/extract:
-    post:
-      tags: [Chat]
-      summary: Schema-guided information extraction
-      description: Extract structured facts (datasets, metrics, hyperparams, claims) using a JSON schema.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [paperIds, schema]
-              properties:
-                paperIds:
-                  type: array
-                  items: { type: string }
-                schema:
-                  type: object
-                  description: "JSON Schema for expected output."
-                  example:
-                    type: object
-                    properties:
-                      datasets: { type: array, items: { type: string } }
-                      metrics: { type: array, items: { type: string } }
-                      bestResult:
+                      description: "JSON Schema for expected output."
+                      example:
                         type: object
                         properties:
-                          dataset: { type: string }
-                          value: { type: number }
-                includeCode:
-                  type: boolean
-                  default: false
-      responses:
-        '200':
-          description: Extracted structured data with citations
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                  citations:
-                    type: array
-                    items: { $ref: '#/components/schemas/PaperCitation' }
-
-  /chat/citations:
-    post:
-      tags: [Chat]
-      summary: Generate formatted citations
-      description: Return a bibliography for given papers in a target format (e.g., BibTeX, APA).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [paperIds, format]
-              properties:
-                paperIds:
-                  type: array
-                  items: { type: string }
-                format:
-                  type: string
-                  enum: [bibtex, apa, mla, chicago]
-                  example: bibtex
-      responses:
-        '200':
-          description: Formatted citations
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  entries:
-                    type: array
-                    items:
+                          datasets: { type: array, items: { type: string } }
+                          metrics: { type: array, items: { type: string } }
+                          bestResult:
+                            type: object
+                            properties:
+                              dataset: { type: string }
+                              value: { type: number }
+                    includeCode:
+                      type: boolean
+                      default: false
+                # citations
+                - type: object
+                  required: [paperIds, format]
+                  properties:
+                    paperIds:
+                      type: array
+                      items: { type: string }
+                    format:
                       type: string
-                      example: |
-                        @inproceedings{smith2021awesome,
-                          title={Awesome Paper}, author={Smith, J. and Doe, A.}, year={2021}, booktitle={NeurIPS}
-                        }
-
-  /chat/code-qa:
-    post:
-      tags: [Chat]
-      summary: Code-aware Q&A
-      description: Answer questions requiring both paper context and linked repository reasoning (cross-references included).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [question]
-              properties:
-                question:
-                  type: string
-                  example: "How is label smoothing implemented compared to the method section?"
-                paperId:
-                  type: string
-                repoPaths:
-                  type: array
-                  items: { type: string }
-                  description: "Optional file path filters within the linked repo."
-                maxSnippets:
-                  type: integer
-                  default: 6
+                      enum: [bibtex, apa, mla, chicago]
+                      example: bibtex
+                # compare
+                - type: object
+                  required: [paperIds]
+                  properties:
+                    paperIds:
+                      type: array
+                      items: { type: string }
+                      example: [paper123, paper456, paper789]
+                    includeCode:
+                      type: boolean
+                      description: "Also contrast linked codebases where available."
+                      default: true
+                    includeCitations:
+                      type: boolean
+                      description: "Include supporting citations for claims."
+                      default: true
       responses:
         '200':
-          description: Answer with paper and code citations
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/QAResponse' }
-  /chat/compare:
-    post:
-      tags: [Chat]
-      summary: General cross-paper comparison (narrative)
-      description: Compares papers across all major dimensions (methods, datasets, metrics/results, code/implementation, compute, limitations, novelty, etc.) and returns a narrative synthesis with citations.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [paperIds]
-              properties:
-                paperIds:
-                  type: array
-                  items: { type: string }
-                  example: [paper123, paper456, paper789]
-                includeCode:
-                  type: boolean
-                  description: "Also contrast linked codebases where available."
-                  default: true
-                includeCitations:
-                  type: boolean
-                  description: "Include supporting citations for claims."
-                  default: true
-      responses:
-        '200':
-          description: Narrative comparison with citations
+          description: Response varies by `type`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/QAResponse'
+                oneOf:
+                  # qa, code-qa, compare
+                  - $ref: '#/components/schemas/QAResponse'
+                  # summarize
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            paperId: { type: string }
+                            summary: { type: string }
+                            citations:
+                              type: array
+                              items: { $ref: '#/components/schemas/PaperCitation' }
+                  # outline
+                  - type: object
+                    properties:
+                      outline:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            heading: { type: string }
+                            level: { type: integer }
+                            children:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  heading: { type: string }
+                                  level: { type: integer }
+                  # extract
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                      citations:
+                        type: array
+                        items: { $ref: '#/components/schemas/PaperCitation' }
+                  # citations
+                  - type: object
+                    properties:
+                      entries:
+                        type: array
+                        items:
+                          type: string
   
   /chat/sessions:
     post:
