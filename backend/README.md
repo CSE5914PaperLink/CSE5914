@@ -33,6 +33,10 @@ poetry shell
 uvicorn app.main:app --reload
 ```
 
+
+## Database(development)
+Check Read me in dataconnect
+
 Visit:
 
 - Local API: http://127.0.0.1:8000/

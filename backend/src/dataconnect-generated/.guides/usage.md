@@ -14,35 +14,35 @@ If a user is not using a supported framework, they can use the generated SDK dir
 Here's an example of how to use it with the first 5 operations:
 
 ```js
-import { createMovie, upsertUser, addReview, deleteReview, listMovies, listUsers, listUserReviews, getMovieById, searchMovie } from '@dataconnect/generated';
+import { upsertUser, createPaper, linkCodebase, addCodeLink, createChatSession, addChatMessage, listPapers, myPapers, getPaper } from '@dataconnect/generated';
 
-
-// Operation CreateMovie:  For variables, look at type CreateMovieVars in ../index.d.ts
-const { data } = await CreateMovie(dataConnect, createMovieVars);
 
 // Operation UpsertUser:  For variables, look at type UpsertUserVars in ../index.d.ts
 const { data } = await UpsertUser(dataConnect, upsertUserVars);
 
-// Operation AddReview:  For variables, look at type AddReviewVars in ../index.d.ts
-const { data } = await AddReview(dataConnect, addReviewVars);
+// Operation CreatePaper:  For variables, look at type CreatePaperVars in ../index.d.ts
+const { data } = await CreatePaper(dataConnect, createPaperVars);
 
-// Operation DeleteReview:  For variables, look at type DeleteReviewVars in ../index.d.ts
-const { data } = await DeleteReview(dataConnect, deleteReviewVars);
+// Operation LinkCodebase:  For variables, look at type LinkCodebaseVars in ../index.d.ts
+const { data } = await LinkCodebase(dataConnect, linkCodebaseVars);
 
-// Operation ListMovies: 
-const { data } = await ListMovies(dataConnect);
+// Operation AddCodeLink:  For variables, look at type AddCodeLinkVars in ../index.d.ts
+const { data } = await AddCodeLink(dataConnect, addCodeLinkVars);
 
-// Operation ListUsers: 
-const { data } = await ListUsers(dataConnect);
+// Operation CreateChatSession:  For variables, look at type CreateChatSessionVars in ../index.d.ts
+const { data } = await CreateChatSession(dataConnect, createChatSessionVars);
 
-// Operation ListUserReviews: 
-const { data } = await ListUserReviews(dataConnect);
+// Operation AddChatMessage:  For variables, look at type AddChatMessageVars in ../index.d.ts
+const { data } = await AddChatMessage(dataConnect, addChatMessageVars);
 
-// Operation GetMovieById:  For variables, look at type GetMovieByIdVars in ../index.d.ts
-const { data } = await GetMovieById(dataConnect, getMovieByIdVars);
+// Operation ListPapers:  For variables, look at type ListPapersVars in ../index.d.ts
+const { data } = await ListPapers(dataConnect, listPapersVars);
 
-// Operation SearchMovie:  For variables, look at type SearchMovieVars in ../index.d.ts
-const { data } = await SearchMovie(dataConnect, searchMovieVars);
+// Operation MyPapers: 
+const { data } = await MyPapers(dataConnect);
+
+// Operation GetPaper:  For variables, look at type GetPaperVars in ../index.d.ts
+const { data } = await GetPaper(dataConnect, getPaperVars);
 
 
 ```

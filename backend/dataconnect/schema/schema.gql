@@ -1,52 +1,96 @@
-# Example schema for simple movie review app
 
-# User table is keyed by Firebase Auth UID.
+
+
 type User @table {
-  # `@default(expr: "auth.uid")` sets it to Firebase Auth UID during insert and upsert.
   id: String! @default(expr: "auth.uid")
-  username: String! @col(dataType: "varchar(50)")
-  # The `user: User!` field in the Review table generates the following one-to-many query field.
-  #  reviews_on_user: [Review!]!
-  # The `Review` join table the following many-to-many query field.
-  #  movies_via_Review: [Movie!]!
+  name: String @col(dataType: "varchar(100)")
+  email: String! @unique @col(dataType: "varchar(320)")
+  createdAt: Date! @default(expr: "request.time")
 }
 
-# Movie is keyed by a randomly generated UUID.
-type Movie @table {
-  # If you do not pass a 'key' to `@table`, Data Connect automatically adds the following 'id' column.
-  # Feel free to uncomment and customize it.
-  #  id: UUID! @default(expr: "uuidV4()")
+
+type Paper @table {
+  # Implicit id: UUID! Keep implicit for simplicity.
   title: String!
-  imageUrl: String!
-  genre: String
+  authors: [String!] @col(dataType: "text[]")
+  year: Int
+  abstract: String
+  citationCount: Int @default(expr: "0")
+  ingestionStatus: String @col(dataType: "varchar(16)") @default(expr: "'queued'")
+  createdAt: Date! @default(expr: "request.time")
 }
 
-# MovieMetadata is a metadata attached to a Movie.
-# Movie <-> MovieMetadata is a one-to-one relationship
-type MovieMetadata @table {
-  # @unique ensures each Movie can only one MovieMetadata.
-  movie: Movie! @unique
-  # The movie field adds the following foreign key field. Feel free to uncomment and customize it.
-  #  movieId: UUID!
-  rating: Float
-  releaseYear: Int
-  description: String
+
+# Codebase linked to a paper. One-to-one relationship to Paper.
+type Codebase @table {
+  paper: Paper @unique
+  repositoryUrl: String! @unique
+  isLinked: Boolean! @default(expr: "false")
+  lastSyncedAt: Date
 }
 
-# Reviews is a join table between User and Movie.
-# It has a composite primary keys `userUid` and `movieId`.
-# A user can leave reviews for many movies. A movie can have reviews from many users.
-# User  <-> Review is a one-to-many relationship
-# Movie <-> Review is a one-to-many relationship
-# Movie <-> User is a many-to-many relationship
-type Review @table(name: "Reviews", key: ["movie", "user"]) {
+
+type FileNode @table {
+  # Implicit id (UUID) added by Data Connect
+  codebase: Codebase!
+  parent: FileNode
+  name: String!
+  path: String!
+  nodeType: String! @col(dataType: "varchar(16)") # 'file' or 'directory'
+}
+
+# Commits associated with a Codebase.
+type Commit @table {
+  codebase: Codebase!
+  sha: String! @unique @col(dataType: "varchar(64)")
+  message: String
+  author: String @col(dataType: "varchar(200)")
+  date: Date! @default(expr: "request.time")
+}
+
+# GitHub links extracted from paper text.
+type CodeLink @table(name: "CodeLinks", key: ["paper", "url"]) {
+  paper: Paper!
+  url: String!
+}
+
+# Many-to-many join of Users and Papers they curate.
+type UserPaper @table(name: "UserPapers", key: ["user", "paper"]) {
   user: User!
-  # The user field adds the following foreign key field. Feel free to uncomment and customize it.
-  #  userUid: String!
-  movie: Movie!
-  # The movie field adds the following foreign key field. Feel free to uncomment and customize it.
-  #  movieId: UUID!
-  rating: Int
-  reviewText: String
-  reviewDate: Date! @default(expr: "request.time")
+  paper: Paper!
 }
+
+
+# Chat session containing multiple messages, scoped to a user.
+type ChatSession @table {
+  # Implicit id: UUID!
+  user: User!
+  title: String @col(dataType: "varchar(200)")
+  createdAt: Date! @default(expr: "request.time")
+  updatedAt: Date! @default(expr: "request.time")
+}
+
+# Messages in a chat session. Role is 'user' or 'assistant'.
+type ChatMessage @table {
+  session: ChatSession!
+  role: String! @col(dataType: "varchar(16)")
+  content: String!
+  createdAt: Date! @default(expr: "request.time")
+}
+
+
+
+
+type DiscoveredPaper @table(name: "DiscoveredPapers", key: ["source", "externalId"]) {
+  source: String! @col(dataType: "varchar(16)") 
+  externalId: String! @col(dataType: "varchar(128)")
+  title: String!
+  authors: [String!] @col(dataType: "text[]")
+  year: Int
+  abstract: String
+  relevanceScore: Float
+  matchType: String @col(dataType: "varchar(16)") # keyword | semantic | both
+  query: String
+  createdAt: Date! @default(expr: "request.time")
+}
+

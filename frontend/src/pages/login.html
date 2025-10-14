@@ -32,16 +32,10 @@
       </div>
     </div>
 
+    <script src="/env.js"></script>
     <script>
-      // TODO: Replace with your actual Firebase configuration
-      const firebaseConfig = {
-        apiKey: "your-api-key",
-        authDomain: "your-project.firebaseapp.com",
-        projectId: "your-project-id",
-        storageBucket: "your-project.appspot.com",
-        messagingSenderId: "123456789",
-        appId: "your-app-id"
-      };
+      // Read Firebase public config from window.__ENV__ served by the backend
+      const firebaseConfig = window.__ENV__ || {};
 
       // Initialize Firebase
       firebase.initializeApp(firebaseConfig);
@@ -79,7 +73,7 @@
       };
 
       // Initialize the FirebaseUI Widget using Firebase
-      const ui = new firebaseui.auth.AuthUI(firebase.auth());
+  const ui = new firebaseui.auth.AuthUI(firebase.auth());
 
       // Start the UI
       ui.start('#firebaseui-auth-container', uiConfig);

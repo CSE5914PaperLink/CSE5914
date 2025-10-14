@@ -6,17 +6,6 @@ export const connectorConfig = {
   location: 'us-east1'
 };
 
-export const createMovieRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'CreateMovie', inputVars);
-}
-createMovieRef.operationName = 'CreateMovie';
-
-export function createMovie(dcOrVars, vars) {
-  return executeMutation(createMovieRef(dcOrVars, vars));
-}
-
 export const upsertUserRef = (dcOrVars, vars) => {
   const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
   dcInstance._useGeneratedSdk();
@@ -28,80 +17,91 @@ export function upsertUser(dcOrVars, vars) {
   return executeMutation(upsertUserRef(dcOrVars, vars));
 }
 
-export const addReviewRef = (dcOrVars, vars) => {
+export const createPaperRef = (dcOrVars, vars) => {
   const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
   dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'AddReview', inputVars);
+  return mutationRef(dcInstance, 'CreatePaper', inputVars);
 }
-addReviewRef.operationName = 'AddReview';
+createPaperRef.operationName = 'CreatePaper';
 
-export function addReview(dcOrVars, vars) {
-  return executeMutation(addReviewRef(dcOrVars, vars));
+export function createPaper(dcOrVars, vars) {
+  return executeMutation(createPaperRef(dcOrVars, vars));
 }
 
-export const deleteReviewRef = (dcOrVars, vars) => {
+export const linkCodebaseRef = (dcOrVars, vars) => {
   const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
   dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'DeleteReview', inputVars);
+  return mutationRef(dcInstance, 'LinkCodebase', inputVars);
 }
-deleteReviewRef.operationName = 'DeleteReview';
+linkCodebaseRef.operationName = 'LinkCodebase';
 
-export function deleteReview(dcOrVars, vars) {
-  return executeMutation(deleteReviewRef(dcOrVars, vars));
-}
-
-export const listMoviesRef = (dc) => {
-  const { dc: dcInstance} = validateArgs(connectorConfig, dc, undefined);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'ListMovies');
-}
-listMoviesRef.operationName = 'ListMovies';
-
-export function listMovies(dc) {
-  return executeQuery(listMoviesRef(dc));
+export function linkCodebase(dcOrVars, vars) {
+  return executeMutation(linkCodebaseRef(dcOrVars, vars));
 }
 
-export const listUsersRef = (dc) => {
-  const { dc: dcInstance} = validateArgs(connectorConfig, dc, undefined);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'ListUsers');
-}
-listUsersRef.operationName = 'ListUsers';
-
-export function listUsers(dc) {
-  return executeQuery(listUsersRef(dc));
-}
-
-export const listUserReviewsRef = (dc) => {
-  const { dc: dcInstance} = validateArgs(connectorConfig, dc, undefined);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'ListUserReviews');
-}
-listUserReviewsRef.operationName = 'ListUserReviews';
-
-export function listUserReviews(dc) {
-  return executeQuery(listUserReviewsRef(dc));
-}
-
-export const getMovieByIdRef = (dcOrVars, vars) => {
+export const addCodeLinkRef = (dcOrVars, vars) => {
   const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
   dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'GetMovieById', inputVars);
+  return mutationRef(dcInstance, 'AddCodeLink', inputVars);
 }
-getMovieByIdRef.operationName = 'GetMovieById';
+addCodeLinkRef.operationName = 'AddCodeLink';
 
-export function getMovieById(dcOrVars, vars) {
-  return executeQuery(getMovieByIdRef(dcOrVars, vars));
+export function addCodeLink(dcOrVars, vars) {
+  return executeMutation(addCodeLinkRef(dcOrVars, vars));
 }
 
-export const searchMovieRef = (dcOrVars, vars) => {
+export const createChatSessionRef = (dcOrVars, vars) => {
   const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars);
   dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'SearchMovie', inputVars);
+  return mutationRef(dcInstance, 'CreateChatSession', inputVars);
 }
-searchMovieRef.operationName = 'SearchMovie';
+createChatSessionRef.operationName = 'CreateChatSession';
 
-export function searchMovie(dcOrVars, vars) {
-  return executeQuery(searchMovieRef(dcOrVars, vars));
+export function createChatSession(dcOrVars, vars) {
+  return executeMutation(createChatSessionRef(dcOrVars, vars));
+}
+
+export const addChatMessageRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'AddChatMessage', inputVars);
+}
+addChatMessageRef.operationName = 'AddChatMessage';
+
+export function addChatMessage(dcOrVars, vars) {
+  return executeMutation(addChatMessageRef(dcOrVars, vars));
+}
+
+export const listPapersRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'ListPapers', inputVars);
+}
+listPapersRef.operationName = 'ListPapers';
+
+export function listPapers(dcOrVars, vars) {
+  return executeQuery(listPapersRef(dcOrVars, vars));
+}
+
+export const myPapersRef = (dc) => {
+  const { dc: dcInstance} = validateArgs(connectorConfig, dc, undefined);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'MyPapers');
+}
+myPapersRef.operationName = 'MyPapers';
+
+export function myPapers(dc) {
+  return executeQuery(myPapersRef(dc));
+}
+
+export const getPaperRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'GetPaper', inputVars);
+}
+getPaperRef.operationName = 'GetPaper';
+
+export function getPaper(dcOrVars, vars) {
+  return executeQuery(getPaperRef(dcOrVars, vars));
 }
 
