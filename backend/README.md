@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Python 3.11 (matches `.python-version` and `pyproject.toml`)
+- Python 3.13 (matches `.python-version` and `pyproject.toml`)
 - Poetry (dependency and environment manager)
 
 ```bash
