@@ -166,7 +166,6 @@ async def extract_pdf(openalex_id: str, url: Optional[str] = None):
             meta = svc.extract_from_url(arxiv_url)
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Docling error: {e}")
-        print(meta.markdown)
         return JSONResponse(
             {
                 "source_url": arxiv_url,

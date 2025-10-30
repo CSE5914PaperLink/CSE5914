@@ -74,7 +74,14 @@ async def search_arxiv(
 @router.get("/download/{arxiv_id}")
 async def download_arxiv_pdf(arxiv_id: str, version: Optional[str] = None):
     # arXiv PDFs follow https://arxiv.org/pdf/<id>.pdf. Version can be appended like 2101.00001v2
-    pdf_id = f"{arxiv_id}{'' if (version or '').startswith('v') or not version else 'v'+version}"
+    if version:
+        if version.startswith("v"):
+            pdf_id = f"{arxiv_id}{version}"
+        else:
+            pdf_id = f"{arxiv_id}v{version}"
+    else:
+        pdf_id = arxiv_id
+
     pdf_url = f"https://arxiv.org/pdf/{pdf_id}.pdf"
 
     async with httpx.AsyncClient(

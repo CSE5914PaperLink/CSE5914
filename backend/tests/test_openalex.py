@@ -65,7 +65,7 @@ def test_extract_pdf_arxiv_success(monkeypatch):
         "biblio": {"first_page": "1", "last_page": "18"},
         "locations": [
             {
-                "pdf_url": "https://arxiv.org/pdf/2203.17270",  # no .pdf to test normalization
+                "pdf_url": "https://arxiv.org/pdf/2203.17270",
                 "landing_page_url": "https://arxiv.org/abs/2203.17270",
                 "source": {"id": "https://openalex.org/S4306400194"},
             }
