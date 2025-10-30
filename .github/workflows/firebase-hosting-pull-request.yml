@@ -13,9 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy Firebase from backend
+      - name: Move Firebase config from backend to root
         run: |
-          cd backend
-          npx firebase deploy --only hosting
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PRAXIS_WALL_474823_V4 }}
+          cp backend/firebase.json .
+          cp backend/.firebaserc .
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PRAXIS_WALL_474823_V4 }}
+          projectId: praxis-wall-474823-v4
