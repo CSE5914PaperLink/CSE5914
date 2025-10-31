@@ -3,20 +3,6 @@ import Link from "next/link";
 export default function DocsPage() {
   return (
     <div className="bg-gray-50 font-sans min-h-screen">
-      <nav className="bg-blue-700 text-white p-4">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <h1 className="text-xl font-bold">CS Paper Compare - API Docs</h1>
-          <div className="space-x-4">
-            <Link href="/" className="hover:underline">
-              Home
-            </Link>
-            <Link href="/app" className="hover:underline">
-              Dashboard
-            </Link>
-          </div>
-        </div>
-      </nav>
-
       <div className="max-w-4xl mx-auto py-8 px-4">
         <div className="bg-white rounded-lg shadow p-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-6">

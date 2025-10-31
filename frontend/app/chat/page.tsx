@@ -1,6 +1,4 @@
 "use client";
-
-import Link from "next/link";
 import { useRef, useState } from "react";
 
 type Feature = "search" | "papers" | "analyze" | null;
@@ -14,8 +12,8 @@ export default function ChatPage() {
   >([
     {
       id: "intro",
-      text: "AI responses are coming soon! You can send messages and they will be displayed.",
-      sender: "system",
+      text: "Hello! I'm your AI research assistant powered by Gemini. How can I help you today?",
+      sender: "ai",
     },
   ]);
   const chatRef = useRef<HTMLDivElement | null>(null);
@@ -36,10 +34,11 @@ export default function ChatPage() {
     );
   };
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed) return;
+
     const labels = {
       search: "Search Papers",
       papers: "My Papers",
@@ -49,38 +48,59 @@ export default function ChatPage() {
     addMessage(display, "user");
     setInput("");
     setTyping(true);
-    setTimeout(() => {
+
+    try {
+      // Build system instruction based on active feature
+      let systemInstruction =
+        "You are a helpful AI assistant for researchers working with computer science papers.";
+      if (active === "search") {
+        systemInstruction +=
+          " You help users discover and search for research papers.";
+      } else if (active === "papers") {
+        systemInstruction += " You help users manage their paper collections.";
+      } else if (active === "analyze") {
+        systemInstruction +=
+          " You help users compare and analyze research papers.";
+      }
+
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: trimmed,
+          system: systemInstruction,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || "Failed to get response");
+      }
+
+      const data = await response.json();
+      const aiResponse =
+        data.content || "Sorry, I couldn't generate a response.";
+
       setTyping(false);
-      const feats = {
-        search: "paper search",
-        papers: "paper management",
-        analyze: "paper analysis",
-      } as const;
+      addMessage(aiResponse, "ai");
+    } catch (error) {
+      setTyping(false);
       addMessage(
-        active
-          ? `AI responses for ${feats[active]} are not yet implemented. Your message has been received!`
-          : "AI responses are not yet implemented. Your message has been received!",
-        "ai"
+        `Error: ${
+          error instanceof Error ? error.message : "Failed to get AI response"
+        }`,
+        "system"
       );
-    }, 2000);
+    }
   };
 
   return (
     <div className="bg-gray-100 h-screen flex flex-col">
-      <nav className="bg-blue-700 text-white p-4">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <h1 className="text-xl font-bold">CS Paper Compare - Chat</h1>
-          <div className="space-x-4">
-            <Link href="/app" className="hover:underline">
-              Dashboard
-            </Link>
-            <Link href="/login" className="hover:underline">
-              Login
-            </Link>
-          </div>
-        </div>
-      </nav>
-
       <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full p-4">
         <div
           ref={chatRef}
@@ -89,13 +109,9 @@ export default function ChatPage() {
         >
           <div className="text-center text-gray-500 py-8">
             <h2 className="text-2xl font-semibold mb-2">AI Chat Interface</h2>
-            <p className="mb-4">
-              Ask questions about your research papers and codebases
-            </p>
-            <div className="bg-yellow-100 border border-yellow-300 rounded p-3 inline-block">
-              <p className="text-yellow-800 text-sm">
-                🚧 AI responses are coming soon! You can send messages and they
-                will be displayed.
+            <div className="bg-blue-50 border border-blue-200 rounded p-3 inline-block">
+              <p className="text-blue-800 text-sm">
+                Ask me anything about research papers!
               </p>
             </div>
           </div>
@@ -112,10 +128,10 @@ export default function ChatPage() {
                 <div
                   className={
                     m.sender === "user"
-                      ? "bg-blue-600 text-white rounded-lg px-4 py-2 max-w-xs wrap-break-word"
+                      ? "bg-blue-600 text-white rounded-lg px-4 py-2 max-w-md wrap-break-word"
                       : m.sender === "system"
                       ? "bg-yellow-100 text-yellow-800 rounded-lg px-4 py-2 max-w-md text-center text-sm mx-auto"
-                      : "bg-gray-200 text-gray-800 rounded-lg px-4 py-2 max-w-xs wrap-break-word"
+                      : "bg-gray-200 text-gray-800 rounded-lg px-4 py-2 max-w-md wrap-break-word whitespace-pre-wrap"
                   }
                 >
                   {m.text}
@@ -226,7 +242,7 @@ export default function ChatPage() {
                       }...`
                     : "Type your message here..."
                 }
-                className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                className="text-black flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
                 required
               />
               <button
@@ -238,8 +254,8 @@ export default function ChatPage() {
             </div>
           </form>
           <p className="text-xs text-gray-500 mt-2">
-            Click feature icons to set context. Messages will be displayed but
-            AI responses are not yet implemented.
+            Click feature icons to set context for specialized assistance.
+            Powered by Google Gemini.
           </p>
         </div>
       </div>
