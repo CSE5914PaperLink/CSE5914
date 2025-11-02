@@ -1,2 +1,0 @@
-# firebase api components
-FIREBASE_API_KEY=
