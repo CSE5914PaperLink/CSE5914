@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export default function Navbar() {
   return (
@@ -38,10 +39,13 @@ export default function Navbar() {
             href="/login"
             className="bg-white text-blue-700 px-5 py-2 rounded-lg font-semibold shadow-sm hover:bg-blue-50 transition-all duration-200"
           >
+            {/* keep the login page link as a fallback for non-js or separate auth page */}
             Login
           </Link>
+          {/* Auth UI moved to /login page; keep the Login link as entrypoint */}
         </div>
       </div>
     </nav>
   );
 }
+// No client-side auth UI here — it's provided on /login
