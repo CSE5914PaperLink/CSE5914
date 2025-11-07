@@ -1,17 +1,15 @@
 "use client";
-import { ChatMessage, Citation } from "./types";
+import { ChatMessage } from "./types";
 import { RefObject } from "react";
 
 export function Messages({
   messages,
   typing,
   chatRef,
-  onCitationClick,
 }: {
   messages: ChatMessage[];
   typing: boolean;
   chatRef: RefObject<HTMLDivElement | null>;
-  onCitationClick: (citation: Citation) => void;
 }) {
   return (
     <div
@@ -41,38 +39,7 @@ export function Messages({
                     : "bg-neutral-100 text-neutral-900 rounded-2xl px-4 py-2 max-w-prose whitespace-pre-wrap"
                 }
               >
-                <div>{m.text}</div>
-                {m.sender === "ai" &&
-                  Array.isArray(m.citations) &&
-                  m.citations.length > 0 && (
-                    <div className="mt-3 space-y-2 text-xs text-neutral-700">
-                      {m.citations.map((citation, idx) => (
-                        <div
-                          key={`${m.id}-citation-${citation.id ?? idx}`}
-                          className="border-l-2 border-neutral-300 pl-3"
-                        >
-                          <button
-                            type="button"
-                            className="text-blue-600 font-medium hover:underline"
-                            onClick={() => onCitationClick(citation)}
-                          >
-                            Source {idx + 1}:{" "}
-                            {citation.title || citation.docId || "Document"}
-                          </button>
-                          {citation.pages && citation.pages.length > 0 && (
-                            <div className="text-[11px] text-neutral-500">
-                              Pages {citation.pages.slice(0, 4).join(", ")}
-                            </div>
-                          )}
-                          {citation.snippet && (
-                            <p className="mt-1 text-neutral-500">
-                              {citation.snippet}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                {m.text}
               </div>
             </div>
           ))}

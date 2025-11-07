@@ -14,29 +14,8 @@ export type LibraryItem = {
   document?: string | null;
 };
 
-export type Citation = {
-  id: string;
-  docId: string;
-  title?: string;
-  heading?: string | null;
-  pages?: number[];
-  snippet?: string;
-  pdfUrl?: string | null;
-  chunkIndex?: number;
-  score?: number | null;
-};
-
-export type HighlightRequest = {
-  requestId: string;
-  docId: string;
-  chunkId?: string;
-  snippet?: string;
-  pageNumber?: number;
-};
-
 export type ChatMessage = {
   id: string;
   text: string;
   sender: "user" | "ai" | "system";
-  citations?: Citation[];
 };

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import tempfile
-from dataclasses import dataclass, field
-from typing import Any, List, Optional, Sequence, Set
+from dataclasses import dataclass
+from typing import Any, Optional
 
 from docling.document_converter import DocumentConverter
-from docling.chunking import HierarchicalChunker
 
 
 @dataclass
@@ -15,17 +14,6 @@ class DoclingMetadata:
     """
 
     markdown: Optional[str] = None
-    chunks: List["DocChunkMetadata"] = field(default_factory=list)
-
-
-@dataclass
-class DocChunkMetadata:
-    """Lightweight chunk metadata for downstream retrieval/highlighting."""
-
-    index: int
-    text: str
-    headings: Sequence[str]
-    page_numbers: Sequence[int]
 
 
 class DoclingService:
@@ -41,7 +29,6 @@ class DoclingService:
 
     def __init__(self) -> None:
         self._converter = DocumentConverter()
-        self._chunker = HierarchicalChunker()
 
     def extract_from_url(self, url: str) -> DoclingMetadata:
         result = self._converter.convert(url)
@@ -66,51 +53,5 @@ class DoclingService:
 
         meta = DoclingMetadata()
         meta.markdown = markdown
-        try:
-            meta.chunks = self._extract_chunks(doc)
-        except Exception:
-            meta.chunks = []
 
         return meta
-
-    def _extract_chunks(self, doc: Any) -> List[DocChunkMetadata]:
-        chunk_infos: List[DocChunkMetadata] = []
-        for idx, chunk in enumerate(self._chunker.chunk(doc)):
-            text = (chunk.text or "").strip()
-            if not text:
-                continue
-            headings: Sequence[str] = [
-                h.strip()
-                for h in (getattr(chunk.meta, "headings", None) or [])
-                if isinstance(h, str) and h.strip()
-            ]
-            pages: Set[int] = set()
-            for item in getattr(chunk.meta, "doc_items", []) or []:
-                for prov in getattr(item, "prov", []) or []:
-                    page_no = getattr(prov, "page_no", None)
-                    if page_no is None:
-                        continue
-                    try:
-                        pages.add(int(page_no) + 1)
-                    except (ValueError, TypeError):
-                        continue
-            chunk_infos.append(
-                DocChunkMetadata(
-                    index=idx,
-                    text=text,
-                    headings=headings,
-                    page_numbers=sorted(pages),
-                )
-            )
-        if not chunk_infos and doc is not None:
-            fallback_text = getattr(doc, "export_to_text", lambda: "")()
-            if fallback_text.strip():
-                chunk_infos.append(
-                    DocChunkMetadata(
-                        index=0,
-                        text=fallback_text.strip(),
-                        headings=[],
-                        page_numbers=[],
-                    )
-                )
-        return chunk_infos

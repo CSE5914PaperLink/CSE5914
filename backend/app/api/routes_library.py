@@ -84,22 +84,15 @@ async def add_arxiv(arxiv_id: str):
 @router.get("/list")
 def list_library(limit: int = 50, offset: int = 0):
     chroma = ChromaService()
+    # Chroma doesn't have simple list; use where filter hack by querying all with empty where
+    # We'll store ids by doing a range over collection count (not exposed). Instead, rely on get with 'include'.
+    # Workaround: use .get with no ids returns all (may be heavy). Limit manually.
     data = chroma.collection.get(
-        where={"kind": "doc"},
-        include=["metadatas", "documents"],
-        limit=limit,
-        offset=offset,
+        include=["metadatas", "documents"], limit=limit, offset=offset
     )
-    if not data.get("ids"):
-        data = chroma.collection.get(
-            include=["metadatas", "documents"], limit=limit, offset=offset
-        )
     results = []
     for i, _id in enumerate(data.get("ids", [])):
         md = (data.get("metadatas") or [{}])[i] or {}
-        kind = md.get("kind")
-        if kind and kind != "doc":
-            continue
         doc = (data.get("documents") or [None])[i]
         results.append(
             {
@@ -147,10 +140,6 @@ def delete_item(doc_id: str):
     chroma = ChromaService()
     try:
         chroma.delete([doc_id])
-        try:
-            chroma.collection.delete(where={"root_id": doc_id})
-        except Exception:
-            pass
         return JSONResponse({"status": "deleted", "id": doc_id})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

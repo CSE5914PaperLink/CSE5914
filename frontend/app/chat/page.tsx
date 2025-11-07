@@ -4,99 +4,7 @@ import { Sidebar } from "@/components/chat/Sidebar";
 import { Messages } from "@/components/chat/Messages";
 import { InputForm, type Feature } from "@/components/chat/InputForm";
 import { PdfViewer } from "@/components/chat/PdfViewer";
-import type {
-  ChatMessage,
-  LibraryItem,
-  Citation,
-  HighlightRequest,
-} from "@/components/chat/types";
-
-const coerceNumberArray = (value: unknown): number[] => {
-  if (Array.isArray(value)) {
-    return value
-      .map((entry) => {
-        if (typeof entry === "number" && Number.isFinite(entry)) {
-          return entry;
-        }
-        if (typeof entry === "string") {
-          const parsed = Number(entry);
-          return Number.isFinite(parsed) ? parsed : null;
-        }
-        if (typeof entry === "boolean") {
-          return entry ? 1 : 0;
-        }
-        return null;
-      })
-      .filter((entry): entry is number => entry !== null);
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return [value];
-  }
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return coerceNumberArray(parsed);
-    } catch {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? [parsed] : [];
-    }
-  }
-  return [];
-};
-
-const normalizeCitations = (raw: unknown): Citation[] => {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const payload = item as Record<string, unknown>;
-      const id =
-        typeof payload.id === "string"
-          ? payload.id
-          : typeof payload.chunk_id === "string"
-          ? payload.chunk_id
-          : undefined;
-      const docId =
-        typeof payload.doc_id === "string"
-          ? payload.doc_id
-          : typeof payload.docId === "string"
-          ? payload.docId
-          : undefined;
-      if (!id || !docId) return null;
-      const pages = coerceNumberArray(
-        payload.pages ?? payload.page_numbers ?? payload.pageNumbers
-      );
-      return {
-        id,
-        docId,
-        title: typeof payload.title === "string" ? payload.title : undefined,
-        heading:
-          typeof payload.heading === "string" ? payload.heading : undefined,
-        snippet:
-          typeof payload.snippet === "string" ? payload.snippet : undefined,
-        pdfUrl:
-          typeof payload.pdf_url === "string"
-            ? payload.pdf_url
-            : typeof payload.pdfUrl === "string"
-            ? payload.pdfUrl
-            : undefined,
-        chunkIndex:
-          typeof payload.chunk_index === "number"
-            ? payload.chunk_index
-            : typeof payload.chunkIndex === "number"
-            ? payload.chunkIndex
-            : undefined,
-        score:
-          typeof payload.score === "number"
-            ? payload.score
-            : typeof payload.distance === "number"
-            ? payload.distance
-            : undefined,
-        pages: pages.length > 0 ? pages : undefined,
-      };
-    })
-    .filter((item): item is Citation => Boolean(item));
-};
+import type { ChatMessage, LibraryItem } from "@/components/chat/types";
 
 export default function ChatPage() {
   // Split ratio for chat/pdf (0..1). Sidebar stays auto.
@@ -124,15 +32,12 @@ export default function ChatPage() {
       id: "intro",
       text: "Hello! I'm your AI research assistant powered by Gemini. How can I help you today?",
       sender: "ai",
-      citations: [],
     },
   ]);
   const chatRef = useRef<HTMLDivElement | null>(null);
   const [library, setLibrary] = useState<LibraryItem[]>([]);
 
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
-  const [highlightRequest, setHighlightRequest] =
-    useState<HighlightRequest | null>(null);
 
   useEffect(() => {
     // fetch user's library
@@ -151,56 +56,20 @@ export default function ChatPage() {
     };
   }, []);
 
-  const addMessage = (
-    message: Omit<ChatMessage, "id"> & { id?: string }
-  ) => {
-    const finalMessage: ChatMessage = {
-      id: message.id ?? crypto.randomUUID(),
-      text: message.text,
-      sender: message.sender,
-      citations: message.citations ?? [],
-    };
-    setMessages((m) => [...m, finalMessage]);
+  const addMessage = (text: string, sender: "user" | "ai" | "system") => {
+    setMessages((m) => [...m, { id: crypto.randomUUID(), text, sender }]);
     setTimeout(() => {
       if (chatRef.current)
         chatRef.current.scrollTop = chatRef.current.scrollHeight;
     });
   };
 
-  const handleCitationClick = (citation: Citation) => {
-    if (!citation.docId) return;
-    const docExists = library.some((item) => item.id === citation.docId);
-    if (!docExists) {
-      addMessage({
-        text: `Unable to locate ${citation.title || citation.docId} in your library to highlight the PDF.`,
-        sender: "system",
-      });
-      return;
-    }
-    setSelectedDocs((prev) => {
-      if (prev.has(citation.docId)) return prev;
-      const next = new Set(prev);
-      next.add(citation.docId);
-      return next;
-    });
-    setHighlightRequest({
-      requestId: crypto.randomUUID(),
-      docId: citation.docId,
-      chunkId: citation.id,
-      snippet: citation.snippet,
-      pageNumber:
-        citation.pages && citation.pages.length > 0
-          ? Math.max(1, citation.pages[0])
-          : undefined,
-    });
-  };
-
   const onFeature = (f: Exclude<Feature, null>, name: string) => {
     setActive(f);
-    addMessage({
-      text: `Switched to ${name} mode. You can now ask questions related to this feature.`,
-      sender: "system",
-    });
+    addMessage(
+      `Switched to ${name} mode. You can now ask questions related to this feature.`,
+      "system"
+    );
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -216,7 +85,7 @@ export default function ChatPage() {
     const display = active
       ? `[${labels[active as Exclude<Feature, null>]}] ${trimmed}`
       : trimmed;
-    addMessage({ text: display, sender: "user" });
+    addMessage(display, "user");
     setInput("");
     setTyping(true);
 
@@ -259,18 +128,17 @@ export default function ChatPage() {
       const data = await response.json();
       const aiResponse =
         data.content || "Sorry, I couldn't generate a response.";
-      const citations = normalizeCitations(data.citations);
 
       setTyping(false);
-      addMessage({ text: aiResponse, sender: "ai", citations });
+      addMessage(aiResponse, "ai");
     } catch (error) {
       setTyping(false);
-      addMessage({
-        text: `Error: ${
+      addMessage(
+        `Error: ${
           error instanceof Error ? error.message : "Failed to get AI response"
         }`,
-        sender: "system",
-      });
+        "system"
+      );
     }
   };
   // Compute Navbar height at runtime so the chat area can exactly fill the
@@ -338,12 +206,12 @@ export default function ChatPage() {
                 );
                 if (!res.ok) {
                   const err = await res.json().catch(() => ({}));
-                  addMessage({
-                    text: `Error deleting ${title}: ${
+                  addMessage(
+                    `Error deleting ${title}: ${
                       err.error || res.statusText
-                    }`,
-                    sender: "system",
-                  });
+                    }` as string,
+                    "system"
+                  );
                   return;
                 }
                 setLibrary((prev) => prev.filter((x) => x.id !== id));
@@ -355,21 +223,13 @@ export default function ChatPage() {
               } catch (err) {
                 const msg =
                   err instanceof Error ? err.message : "Unknown error";
-                addMessage({
-                  text: `Error deleting ${title}: ${msg}`,
-                  sender: "system",
-                });
+                addMessage(`Error deleting ${title}: ${msg}`, "system");
               }
             }}
           />
 
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
-            <Messages
-              messages={messages}
-              typing={typing}
-              chatRef={chatRef}
-              onCitationClick={handleCitationClick}
-            />
+            <Messages messages={messages} typing={typing} chatRef={chatRef} />
             <InputForm
               active={active}
               input={input}
@@ -429,11 +289,7 @@ export default function ChatPage() {
             }}
           />
 
-          <PdfViewer
-            selectedIds={Array.from(selectedDocs)}
-            library={library}
-            highlight={highlightRequest}
-          />
+          <PdfViewer selectedIds={Array.from(selectedDocs)} library={library} />
         </div>
       </div>
     </div>
