@@ -1,11 +1,11 @@
 import { initializeApp, getApps } from "firebase/app";
+import type { User } from "firebase/auth";
 import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
   onAuthStateChanged,
-  User,
 } from "firebase/auth";
 
 const firebaseConfig = {
@@ -17,20 +17,27 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-function initFirebaseApp() {
-  // Prevent re-initializing in dev/hot-reload
+function initFirebaseAppClientSide() {
+  // Only initialize Firebase in the browser to avoid running during SSR/prerender
+  if (typeof window === "undefined") return;
   if (!getApps().length) {
     initializeApp(firebaseConfig as any);
   }
 }
 
-initFirebaseApp();
-
-const auth = getAuth();
+function getClientAuth() {
+  initFirebaseAppClientSide();
+  return getAuth();
+}
 
 export async function signInWithGoogle(): Promise<"success" | "error"> {
   try {
+    if (typeof window === "undefined") {
+      console.warn("signInWithGoogle called on server — ignoring");
+      return "error";
+    }
     const provider = new GoogleAuthProvider();
+    const auth = getClientAuth();
     await signInWithPopup(auth, provider);
     return "success";
   } catch (e) {
@@ -41,6 +48,8 @@ export async function signInWithGoogle(): Promise<"success" | "error"> {
 
 export async function signOutUser(): Promise<void> {
   try {
+    if (typeof window === "undefined") return;
+    const auth = getClientAuth();
     await signOut(auth);
   } catch (e) {
     console.error("Firebase sign out error", e);
@@ -50,7 +59,13 @@ export async function signOutUser(): Promise<void> {
 export function onAuthStateChangedListener(
   callback: (user: User | null) => void
 ) {
+  if (typeof window === "undefined") {
+    // During SSR there's no auth — return a noop unsubscribe
+    return () => {};
+  }
+  const auth = getClientAuth();
   return onAuthStateChanged(auth, callback);
 }
 
-export { auth };
+// Note: we intentionally do not export a global `auth` instance because
+// initializing it during module evaluation can cause errors during SSR/prerender
