@@ -111,6 +111,36 @@ def list_library(limit: int = 50, offset: int = 0):
     return JSONResponse({"results": results, "count": len(results)})
 
 
+@router.get("/chunks/{doc_id}")
+def list_chunks(doc_id: str, limit: int = 200, offset: int = 0):
+    """List chunk vectors for a given root document id."""
+    chroma = ChromaService()
+    try:
+        data = chroma.collection.get(
+            where={"kind": "chunk", "root_id": doc_id},
+            include=["metadatas", "documents"],
+            limit=limit,
+            offset=offset,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    results = []
+    for i, _id in enumerate(data.get("ids", [])):
+        md = (data.get("metadatas") or [{}])[i] or {}
+        if md.get("kind") != "chunk":
+            continue
+        doc = (data.get("documents") or [None])[i]
+        results.append(
+            {
+                "id": _id,
+                "metadata": md,
+                "document": doc,
+            }
+        )
+    return JSONResponse({"results": results, "count": len(results)})
+
+
 @router.delete("/delete/{doc_id}")
 def delete_item(doc_id: str):
     """Delete a paper/vector by its id in the Chroma collection."""

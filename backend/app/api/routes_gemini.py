@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Mapping
 
 from google import genai
 from google.genai import types
@@ -136,9 +136,7 @@ async def chat_rag(
         query_embedding: Optional[List[float]] = None
         try:
             embedder = GeminiEmbeddingService()
-            embeddings = embedder.embed_texts(
-                [prompt], task_type="retrieval_query"
-            )
+            embeddings = embedder.embed_texts([prompt], task_type="retrieval_query")
             if embeddings:
                 query_embedding = embeddings[0]
         except Exception:
@@ -146,7 +144,7 @@ async def chat_rag(
 
         if query_embedding is not None:
             try:
-                where_filter = {
+                where_filter: Mapping[str, Any] = {
                     "$and": [
                         {"kind": {"$eq": "chunk"}},
                         {"root_id": {"$in": doc_ids}},
@@ -236,17 +234,18 @@ async def chat_rag(
                 citations.append(
                     {
                         "id": match.get("chunk_id"),
-                        "doc_id": root_id,
+                        "docId": root_id,
                         "title": title,
                         "pages": pages,
+                        "pageNumber": pages[0] if pages else None,
                         "heading": headings[-1] if headings else None,
                         "snippet": (
                             snippet
                             if len(snippet) <= MAX_CITATION_SNIPPET_CHARS
                             else snippet[:MAX_CITATION_SNIPPET_CHARS] + "..."
                         ),
-                        "pdf_url": metadata.get("pdf_url"),
-                        "chunk_index": metadata.get("chunk_index"),
+                        "pdfUrl": metadata.get("pdf_url"),
+                        "chunkIndex": metadata.get("chunk_index"),
                         "score": match.get("distance"),
                     }
                 )
