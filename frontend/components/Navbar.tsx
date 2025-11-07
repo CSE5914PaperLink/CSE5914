@@ -5,7 +5,7 @@ import Link from "next/link";
 export default function Navbar() {
   return (
     <nav className="bg-linear-to-r from-blue-700 to-blue-600 text-white shadow-lg">
-      <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center container">
         <Link href="/" className="text-2xl font-bold tracking-tight">
           CS Paper Compare
         </Link>
@@ -29,10 +29,10 @@ export default function Navbar() {
             Chat
           </Link>
           <Link
-            href="/docs"
+            href="/library"
             className="hover:underline text-white/90 hover:text-white"
           >
-            API Docs
+            Library
           </Link>
           <Link
             href="/login"

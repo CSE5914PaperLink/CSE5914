@@ -3,6 +3,7 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
+from xml.etree import ElementTree as ET
 
 router = APIRouter(prefix="/arxiv", tags=["arxiv"])
 
@@ -31,6 +32,50 @@ def _build_arxiv_query(
     if cat:
         parts.append(f"cat:{cat}")
     return " AND ".join(parts) if parts else "all:electron"
+
+
+def _et_text(el: Optional[ET.Element]) -> str:
+    return (el.text or "").strip() if el is not None else ""
+
+
+def _parse_arxiv_feed(xml_text: str) -> list[dict]:
+    ns = {
+        "atom": "http://www.w3.org/2005/Atom",
+        "arxiv": "http://arxiv.org/schemas/atom",
+    }
+    root = ET.fromstring(xml_text)
+    results: list[dict] = []
+    for entry in root.findall("atom:entry", ns):
+        id_full = _et_text(entry.find("atom:id", ns))
+        arxiv_id = id_full.rsplit("/", 1)[-1]
+        title = _et_text(entry.find("atom:title", ns))
+        summary = _et_text(entry.find("atom:summary", ns))
+        published = _et_text(entry.find("atom:published", ns))
+
+        authors = [
+            _et_text(a.find("atom:name", ns)) for a in entry.findall("atom:author", ns)
+        ]
+        pdf_url = None
+        for link in entry.findall("atom:link", ns):
+            href = link.get("href")
+            typ = link.get("type")
+            if typ == "application/pdf" or (href and "/pdf/" in href):
+                pdf_url = href
+                break
+        if pdf_url and pdf_url.endswith(".pdf") is False and "/pdf/" in pdf_url:
+            pdf_url = f"{pdf_url}.pdf"
+
+        results.append(
+            {
+                "arxiv_id": arxiv_id,
+                "title": title,
+                "summary": summary,
+                "published": published,
+                "authors": authors,
+                "pdf_url": pdf_url,
+            }
+        )
+    return results
 
 
 @router.get("/search")
@@ -67,8 +112,8 @@ async def search_arxiv(
         r = await client.get(ARXIV_API, params=params)
         if r.status_code != 200:
             raise HTTPException(status_code=r.status_code, detail=r.text)
-        # arXiv returns Atom XML; return raw text so the client can parse or display
-        return JSONResponse({"atom": r.text})
+        items = _parse_arxiv_feed(r.text)
+        return JSONResponse({"results": items, "count": len(items)})
 
 
 @router.get("/download/{arxiv_id}")

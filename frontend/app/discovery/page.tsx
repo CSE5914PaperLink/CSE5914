@@ -2,17 +2,13 @@
 
 import { useState } from "react";
 
-interface OpenAlexWork {
-  id: string;
+interface ArxivResult {
+  arxiv_id: string;
   title: string;
-  authorships: Array<{
-    author: {
-      display_name: string;
-    };
-  }>;
-  abstract_inverted_index?: Record<string, number[]>;
-  publication_date?: string;
-  cited_by_count?: number;
+  summary: string;
+  published?: string;
+  authors: string[];
+  pdf_url?: string | null;
 }
 
 interface SearchFilters {
@@ -27,22 +23,12 @@ export default function DiscoveryPage() {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<SearchFilters>({});
   const [showFilters, setShowFilters] = useState(false);
-  const [papers, setPapers] = useState<OpenAlexWork[]>([]);
+  const [papers, setPapers] = useState<ArxivResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const reconstructAbstract = (
-    inverted: Record<string, number[]> | undefined
-  ): string => {
-    if (!inverted) return "No abstract available";
-    const words: [string, number][] = [];
-    Object.entries(inverted).forEach(([word, positions]) => {
-      positions.forEach((pos) => words.push([word, pos]));
-    });
-    words.sort((a, b) => a[1] - b[1]);
-    const full = words.map(([w]) => w).join(" ");
-    return full.length > 300 ? full.slice(0, 300) + "..." : full;
-  };
+  const truncate = (text: string, n = 300) =>
+    text.length > n ? text.slice(0, n) + "..." : text;
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,28 +38,11 @@ export default function DiscoveryPage() {
     setError(null);
 
     try {
-      const params = new URLSearchParams({
-        q: query,
-        per_page: "10",
-        page: "1",
-      });
-
-      if (filters.from_date)
-        params.append("from_publication_date", filters.from_date);
-      if (filters.to_date)
-        params.append("to_publication_date", filters.to_date);
-      if (filters.min_citations !== undefined)
-        params.append("min_citations", String(filters.min_citations));
-      if (filters.is_oa !== undefined)
-        params.append("is_oa", String(filters.is_oa));
-      if (filters.has_fulltext !== undefined)
-        params.append("has_fulltext", String(filters.has_fulltext));
-
+      const params = new URLSearchParams({ q: query, max_results: "10" });
       const res = await fetch(`/api/discovery/search?${params.toString()}`);
       if (!res.ok) {
         throw new Error(`Search failed: ${res.statusText}`);
       }
-
       const data = await res.json();
       setPapers(data.results || []);
     } catch (err) {
@@ -83,10 +52,17 @@ export default function DiscoveryPage() {
     }
   };
 
-  const handleAddPaper = (paperId: string) => {
-    // Placeholder for adding paper to collection
-    console.log("Add paper:", paperId);
-    alert(`Add paper ${paperId} - implementation coming soon`);
+  const handleAddPaper = async (arxivId: string) => {
+    try {
+      const res = await fetch(
+        `/api/library/add?arxiv_id=${encodeURIComponent(arxivId)}`,
+        { method: "POST" }
+      );
+      if (!res.ok) throw new Error("Failed to add paper");
+      alert("Paper added to library");
+    } catch (e) {
+      alert((e as Error).message);
+    }
   };
 
   const handleUpload = () => {
@@ -102,7 +78,7 @@ export default function DiscoveryPage() {
             Discover Papers
           </h1>
           <p className="text-gray-600">
-            Search arXiv papers via OpenAlex and build your collection
+            Search arXiv papers and build your collection
           </p>
         </div>
 
@@ -284,7 +260,7 @@ export default function DiscoveryPage() {
 
           {papers.map((paper) => (
             <div
-              key={paper.id}
+              key={paper.arxiv_id}
               className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
             >
               <div className="flex items-start justify-between gap-4">
@@ -293,27 +269,31 @@ export default function DiscoveryPage() {
                     {paper.title}
                   </h3>
                   <p className="text-sm text-gray-600 mb-3">
-                    {paper.authorships
-                      ?.slice(0, 5)
-                      .map((a) => a.author.display_name)
-                      .join(", ")}
-                    {paper.authorships?.length > 5 &&
-                      ` +${paper.authorships.length - 5} more`}
+                    {paper.authors.slice(0, 5).join(", ")}
+                    {paper.authors.length > 5 &&
+                      ` +${paper.authors.length - 5} more`}
                   </p>
                   <p className="text-gray-700 text-sm leading-relaxed mb-3">
-                    {reconstructAbstract(paper.abstract_inverted_index)}
+                    {truncate(paper.summary || "No abstract available")}
                   </p>
                   <div className="flex items-center gap-4 text-xs text-gray-500">
-                    {paper.publication_date && (
-                      <span>📅 {paper.publication_date}</span>
+                    {paper.published && (
+                      <span>📅 {paper.published.split("T")[0]}</span>
                     )}
-                    {paper.cited_by_count !== undefined && (
-                      <span>📊 {paper.cited_by_count} citations</span>
+                    {paper.pdf_url && (
+                      <a
+                        href={paper.pdf_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        PDF
+                      </a>
                     )}
                   </div>
                 </div>
                 <button
-                  onClick={() => handleAddPaper(paper.id)}
+                  onClick={() => handleAddPaper(paper.arxiv_id)}
                   className="shrink-0 w-10 h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors"
                   title="Add to collection"
                 >

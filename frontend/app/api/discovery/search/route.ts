@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
 
     // Build backend URL with all query parameters
-    const backendUrl = new URL(`${BACKEND_URL}/openalex/search`);
+    const backendUrl = new URL(`${BACKEND_URL}/arxiv/search`);
     searchParams.forEach((value, key) => {
       backendUrl.searchParams.append(key, value);
     });
