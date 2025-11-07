@@ -1,15 +1,33 @@
 "use client";
-import { useRef, useState } from "react";
-
-type Feature = "search" | "papers" | "analyze" | null;
+import { useEffect, useRef, useState } from "react";
+import { Sidebar } from "@/components/chat/Sidebar";
+import { Messages } from "@/components/chat/Messages";
+import { InputForm, type Feature } from "@/components/chat/InputForm";
+import { PdfViewer } from "@/components/chat/PdfViewer";
+import type { ChatMessage, LibraryItem } from "@/components/chat/types";
 
 export default function ChatPage() {
+  // Split ratio for chat/pdf (0..1). Sidebar stays auto.
+  // Use a fixed SSR-safe initial value to avoid hydration mismatch; load stored value after mount.
+  const [split, setSplit] = useState<number>(0.5);
+  const splitRef = useRef(split);
+  const handleRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const v = window.localStorage.getItem("chat_pdf_split");
+    const n = v ? Number(v) : NaN;
+    if (isFinite(n) && n >= 0.2 && n <= 0.8) {
+      setSplit(n);
+      splitRef.current = n;
+    }
+  }, []);
+  useEffect(() => {
+    splitRef.current = split;
+  }, [split]);
+
   const [active, setActive] = useState<Feature>(null);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
-  const [messages, setMessages] = useState<
-    { id: string; text: string; sender: "user" | "ai" | "system" }[]
-  >([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "intro",
       text: "Hello! I'm your AI research assistant powered by Gemini. How can I help you today?",
@@ -17,6 +35,26 @@ export default function ChatPage() {
     },
   ]);
   const chatRef = useRef<HTMLDivElement | null>(null);
+  const [library, setLibrary] = useState<LibraryItem[]>([]);
+
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    // fetch user's library
+    let mounted = true;
+    fetch("/api/library/list")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!mounted) return;
+        setLibrary(data.results || []);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const addMessage = (text: string, sender: "user" | "ai" | "system") => {
     setMessages((m) => [...m, { id: crypto.randomUUID(), text, sender }]);
@@ -44,7 +82,9 @@ export default function ChatPage() {
       papers: "My Papers",
       analyze: "Compare & Analyze",
     } as const;
-    const display = active ? `[${labels[active]}] ${trimmed}` : trimmed;
+    const display = active
+      ? `[${labels[active as Exclude<Feature, null>]}] ${trimmed}`
+      : trimmed;
     addMessage(display, "user");
     setInput("");
     setTyping(true);
@@ -63,6 +103,8 @@ export default function ChatPage() {
           " You help users compare and analyze research papers.";
       }
 
+      // include selected doc ids for RAG
+      const docs = Array.from(selectedDocs.values());
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
@@ -72,6 +114,7 @@ export default function ChatPage() {
           prompt: trimmed,
           system: systemInstruction,
           temperature: 0.7,
+          doc_ids: docs,
         }),
       });
 
@@ -98,165 +141,155 @@ export default function ChatPage() {
       );
     }
   };
+  // Compute Navbar height at runtime so the chat area can exactly fill the
+  // remaining viewport. Also disable body scrolling while this page is active
+  // so the visible area (navbar + chat) never causes a window scrollbar.
+  const [navHeight, setNavHeight] = useState<number>(64);
+  useEffect(() => {
+    const update = () => {
+      const nav = document.querySelector("nav");
+      const h = nav ? Math.round(nav.getBoundingClientRect().height) : 64;
+      setNavHeight(h);
+    };
+    // compute once and also on resize
+    update();
+    window.addEventListener("resize", update);
+
+    // Prevent the document from scrolling while on the chat page. Save
+    // previous overflow and restore on unmount.
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("resize", update);
+      document.body.style.overflow = prev || "";
+    };
+  }, []);
+  const navbarHeight = navHeight; // used below in styles
+  const handleWidthPx = 6;
+  // 4-column grid: sidebar | chat | handle | pdf
+  // use fr units for chat/pdf so they split the remaining space after sidebar correctly
+  const gridTemplate = `auto ${split}fr ${handleWidthPx}px ${1 - split}fr`;
 
   return (
-    <div className="bg-gray-100 h-screen flex flex-col">
-      <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full p-4">
+    <div className="w-screen flex flex-col bg-white overflow-hidden">
+      <div
+        className="min-w-0 min-h-0"
+        style={{
+          height: `calc(100vh - ${navbarHeight}px)`,
+          overflow: "hidden",
+        }}
+      >
         <div
-          ref={chatRef}
-          id="chatContainer"
-          className="flex-1 bg-white rounded-lg shadow p-4 mb-4 overflow-y-auto"
+          className="h-full grid gap-0"
+          style={{ gridTemplateColumns: gridTemplate }}
         >
-          <div className="text-center text-gray-500 py-8">
-            <h2 className="text-2xl font-semibold mb-2">AI Chat Interface</h2>
-            <div className="bg-blue-50 border border-blue-200 rounded p-3 inline-block">
-              <p className="text-blue-800 text-sm">
-                Ask me anything about research papers!
-              </p>
-            </div>
-          </div>
-          <div id="messagesContainer" className="space-y-4 mt-8">
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={
-                  m.sender === "user"
-                    ? "flex justify-end"
-                    : "flex justify-start"
+          <Sidebar
+            library={library}
+            selectedDocs={selectedDocs}
+            onToggleSelect={(id: string, checked: boolean) => {
+              setSelectedDocs((s) => {
+                const copy = new Set(s);
+                if (checked) copy.add(id);
+                else copy.delete(id);
+                return copy;
+              });
+            }}
+            onDelete={async (id: string) => {
+              const item = library.find((x) => x.id === id);
+              const title =
+                item?.metadata?.title || item?.metadata?.arxiv_id || id;
+              try {
+                const res = await fetch(
+                  `/api/library/delete?id=${encodeURIComponent(id)}`,
+                  { method: "DELETE" }
+                );
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}));
+                  addMessage(
+                    `Error deleting ${title}: ${
+                      err.error || res.statusText
+                    }` as string,
+                    "system"
+                  );
+                  return;
                 }
-              >
-                <div
-                  className={
-                    m.sender === "user"
-                      ? "bg-blue-600 text-white rounded-lg px-4 py-2 max-w-md wrap-break-word"
-                      : m.sender === "system"
-                      ? "bg-yellow-100 text-yellow-800 rounded-lg px-4 py-2 max-w-md text-center text-sm mx-auto"
-                      : "bg-gray-200 text-gray-800 rounded-lg px-4 py-2 max-w-md wrap-break-word whitespace-pre-wrap"
-                  }
-                >
-                  {m.text}
-                </div>
-              </div>
-            ))}
-            {typing && (
-              <div id="typingIndicator" className="flex justify-start">
-                <div className="bg-gray-200 text-gray-600 rounded-lg px-4 py-2 max-w-xs">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div
-                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0.1s" }}
-                    ></div>
-                    <div
-                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0.2s" }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+                setLibrary((prev) => prev.filter((x) => x.id !== id));
+                setSelectedDocs((s) => {
+                  const copy = new Set(s);
+                  copy.delete(id);
+                  return copy;
+                });
+              } catch (err) {
+                const msg =
+                  err instanceof Error ? err.message : "Unknown error";
+                addMessage(`Error deleting ${title}: ${msg}`, "system");
+              }
+            }}
+          />
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <form id="chatForm" className="space-y-3" onSubmit={onSubmit}>
-            <div className="flex items-center space-x-2">
-              <div className="flex space-x-2">
-                <button
-                  type="button"
-                  id="searchBtn"
-                  className="p-2 rounded-lg bg-blue-100 hover:bg-blue-200 transition-colors"
-                  title="Search Papers"
-                  onClick={() => onFeature("search", "Search Papers")}
-                >
-                  <svg
-                    className="w-5 h-5 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    ></path>
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  id="papersBtn"
-                  className="p-2 rounded-lg bg-green-100 hover:bg-green-200 transition-colors"
-                  title="My Papers"
-                  onClick={() => onFeature("papers", "My Papers")}
-                >
-                  <svg
-                    className="w-5 h-5 text-green-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    ></path>
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  id="analyzeBtn"
-                  className="p-2 rounded-lg bg-purple-100 hover:bg-purple-200 transition-colors"
-                  title="Compare & Analyze"
-                  onClick={() => onFeature("analyze", "Compare & Analyze")}
-                >
-                  <svg
-                    className="w-5 h-5 text-purple-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                    ></path>
-                  </svg>
-                </button>
-              </div>
-              <input
-                type="text"
-                id="messageInput"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={
-                  active
-                    ? `Ask about ${
-                        active === "search"
-                          ? "Search Papers"
-                          : active === "papers"
-                          ? "My Papers"
-                          : "Compare & Analyze"
-                      }...`
-                    : "Type your message here..."
+          <div className="flex-1 flex flex-col min-w-0 min-h-0">
+            <Messages messages={messages} typing={typing} chatRef={chatRef} />
+            <InputForm
+              active={active}
+              input={input}
+              setInput={setInput}
+              onFeature={onFeature}
+              onSubmit={onSubmit}
+            />
+          </div>
+          {/* Drag handle between chat and PDF */}
+          <div
+            ref={handleRef}
+            className="h-full cursor-col-resize bg-neutral-200 hover:bg-neutral-300 transition-colors"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const container = handleRef.current?.parentElement;
+              if (!container) return;
+              const rect = container.getBoundingClientRect();
+              // subtract sidebar width and handle width to get adjustable area
+              const sidebarEl = container.children[0] as
+                | HTMLElement
+                | undefined;
+              const sidebarWidth = sidebarEl
+                ? sidebarEl.getBoundingClientRect().width
+                : 0;
+              const available = rect.width - sidebarWidth - handleWidthPx;
+              const startChatWidth = splitRef.current * available;
+
+              // prevent text selection while dragging
+              const prevUserSelect = document.body.style.userSelect;
+              document.body.style.userSelect = "none";
+
+              const onMove = (ev: MouseEvent) => {
+                const delta = ev.clientX - startX;
+                const newChatWidth = startChatWidth + delta;
+                let next = newChatWidth / Math.max(1, available);
+                next = Math.max(0.2, Math.min(0.8, next));
+                if (next !== splitRef.current) {
+                  splitRef.current = next;
+                  setSplit(next);
                 }
-                className="text-black flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-                required
-              />
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors"
-              >
-                Send
-              </button>
-            </div>
-          </form>
-          <p className="text-xs text-gray-500 mt-2">
-            Click feature icons to set context for specialized assistance.
-            Powered by Google Gemini.
-          </p>
+              };
+              const onUp = () => {
+                window.removeEventListener("mousemove", onMove);
+                window.removeEventListener("mouseup", onUp);
+                try {
+                  window.localStorage.setItem(
+                    "chat_pdf_split",
+                    String(splitRef.current)
+                  );
+                } catch {}
+                // restore user select
+                document.body.style.userSelect = prevUserSelect || "";
+              };
+              window.addEventListener("mousemove", onMove);
+              window.addEventListener("mouseup", onUp);
+            }}
+          />
+
+          <PdfViewer selectedIds={Array.from(selectedDocs)} library={library} />
         </div>
       </div>
     </div>

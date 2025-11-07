@@ -5,7 +5,7 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, system, temperature = 0.7 } = body;
+    const { prompt, system, temperature = 0.7, doc_ids } = body;
 
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json(
@@ -14,19 +14,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build backend URL
-    const backendUrl = new URL(`${BACKEND_URL}/gemini/chat`);
-    backendUrl.searchParams.append("prompt", prompt);
-    if (system) {
-      backendUrl.searchParams.append("system", system);
+    // Choose backend endpoint: use RAG endpoint when doc_ids provided
+    const useRag = Array.isArray(doc_ids) && doc_ids.length > 0;
+    const backendPath = useRag ? "/gemini/chat_rag" : "/gemini/chat";
+
+    // Build backend URL (non-body Query params for existing /gemini/chat)
+    const backendUrl = new URL(`${BACKEND_URL}${backendPath}`);
+    if (!useRag) {
+      backendUrl.searchParams.append("prompt", prompt);
+      if (system) {
+        backendUrl.searchParams.append("system", system);
+      }
+      backendUrl.searchParams.append("temperature", temperature.toString());
     }
-    backendUrl.searchParams.append("temperature", temperature.toString());
 
     const response = await fetch(backendUrl.toString(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: useRag
+        ? JSON.stringify({ prompt, system, temperature, doc_ids })
+        : undefined,
     });
 
     if (!response.ok) {
