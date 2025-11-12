@@ -1,0 +1,43 @@
+type User @table {
+  name: String!
+  email: String
+  createdAt: Timestamp!
+}
+
+type ChatSession @table {
+  user: User!
+  title: String!
+  createdAt: Timestamp!
+  updatedAt: Timestamp!
+}
+
+type Paper @table {
+  title: String!
+  authors: [String!]!
+  year: Int!
+  type: String!
+  abstract: String!
+  ingestionStatus: String!
+  citationCount: Int
+}
+
+type Chat @table {
+  chatSession: ChatSession!
+  content: String!
+  response: String!
+  createdAt: Timestamp!
+  updatedAt: Timestamp!
+}
+
+type ChatPaper @table {
+  id: ID!
+  chat: Chat!
+  paper: Paper!
+  createdAt: Timestamp!
+}
+
+type CodeLink @table {
+  paper: Paper!
+  url: String!
+  repo: String!
+}
