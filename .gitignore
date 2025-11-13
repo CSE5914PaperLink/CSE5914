@@ -66,3 +66,11 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+
+# --- Next.js (frontend) ---
+frontend/.next/
+frontend/next-env.d.ts
+
+# --- ChromaDB persistent data (backend) ---
+# Default persist path is ./chroma relative to backend working dir
+backend/chroma/
