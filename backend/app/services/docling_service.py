@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -35,11 +36,14 @@ class DoclingService:
         return self._extract_metadata(result)
 
     def extract_from_bytes(self, pdf_bytes: bytes) -> DoclingMetadata:
-        # Docling accepts file paths or URLs; write bytes to a temp file
-        with tempfile.NamedTemporaryFile(suffix=".pdf") as tmp:
-            tmp.write(pdf_bytes)
-            tmp.flush()
-            result = self._converter.convert(tmp.name)
+        # Docling accepts file paths or URLs. On Windows, libraries cannot
+        # reopen a NamedTemporaryFile while it's still open. Use a temp
+        # directory so the file is closed before conversion.
+        with tempfile.TemporaryDirectory() as td:
+            tmp_path = os.path.join(td, "input.pdf")
+            with open(tmp_path, "wb") as f:
+                f.write(pdf_bytes)
+            result = self._converter.convert(tmp_path)
         return self._extract_metadata(result)
 
     def _extract_metadata(self, convert_result: Any) -> DoclingMetadata:
