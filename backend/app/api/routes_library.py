@@ -1,19 +1,32 @@
 from __future__ import annotations
 
+import logging
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, HttpUrl
 import httpx
 from xml.etree import ElementTree as ET
 
-from app.services.gemini_service import ingest_pdf_bytes_into_chroma
+from app.services.gemini_service import ingest_pdf_bytes_into_chroma, ingest_repo_files_into_chroma
+from app.services.github_service import GitHubService, normalize_github_url
 from app.services.chroma_service import ChromaService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/library", tags=["library"])
 
 ARXIV_API = "https://export.arxiv.org/api/query"
 UA = "CSE5914-Backend/0.1 (https://github.com/jeevanadella/CSE5914)"
+
+
+class AddArxivRequest(BaseModel):
+    """Request body for adding an arXiv paper with optional GitHub repos."""
+    github_repos: List[str] = Field(
+        default_factory=list,
+        description="Optional list of GitHub repository URLs to ingest alongside the PDF."
+    )
 
 
 def _fetch_arxiv_metadata(arxiv_id: str) -> dict:
@@ -59,26 +72,102 @@ def _fetch_arxiv_metadata(arxiv_id: str) -> dict:
 
 
 @router.post("/add/{arxiv_id}")
-async def add_arxiv(arxiv_id: str):
-    """Download an arXiv PDF and ingest into vector DB."""
+async def add_arxiv(arxiv_id: str, request: Optional[AddArxivRequest] = None):
+    """Download an arXiv PDF and optionally ingest related GitHub repositories.
+    
+    Args:
+        arxiv_id: arXiv paper ID (e.g., "2301.12345").
+        request: Optional body with list of GitHub repo URLs to also ingest.
+    
+    Returns:
+        JSON response with status, counts, and any errors encountered.
+    """
+    if request is None:
+        request = AddArxivRequest()
+    
+    response_data = {
+        "status": "ok",
+        "arxiv_id": arxiv_id,
+        "metadata": None,
+        "pdf_ingested": False,
+        "repos": [],
+    }
+
+    # Step 1: Fetch and ingest the arXiv PDF
     pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-    async with httpx.AsyncClient(
-        timeout=httpx.Timeout(60.0, connect=10.0),
-        headers={"User-Agent": UA},
-        follow_redirects=True,
-    ) as client:
-        r = await client.get(pdf_url)
-        if r.status_code != 200:
-            raise HTTPException(status_code=r.status_code, detail="Failed to fetch PDF")
-        pdf_bytes = r.content
-    # Fetch and attach minimal metadata
-    meta = _fetch_arxiv_metadata(arxiv_id)
-    extra_md = {"arxiv_id": arxiv_id, "pdf_url": pdf_url, **meta}
-    # Ingest (doc_id prefixes to avoid collisions)
-    ingest_pdf_bytes_into_chroma(
-        pdf_bytes, doc_id=f"arxiv:{arxiv_id}", extra_metadata=extra_md
-    )
-    return JSONResponse({"status": "ok", "arxiv_id": arxiv_id, "metadata": extra_md})
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(60.0, connect=10.0),
+            headers={"User-Agent": UA},
+            follow_redirects=True,
+        ) as client:
+            r = await client.get(pdf_url)
+            if r.status_code != 200:
+                raise HTTPException(status_code=r.status_code, detail="Failed to fetch PDF")
+            pdf_bytes = r.content
+
+        # Fetch and attach minimal metadata from arXiv
+        meta = _fetch_arxiv_metadata(arxiv_id)
+        extra_md = {"arxiv_id": arxiv_id, "pdf_url": pdf_url, **meta}
+        response_data["metadata"] = extra_md
+
+        # Ingest PDF
+        ingest_pdf_bytes_into_chroma(
+            pdf_bytes, doc_id=f"arxiv:{arxiv_id}", extra_metadata=extra_md
+        )
+        response_data["pdf_ingested"] = True
+        logger.info(f"Successfully ingested PDF for arxiv_id {arxiv_id}")
+
+    except Exception as e:
+        logger.error(f"Failed to ingest PDF for arxiv_id {arxiv_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to ingest PDF: {str(e)}")
+
+    # Step 2: Ingest GitHub repositories (if provided)
+    if request.github_repos:
+        github_service = GitHubService()
+        for repo_url in request.github_repos:
+            try:
+                # Normalize the URL
+                normalized_url = normalize_github_url(repo_url)
+
+                # Fetch repo files
+                logger.info(f"Fetching files from {normalized_url}")
+                repo_files = await github_service.fetch_repo_files(normalized_url)
+
+                if not repo_files:
+                    logger.warning(f"No files fetched from {normalized_url}")
+                    response_data["repos"].append({
+                        "url": normalized_url,
+                        "status": "warning",
+                        "files_ingested": 0,
+                        "reason": "No files fetched",
+                    })
+                    continue
+
+                # Ingest repo files
+                files_ingested = ingest_repo_files_into_chroma(
+                    repo_url=normalized_url,
+                    arxiv_id=arxiv_id,
+                    repo_files=repo_files,
+                    base_metadata=extra_md,
+                )
+
+                response_data["repos"].append({
+                    "url": normalized_url,
+                    "status": "ok",
+                    "files_ingested": files_ingested,
+                })
+                logger.info(f"Ingested {files_ingested} files from {normalized_url}")
+
+            except Exception as e:
+                logger.error(f"Failed to ingest repo {repo_url}: {e}")
+                response_data["repos"].append({
+                    "url": repo_url,
+                    "status": "error",
+                    "error": str(e),
+                })
+
+    return JSONResponse(response_data)
 
 
 @router.get("/list")

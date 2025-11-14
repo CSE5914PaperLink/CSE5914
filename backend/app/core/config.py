@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     # ChromaDB configuration
     chroma_persist_path: str = "./chroma"  # relative to backend working dir
     chroma_collection_name: str = "documents"
+
+    # GitHub configuration
+    github_api_token: str = ""  # Optional; if empty, uses unauthenticated requests
+    github_raw_url: str = "https://raw.githubusercontent.com"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
