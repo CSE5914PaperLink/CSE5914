@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 46, "column": 0}, "map": {"version":3,"sources":["file:///Users/athinshetty/Documents/VSCode%20work/capstone/CSE5914/frontend/app/api/library/list/route.ts"],"sourcesContent":["import { NextResponse } from \"next/server\";\n\nconst BACKEND_URL = process.env.BACKEND_URL || \"http://localhost:8000\";\n\nexport async function GET() {\n  try {\n    const url = new URL(`${BACKEND_URL}/library/list`);\n    const res = await fetch(url.toString(), { method: \"GET\" });\n    const data = await res.json();\n    return NextResponse.json(data, { status: res.status });\n  } catch (e) {\n    console.error(\"library list error\", e);\n    return NextResponse.json({ error: \"Internal error\" }, { status: 500 });\n  }\n}\n"],"names":[],"mappings":";;;;AAAA;;AAEA,MAAM,cAAc,QAAQ,GAAG,CAAC,WAAW,IAAI;AAExC,eAAe;IACpB,IAAI;QACF,MAAM,MAAM,IAAI,IAAI,GAAG,YAAY,aAAa,CAAC;QACjD,MAAM,MAAM,MAAM,MAAM,IAAI,QAAQ,IAAI;YAAE,QAAQ;QAAM;QACxD,MAAM,OAAO,MAAM,IAAI,IAAI;QAC3B,OAAO,gNAAY,CAAC,IAAI,CAAC,MAAM;YAAE,QAAQ,IAAI,MAAM;QAAC;IACtD,EAAE,OAAO,GAAG;QACV,QAAQ,KAAK,CAAC,sBAAsB;QACpC,OAAO,gNAAY,CAAC,IAAI,CAAC;YAAE,OAAO;QAAiB,GAAG;YAAE,QAAQ;QAAI;IACtE;AACF","debugId":null}}]
+}
