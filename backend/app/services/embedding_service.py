@@ -47,7 +47,7 @@ def ingest_pdf_bytes_into_chroma(
     chunk_texts = [chunk.page_content for chunk in chunks]
     chunk_ids = [f"{doc_id}::chunk::{i}" for i in range(len(chunks))]
     embeddings = embedder.embed_texts(chunk_texts)
-    emb_dim = len(embeddings[0]) if embeddings else None
+    emb_dim = len(embeddings[0]) if embeddings and embeddings[0] else None
 
     base_metadata = {"doc_id": doc_id, "source": "docling", "format": "pdf"}
     if extra_metadata:
