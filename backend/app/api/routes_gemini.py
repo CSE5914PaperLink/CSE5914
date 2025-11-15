@@ -104,7 +104,8 @@ async def chat_rag(
                 where_filter = {"doc_id": {"$in": [str(d) for d in doc_ids]}}
 
         # 3) Query Chroma for top_k most similar chunks
-        chroma = ChromaService(embedding_dim=len(query_vec) if isinstance(query_vec, list) else None)
+        emb_dim = len(query_vec) if isinstance(query_vec, list) else None
+        chroma = ChromaService(embedding_dim=emb_dim)
         query_kwargs = {
             "query_embeddings": [query_vec],
             "n_results": top_k,
