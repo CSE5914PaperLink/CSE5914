@@ -90,6 +90,6 @@ class ChromaService:
         """Create a new collection with the given name and optional embedding function."""
         return self._client.create_collection(
             name=name,
-            embedding_function=embedding_function,  # outputs 768-dim vectors
+            embedding_function=embedding_function,  # embedding function output dimension should match embedding_dim
             embedding_dim=embedding_dim,
         )
