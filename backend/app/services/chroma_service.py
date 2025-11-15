@@ -14,11 +14,21 @@ class ChromaService:
     """Thin wrapper around chromadb to manage a persistent collection."""
 
     def __init__(
-        self, persist_path: Optional[str] = None, collection_name: Optional[str] = None
+        self,
+        persist_path: Optional[str] = None,
+        collection_name: Optional[str] = None,
+        embedding_dim: Optional[int] = None,
     ) -> None:
         self._persist_path = persist_path or settings.chroma_persist_path
-        self._collection_name = collection_name or settings.chroma_collection_name
+        base_name = collection_name or settings.chroma_collection_name
+        # Disambiguate collections by embedding dimensionality to avoid mismatches
+        self._collection_name = (
+            f"{base_name}_d{embedding_dim}" if embedding_dim else base_name
+        )
         self._client: ClientAPI = chromadb.PersistentClient(path=self._persist_path)
+
+        # Use get_or_create; for a new, suffixed name, the dimension will be set on first upsert.
+        # This avoids colliding with older collections created with a different dimension.
         self._collection: Collection = self._client.get_or_create_collection(
             name=self._collection_name
         )
@@ -70,3 +80,16 @@ class ChromaService:
     def delete(self, ids: Iterable[str]) -> None:
         """Delete vectors by id."""
         self._collection.delete(ids=list(ids))
+
+    def create_collection(
+        self,
+        name: str,
+        embedding_function: Optional[callable] = None,
+        embedding_dim: Optional[int] = None,
+    ) -> Collection:
+        """Create a new collection with the given name and optional embedding function."""
+        return self._client.create_collection(
+            name=name,
+            embedding_function=embedding_function,  # outputs 768-dim vectors
+            embedding_dim=embedding_dim,
+        )
