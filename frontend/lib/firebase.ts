@@ -7,6 +7,9 @@ import {
   onAuthStateChanged,
   User,
 } from "firebase/auth";
+import { getDataConnect } from "firebase/data-connect";
+
+import { connectorConfig } from "@/lib/dataconnect";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -20,13 +23,15 @@ const firebaseConfig = {
 function initFirebaseApp() {
   // Prevent re-initializing in dev/hot-reload
   if (!getApps().length) {
-    initializeApp(firebaseConfig as any);
+    return initializeApp(firebaseConfig as any);
   }
+  return getApps()[0];
 }
 
-initFirebaseApp();
+const app = initFirebaseApp();
 
-const auth = getAuth();
+const auth = getAuth(app);
+export const dataConnect = getDataConnect(app, connectorConfig);
 
 export async function signInWithGoogle(): Promise<"success" | "error"> {
   try {

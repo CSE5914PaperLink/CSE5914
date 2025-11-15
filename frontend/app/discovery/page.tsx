@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useUser } from "@/contexts/UserContext";
 
 interface ArxivResult {
   arxiv_id: string;
@@ -20,6 +21,7 @@ interface SearchFilters {
 }
 
 export default function DiscoveryPage() {
+  const { dataConnectUserId, firebaseUser } = useUser();
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<SearchFilters>({});
   const [showFilters, setShowFilters] = useState(false);
@@ -53,13 +55,21 @@ export default function DiscoveryPage() {
   };
 
   const handleAddPaper = async (arxivId: string) => {
+    if (!dataConnectUserId) {
+      alert("Please sign in to add papers to your library");
+      return;
+    }
+
     try {
       const res = await fetch(
-        `/api/library/add?arxiv_id=${encodeURIComponent(arxivId)}`,
+        `/api/library/add?arxiv_id=${encodeURIComponent(arxivId)}&user_id=${encodeURIComponent(dataConnectUserId)}`,
         { method: "POST" }
       );
-      if (!res.ok) throw new Error("Failed to add paper");
-      alert("Paper added to library");
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to add paper");
+      }
+      alert("Paper added to library and ingestion started!");
     } catch (e) {
       alert((e as Error).message);
     }

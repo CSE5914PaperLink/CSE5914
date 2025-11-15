@@ -1,0 +1,82 @@
+# User Mutations
+mutation CreateUser($email: String!, $name: String!) @auth(level: PUBLIC) {
+  user_insert(data: { email: $email, name: $name })
+}
+
+# Paper Mutations
+mutation AddPaper(
+  $userId: UUID!
+  $title: String!
+  $authors: [String!]!
+  $year: Int
+  $paperType: String
+  $abstract: String
+  $arxivId: String
+  $pdfUrl: String
+) @auth(level: PUBLIC) {
+  paper_insert(
+    data: {
+      user: { id: $userId }
+      title: $title
+      authors: $authors
+      year: $year
+      paperType: $paperType
+      abstract: $abstract
+      arxivId: $arxivId
+      pdfUrl: $pdfUrl
+      ingestionStatus: "pending"
+    }
+  )
+}
+
+mutation UpdatePaperIngestionStatus($paperId: UUID!, $status: String!) @auth(level: PUBLIC) {
+  paper_update(id: $paperId, data: { ingestionStatus: $status })
+}
+
+mutation DeletePaper($paperId: UUID!) @auth(level: PUBLIC) {
+  paper_delete(id: $paperId)
+}
+
+# Chat Session Mutations
+mutation CreateChatSession($userId: UUID!, $title: String!) @auth(level: PUBLIC) {
+  chatSession_insert(data: { user: { id: $userId }, title: $title })
+}
+
+mutation UpdateChatSession($sessionId: UUID!, $title: String!) @auth(level: PUBLIC) {
+  chatSession_update(id: $sessionId, data: { title: $title })
+}
+
+mutation DeleteChatSession($sessionId: UUID!) @auth(level: PUBLIC) {
+  chatSession_delete(id: $sessionId)
+}
+
+# Chat Mutations
+mutation AddChat(
+  $sessionId: UUID!
+  $content: String!
+  $response: String
+  $paperIds: [UUID!]
+) @auth(level: PUBLIC) {
+  chat_insert(
+    data: {
+      chatSession: { id: $sessionId }
+      content: $content
+      response: $response
+    }
+  )
+}
+
+mutation LinkPaperToChat($chatId: UUID!, $paperId: UUID!) @auth(level: PUBLIC) {
+  chatPaper_insert(data: { chat: { id: $chatId }, paper: { id: $paperId } })
+}
+
+# Code Link Mutations
+mutation AddCodeLink($paperId: UUID!, $url: String!, $repositoryName: String) @auth(level: PUBLIC) {
+  codeLink_insert(
+    data: { paper: { id: $paperId }, url: $url, repositoryName: $repositoryName }
+  )
+}
+
+mutation DeleteCodeLink($linkId: UUID!) @auth(level: PUBLIC) {
+  codeLink_delete(id: $linkId)
+}
