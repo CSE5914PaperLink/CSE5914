@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 import httpx
 from xml.etree import ElementTree as ET
 
-from app.services.gemini_service import ingest_pdf_bytes_into_chroma
+from app.services.embedding_service import ingest_pdf_bytes_into_chroma
 from app.services.chroma_service import ChromaService
 
 router = APIRouter(prefix="/library", tags=["library"])
@@ -138,8 +138,30 @@ def list_chunks(doc_id: str, limit: int = 200, offset: int = 0):
 def delete_item(doc_id: str):
     """Delete a paper/vector by its id in the Chroma collection."""
     chroma = ChromaService()
+
     try:
-        chroma.delete([doc_id])
-        return JSONResponse({"status": "deleted", "id": doc_id})
+        # If the provided id is a root document id (not a chunk id), delete all
+        # entries that belong to that root (metadata.doc_id == doc_id or id startswith root::chunk::).
+        to_delete = []
+
+        # Fetch all items and filter - Chroma .get with where can be used but not all deployments support complex filters.
+        data = chroma.collection.get(include=["metadatas", "documents"])
+        for i, _id in enumerate(data.get("ids", [])):
+            md = (data.get("metadatas") or [{}])[i] or {}
+            # If metadata stores doc_id, compare; else check chunk prefix
+            if (
+                md.get("doc_id") == doc_id
+                or str(_id).startswith(f"{doc_id}::chunk::")
+                or str(_id) == doc_id
+            ):
+                to_delete.append(_id)
+
+        if not to_delete:
+            # Fall back: try to delete the exact id if present
+            chroma.delete([doc_id])
+            return JSONResponse({"status": "deleted", "id": doc_id})
+
+        chroma.delete(to_delete)
+        return JSONResponse({"status": "deleted", "deleted_count": len(to_delete)})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

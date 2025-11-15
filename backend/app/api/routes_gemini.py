@@ -4,10 +4,13 @@ from google import genai
 from google.genai import types
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
+from typing import Optional, Any, cast
 
 from app.core.config import settings
 from fastapi import Body
 from app.services.chroma_service import ChromaService
+from app.services.embedding_service import NomicEmbeddingService
+from app.services.gemini_service import GeminiService
 
 router = APIRouter(prefix="/gemini", tags=["gemini"])
 
@@ -30,25 +33,14 @@ async def chat(
     model_name = model or settings.gemini_default_model
 
     try:
-        # Get the genai client with API key
-        client = genai.Client(api_key=settings.gemini_api_key)
-
-        # Build the prompt, prepending system instruction if provided
-        config = types.GenerateContentConfig(
+        svc = GeminiService()
+        content_text = svc.generate_content(
+            prompt=prompt,
+            system_instruction=system,
+            model=model_name,
             temperature=temperature,
             max_output_tokens=max_tokens,
-            system_instruction=system,
         )
-
-        # Generate content using the new genai client
-        response = client.models.generate_content(
-            model=model_name,
-            config=config,
-            contents=[prompt],
-        )
-
-        # Extract text from response
-        content_text = response.text
 
         return JSONResponse(
             {
@@ -67,12 +59,23 @@ async def chat_rag(
     ),
 ):
     """
-    RAG-enabled chat: accepts JSON body { prompt, system, temperature, doc_ids: [id, ...] }
-    If doc_ids are provided, fetch documents from Chroma and prepend them as context.
-    """
-    if not settings.gemini_api_key:
-        raise HTTPException(status_code=500, detail="Gemini API key not configured")
+    RAG-enabled chat over chunked Nomic embeddings.
 
+    Body schema:
+    {
+      prompt: str,
+      system?: str,
+      temperature?: number,
+      model?: string,
+      top_k?: number,                 # default 5
+      doc_ids?: string[]              # optional filter to restrict retrieval to specific doc_ids
+    }
+
+    Behavior:
+    - Embeds the prompt with Nomic, performs similarity search against Chroma chunk vectors
+      (ingested via Nomic chunking), and prepends the top_k chunks as context for Gemini.
+    - If doc_ids are provided, retrieval is filtered to those documents via metadata doc_id.
+    """
     prompt = body.get("prompt")
     if not prompt or not isinstance(prompt, str):
         raise HTTPException(status_code=400, detail="prompt is required")
@@ -80,54 +83,98 @@ async def chat_rag(
     system = body.get("system")
     temperature = float(body.get("temperature") or 0.2)
     model_name = body.get("model") or settings.gemini_default_model
+    top_k = int(body.get("top_k") or 5)
 
-    # If doc_ids provided, fetch their documents and build a context block
+    # Build a similarity-retrieved context from chunked Chroma entries
     doc_ids = body.get("doc_ids") or []
     context_block = ""
-    if isinstance(doc_ids, list) and len(doc_ids) > 0:
-        try:
-            chroma = ChromaService()
-            # Use collection.get to fetch metadatas/documents for the given ids
-            data = chroma.collection.get(
-                ids=list(doc_ids), include=["metadatas", "documents"]
+    retrieved_chunks: list[dict[str, Any]] = []
+    try:
+        # 1) Embed query using local Nomic embeddings
+        embedder = NomicEmbeddingService()
+        query_vec = embedder.embed_query(prompt)
+
+        # 2) Build optional metadata filter for Chroma
+        where_filter: dict[str, Any] | None = None
+        if isinstance(doc_ids, list) and len(doc_ids) > 0:
+            # Chroma supports simple filters; try $in for multiple doc ids
+            if len(doc_ids) == 1:
+                where_filter = {"doc_id": str(doc_ids[0])}
+            else:
+                where_filter = {"doc_id": {"$in": [str(d) for d in doc_ids]}}
+
+        # 3) Query Chroma for top_k most similar chunks
+        chroma = ChromaService()
+        query_kwargs = {
+            "query_embeddings": [query_vec],
+            "n_results": top_k,
+            "include": cast(Any, ["documents", "metadatas", "ids", "distances"]),
+        }
+        if where_filter:
+            query_kwargs["where"] = where_filter
+
+        res = chroma.collection.query(**query_kwargs)
+
+        # 4) Unpack first (and only) query's results
+        docs = (res.get("documents") or [[]])[0]
+        ids = (res.get("ids") or [[]])[0]
+        metas = (res.get("metadatas") or [[]])[0]
+        dists = (res.get("distances") or [[]])[0]
+
+        for i in range(min(len(docs), len(ids))):
+            md = metas[i] if i < len(metas) and metas[i] is not None else {}
+            retrieved_chunks.append(
+                {
+                    "id": ids[i],
+                    "doc_id": (md or {}).get("doc_id"),
+                    "chunk_index": (md or {}).get("chunk_index"),
+                    "distance": dists[i] if i < len(dists) else None,
+                    "preview": (md or {}).get("preview"),
+                    "content": docs[i],
+                }
             )
-            docs = []
-            for i, _id in enumerate(data.get("ids", [])):
-                doc_text = (data.get("documents") or [None])[i] or ""
-                md = (data.get("metadatas") or [{}])[i] or {}
-                title = md.get("title") or md.get("arxiv_id") or _id
-                docs.append(
-                    f"Title: {title}\nSource id: {_id}\nContent:\n{doc_text}\n---\n"
+
+        if retrieved_chunks:
+            parts = []
+            for ch in retrieved_chunks:
+                parts.append(
+                    (
+                        f"[CHUNK id={ch.get('id')} doc_id={ch.get('doc_id')} idx={ch.get('chunk_index')}]\n"
+                        f"{ch.get('content')}\n---\n"
+                    )
                 )
-            if docs:
-                context_block = "\n".join(docs)
-        except Exception:
-            # If RAG retrieval fails, continue without contextual docs
-            context_block = ""
+            context_block = "".join(parts)
+    except Exception:
+        # If RAG retrieval fails, continue without contextual docs
+        context_block = ""
+        retrieved_chunks = []
 
     # Prepend context to the system instruction or create a dedicated system message
     system_instruction = system or "You are a helpful AI assistant for researchers."
     if context_block:
         system_instruction = (
-            "Use the following documents as context when answering. "
-            "If the answer is not contained in them, you may still use general knowledge.\n\n"
+            "Use the following retrieved chunks as authoritative context. "
+            "Cite relevant chunks by id when helpful. If the answer is not contained in them, you may say you don't know.\n\n"
             + context_block
             + "\n"
             + system_instruction
         )
 
     try:
-        client = genai.Client(api_key=settings.gemini_api_key)
-        config = types.GenerateContentConfig(
-            temperature=temperature,
+        svc = GeminiService()
+        content_text = svc.generate_content(
+            prompt=prompt,
             system_instruction=system_instruction,
-        )
-        response = client.models.generate_content(
             model=model_name,
-            config=config,
-            contents=[prompt],
+            temperature=temperature,
         )
-        content_text = response.text
-        return JSONResponse({"model": model_name, "content": content_text})
+        return JSONResponse(
+            {
+                "model": model_name,
+                "content": content_text,
+                "top_k": top_k,
+                "chunks": retrieved_chunks,
+            }
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
