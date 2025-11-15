@@ -333,16 +333,19 @@ To access the data returned by a Query, use the `UseQueryResult.data` field. The
 export interface ListPapersData {
   papers: ({
     id: UUIDString;
-    title: string;
-    authors: string[];
-    year?: number | null;
-    paperType?: string | null;
-    abstract?: string | null;
-    arxivId?: string | null;
-    ingestionStatus: string;
-    citationCount?: number | null;
-    createdAt: TimestampString;
-    pdfUrl?: string | null;
+    user: {
+      id: UUIDString;
+    } & User_Key;
+      title: string;
+      authors: string[];
+      year?: number | null;
+      paperType?: string | null;
+      abstract?: string | null;
+      arxivId?: string | null;
+      ingestionStatus: string;
+      citationCount?: number | null;
+      createdAt: TimestampString;
+      pdfUrl?: string | null;
   } & Paper_Key)[];
 }
 ```
@@ -522,12 +525,15 @@ To access the data returned by a Query, use the `UseQueryResult.data` field. The
 export interface SearchPapersData {
   papers: ({
     id: UUIDString;
-    title: string;
-    authors: string[];
-    year?: number | null;
-    abstract?: string | null;
-    arxivId?: string | null;
-    ingestionStatus: string;
+    user: {
+      id: UUIDString;
+    } & User_Key;
+      title: string;
+      authors: string[];
+      year?: number | null;
+      abstract?: string | null;
+      arxivId?: string | null;
+      ingestionStatus: string;
   } & Paper_Key)[];
 }
 ```
@@ -613,10 +619,12 @@ To access the data returned by a Query, use the `UseQueryResult.data` field. The
 export interface ListChatSessionsData {
   chatSessions: ({
     id: UUIDString;
-    title: string;
-    userId: UUIDString;
-    createdAt: TimestampString;
-    updatedAt: TimestampString;
+    user: {
+      id: UUIDString;
+    } & User_Key;
+      title: string;
+      createdAt: TimestampString;
+      updatedAt: TimestampString;
   } & ChatSession_Key)[];
 }
 ```
@@ -701,10 +709,12 @@ To access the data returned by a Query, use the `UseQueryResult.data` field. The
 export interface GetChatSessionData {
   chatSession?: {
     id: UUIDString;
-    title: string;
-    userId: UUIDString;
-    createdAt: TimestampString;
-    updatedAt: TimestampString;
+    user: {
+      id: UUIDString;
+    } & User_Key;
+      title: string;
+      createdAt: TimestampString;
+      updatedAt: TimestampString;
   } & ChatSession_Key;
 }
 ```
@@ -789,9 +799,12 @@ To access the data returned by a Query, use the `UseQueryResult.data` field. The
 export interface GetChatsForSessionData {
   chats: ({
     id: UUIDString;
-    content: string;
-    response?: string | null;
-    createdAt: TimestampString;
+    chatSession: {
+      id: UUIDString;
+    } & ChatSession_Key;
+      content: string;
+      response?: string | null;
+      createdAt: TimestampString;
   } & Chat_Key)[];
 }
 ```
@@ -875,11 +888,14 @@ To access the data returned by a Query, use the `UseQueryResult.data` field. The
 ```javascript
 export interface GetChatPapersForChatData {
   chatPapers: ({
-    paper: {
+    chat: {
       id: UUIDString;
-      title: string;
-      arxivId?: string | null;
-    } & Paper_Key;
+    } & Chat_Key;
+      paper: {
+        id: UUIDString;
+        title: string;
+        arxivId?: string | null;
+      } & Paper_Key;
   })[];
 }
 ```
@@ -964,8 +980,11 @@ To access the data returned by a Query, use the `UseQueryResult.data` field. The
 export interface GetCodeLinksForPaperData {
   codeLinks: ({
     id: UUIDString;
-    url: string;
-    repositoryName?: string | null;
+    paper: {
+      id: UUIDString;
+    } & Paper_Key;
+      url: string;
+      repositoryName?: string | null;
   } & CodeLink_Key)[];
 }
 ```

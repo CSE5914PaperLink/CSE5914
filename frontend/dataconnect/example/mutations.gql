@@ -16,7 +16,7 @@ mutation AddPaper(
 ) @auth(level: PUBLIC) {
   paper_insert(
     data: {
-      userId: $userId
+      user: { id: $userId }
       title: $title
       authors: $authors
       year: $year
@@ -39,7 +39,7 @@ mutation DeletePaper($paperId: UUID!) @auth(level: PUBLIC) {
 
 # Chat Session Mutations
 mutation CreateChatSession($userId: UUID!, $title: String!) @auth(level: PUBLIC) {
-  chatSession_insert(data: { userId: $userId, title: $title })
+  chatSession_insert(data: { user: { id: $userId }, title: $title })
 }
 
 mutation UpdateChatSession($sessionId: UUID!, $title: String!) @auth(level: PUBLIC) {
@@ -59,7 +59,7 @@ mutation AddChat(
 ) @auth(level: PUBLIC) {
   chat_insert(
     data: {
-      chatSessionId: $sessionId
+      chatSession: { id: $sessionId }
       content: $content
       response: $response
     }
@@ -67,13 +67,13 @@ mutation AddChat(
 }
 
 mutation LinkPaperToChat($chatId: UUID!, $paperId: UUID!) @auth(level: PUBLIC) {
-  chatPaper_insert(data: { chatId: $chatId, paperId: $paperId })
+  chatPaper_insert(data: { chat: { id: $chatId }, paper: { id: $paperId } })
 }
 
 # Code Link Mutations
 mutation AddCodeLink($paperId: UUID!, $url: String!, $repositoryName: String) @auth(level: PUBLIC) {
   codeLink_insert(
-    data: { paperId: $paperId, url: $url, repositoryName: $repositoryName }
+    data: { paper: { id: $paperId }, url: $url, repositoryName: $repositoryName }
   )
 }
 

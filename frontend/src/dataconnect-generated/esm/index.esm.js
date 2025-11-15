@@ -6,116 +6,6 @@ export const connectorConfig = {
   location: 'us-east4'
 };
 
-export const getUserByEmailRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'GetUserByEmail', inputVars);
-}
-getUserByEmailRef.operationName = 'GetUserByEmail';
-
-export function getUserByEmail(dcOrVars, vars) {
-  return executeQuery(getUserByEmailRef(dcOrVars, vars));
-}
-
-export const getUserRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'GetUser', inputVars);
-}
-getUserRef.operationName = 'GetUser';
-
-export function getUser(dcOrVars, vars) {
-  return executeQuery(getUserRef(dcOrVars, vars));
-}
-
-export const listPapersRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'ListPapers', inputVars);
-}
-listPapersRef.operationName = 'ListPapers';
-
-export function listPapers(dcOrVars, vars) {
-  return executeQuery(listPapersRef(dcOrVars, vars));
-}
-
-export const getPaperRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'GetPaper', inputVars);
-}
-getPaperRef.operationName = 'GetPaper';
-
-export function getPaper(dcOrVars, vars) {
-  return executeQuery(getPaperRef(dcOrVars, vars));
-}
-
-export const searchPapersRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'SearchPapers', inputVars);
-}
-searchPapersRef.operationName = 'SearchPapers';
-
-export function searchPapers(dcOrVars, vars) {
-  return executeQuery(searchPapersRef(dcOrVars, vars));
-}
-
-export const listChatSessionsRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'ListChatSessions', inputVars);
-}
-listChatSessionsRef.operationName = 'ListChatSessions';
-
-export function listChatSessions(dcOrVars, vars) {
-  return executeQuery(listChatSessionsRef(dcOrVars, vars));
-}
-
-export const getChatSessionRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'GetChatSession', inputVars);
-}
-getChatSessionRef.operationName = 'GetChatSession';
-
-export function getChatSession(dcOrVars, vars) {
-  return executeQuery(getChatSessionRef(dcOrVars, vars));
-}
-
-export const getChatsForSessionRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'GetChatsForSession', inputVars);
-}
-getChatsForSessionRef.operationName = 'GetChatsForSession';
-
-export function getChatsForSession(dcOrVars, vars) {
-  return executeQuery(getChatsForSessionRef(dcOrVars, vars));
-}
-
-export const getChatPapersForChatRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'GetChatPapersForChat', inputVars);
-}
-getChatPapersForChatRef.operationName = 'GetChatPapersForChat';
-
-export function getChatPapersForChat(dcOrVars, vars) {
-  return executeQuery(getChatPapersForChatRef(dcOrVars, vars));
-}
-
-export const getCodeLinksForPaperRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return queryRef(dcInstance, 'GetCodeLinksForPaper', inputVars);
-}
-getCodeLinksForPaperRef.operationName = 'GetCodeLinksForPaper';
-
-export function getCodeLinksForPaper(dcOrVars, vars) {
-  return executeQuery(getCodeLinksForPaperRef(dcOrVars, vars));
-}
-
 export const createUserRef = (dcOrVars, vars) => {
   const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
   dcInstance._useGeneratedSdk();
@@ -235,5 +125,115 @@ deleteCodeLinkRef.operationName = 'DeleteCodeLink';
 
 export function deleteCodeLink(dcOrVars, vars) {
   return executeMutation(deleteCodeLinkRef(dcOrVars, vars));
+}
+
+export const getUserByEmailRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'GetUserByEmail', inputVars);
+}
+getUserByEmailRef.operationName = 'GetUserByEmail';
+
+export function getUserByEmail(dcOrVars, vars) {
+  return executeQuery(getUserByEmailRef(dcOrVars, vars));
+}
+
+export const getUserRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'GetUser', inputVars);
+}
+getUserRef.operationName = 'GetUser';
+
+export function getUser(dcOrVars, vars) {
+  return executeQuery(getUserRef(dcOrVars, vars));
+}
+
+export const listPapersRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'ListPapers', inputVars);
+}
+listPapersRef.operationName = 'ListPapers';
+
+export function listPapers(dcOrVars, vars) {
+  return executeQuery(listPapersRef(dcOrVars, vars));
+}
+
+export const getPaperRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'GetPaper', inputVars);
+}
+getPaperRef.operationName = 'GetPaper';
+
+export function getPaper(dcOrVars, vars) {
+  return executeQuery(getPaperRef(dcOrVars, vars));
+}
+
+export const searchPapersRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'SearchPapers', inputVars);
+}
+searchPapersRef.operationName = 'SearchPapers';
+
+export function searchPapers(dcOrVars, vars) {
+  return executeQuery(searchPapersRef(dcOrVars, vars));
+}
+
+export const listChatSessionsRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'ListChatSessions', inputVars);
+}
+listChatSessionsRef.operationName = 'ListChatSessions';
+
+export function listChatSessions(dcOrVars, vars) {
+  return executeQuery(listChatSessionsRef(dcOrVars, vars));
+}
+
+export const getChatSessionRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'GetChatSession', inputVars);
+}
+getChatSessionRef.operationName = 'GetChatSession';
+
+export function getChatSession(dcOrVars, vars) {
+  return executeQuery(getChatSessionRef(dcOrVars, vars));
+}
+
+export const getChatsForSessionRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'GetChatsForSession', inputVars);
+}
+getChatsForSessionRef.operationName = 'GetChatsForSession';
+
+export function getChatsForSession(dcOrVars, vars) {
+  return executeQuery(getChatsForSessionRef(dcOrVars, vars));
+}
+
+export const getChatPapersForChatRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'GetChatPapersForChat', inputVars);
+}
+getChatPapersForChatRef.operationName = 'GetChatPapersForChat';
+
+export function getChatPapersForChat(dcOrVars, vars) {
+  return executeQuery(getChatPapersForChatRef(dcOrVars, vars));
+}
+
+export const getCodeLinksForPaperRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'GetCodeLinksForPaper', inputVars);
+}
+getCodeLinksForPaperRef.operationName = 'GetCodeLinksForPaper';
+
+export function getCodeLinksForPaper(dcOrVars, vars) {
+  return executeQuery(getCodeLinksForPaperRef(dcOrVars, vars));
 }
 

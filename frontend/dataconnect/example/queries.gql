@@ -19,8 +19,9 @@ query GetUser($userId: UUID!) @auth(level: PUBLIC) {
 
 # Paper Queries
 query ListPapers($userId: UUID!) @auth(level: PUBLIC) {
-  papers(where: { userId: { eq: $userId } }, orderBy: { createdAt: DESC }) {
+  papers(where: { user: { id: { eq: $userId } } }, orderBy: { createdAt: DESC }) {
     id
+    user { id }
     title
     authors
     year
@@ -54,7 +55,7 @@ query SearchPapers($userId: UUID!, $searchTerm: String!) @auth(level: PUBLIC) {
   papers(
     where: {
       _and: [
-        { userId: { eq: $userId } }
+        { user: { id: { eq: $userId } } }
         {
           _or: [
             { title: { contains: $searchTerm } }
@@ -65,6 +66,7 @@ query SearchPapers($userId: UUID!, $searchTerm: String!) @auth(level: PUBLIC) {
     }
   ) {
     id
+    user { id }
     title
     authors
     year
@@ -76,10 +78,10 @@ query SearchPapers($userId: UUID!, $searchTerm: String!) @auth(level: PUBLIC) {
 
 # Chat Session Queries
 query ListChatSessions($userId: UUID!) @auth(level: PUBLIC) {
-  chatSessions(where: { userId: { eq: $userId } }, orderBy: { updatedAt: DESC }) {
+  chatSessions(where: { user: { id: { eq: $userId } } }, orderBy: { updatedAt: DESC }) {
     id
+    user { id }
     title
-    userId
     createdAt
     updatedAt
   }
@@ -88,16 +90,17 @@ query ListChatSessions($userId: UUID!) @auth(level: PUBLIC) {
 query GetChatSession($sessionId: UUID!) @auth(level: PUBLIC) {
   chatSession(id: $sessionId) {
     id
+    user { id }
     title
-    userId
     createdAt
     updatedAt
   }
 }
 
 query GetChatsForSession($sessionId: UUID!) @auth(level: PUBLIC) {
-  chats(where: { chatSessionId: { eq: $sessionId } }, orderBy: { createdAt: ASC }) {
+  chats(where: { chatSession: { id: { eq: $sessionId } } }, orderBy: { createdAt: ASC }) {
     id
+    chatSession { id }
     content
     response
     createdAt
@@ -105,7 +108,8 @@ query GetChatsForSession($sessionId: UUID!) @auth(level: PUBLIC) {
 }
 
 query GetChatPapersForChat($chatId: UUID!) @auth(level: PUBLIC) {
-  chatPapers(where: { chatId: { eq: $chatId } }) {
+  chatPapers(where: { chat: { id: { eq: $chatId } } }) {
+    chat { id }
     paper {
       id
       title
@@ -116,8 +120,9 @@ query GetChatPapersForChat($chatId: UUID!) @auth(level: PUBLIC) {
 
 # Code Links Queries
 query GetCodeLinksForPaper($paperId: UUID!) @auth(level: PUBLIC) {
-  codeLinks(where: { paperId: { eq: $paperId } }) {
+  codeLinks(where: { paper: { id: { eq: $paperId } } }) {
     id
+    paper { id }
     url
     repositoryName
   }

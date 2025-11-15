@@ -111,11 +111,14 @@ export interface DeletePaperVariables {
 
 export interface GetChatPapersForChatData {
   chatPapers: ({
-    paper: {
+    chat: {
       id: UUIDString;
-      title: string;
-      arxivId?: string | null;
-    } & Paper_Key;
+    } & Chat_Key;
+      paper: {
+        id: UUIDString;
+        title: string;
+        arxivId?: string | null;
+      } & Paper_Key;
   })[];
 }
 
@@ -126,10 +129,12 @@ export interface GetChatPapersForChatVariables {
 export interface GetChatSessionData {
   chatSession?: {
     id: UUIDString;
-    title: string;
-    userId: UUIDString;
-    createdAt: TimestampString;
-    updatedAt: TimestampString;
+    user: {
+      id: UUIDString;
+    } & User_Key;
+      title: string;
+      createdAt: TimestampString;
+      updatedAt: TimestampString;
   } & ChatSession_Key;
 }
 
@@ -140,9 +145,12 @@ export interface GetChatSessionVariables {
 export interface GetChatsForSessionData {
   chats: ({
     id: UUIDString;
-    content: string;
-    response?: string | null;
-    createdAt: TimestampString;
+    chatSession: {
+      id: UUIDString;
+    } & ChatSession_Key;
+      content: string;
+      response?: string | null;
+      createdAt: TimestampString;
   } & Chat_Key)[];
 }
 
@@ -153,8 +161,11 @@ export interface GetChatsForSessionVariables {
 export interface GetCodeLinksForPaperData {
   codeLinks: ({
     id: UUIDString;
-    url: string;
-    repositoryName?: string | null;
+    paper: {
+      id: UUIDString;
+    } & Paper_Key;
+      url: string;
+      repositoryName?: string | null;
   } & CodeLink_Key)[];
 }
 
@@ -220,10 +231,12 @@ export interface LinkPaperToChatVariables {
 export interface ListChatSessionsData {
   chatSessions: ({
     id: UUIDString;
-    title: string;
-    userId: UUIDString;
-    createdAt: TimestampString;
-    updatedAt: TimestampString;
+    user: {
+      id: UUIDString;
+    } & User_Key;
+      title: string;
+      createdAt: TimestampString;
+      updatedAt: TimestampString;
   } & ChatSession_Key)[];
 }
 
@@ -234,16 +247,19 @@ export interface ListChatSessionsVariables {
 export interface ListPapersData {
   papers: ({
     id: UUIDString;
-    title: string;
-    authors: string[];
-    year?: number | null;
-    paperType?: string | null;
-    abstract?: string | null;
-    arxivId?: string | null;
-    ingestionStatus: string;
-    citationCount?: number | null;
-    createdAt: TimestampString;
-    pdfUrl?: string | null;
+    user: {
+      id: UUIDString;
+    } & User_Key;
+      title: string;
+      authors: string[];
+      year?: number | null;
+      paperType?: string | null;
+      abstract?: string | null;
+      arxivId?: string | null;
+      ingestionStatus: string;
+      citationCount?: number | null;
+      createdAt: TimestampString;
+      pdfUrl?: string | null;
   } & Paper_Key)[];
 }
 
@@ -259,12 +275,15 @@ export interface Paper_Key {
 export interface SearchPapersData {
   papers: ({
     id: UUIDString;
-    title: string;
-    authors: string[];
-    year?: number | null;
-    abstract?: string | null;
-    arxivId?: string | null;
-    ingestionStatus: string;
+    user: {
+      id: UUIDString;
+    } & User_Key;
+      title: string;
+      authors: string[];
+      year?: number | null;
+      abstract?: string | null;
+      arxivId?: string | null;
+      ingestionStatus: string;
   } & Paper_Key)[];
 }
 
@@ -295,126 +314,6 @@ export interface User_Key {
   id: UUIDString;
   __typename?: 'User_Key';
 }
-
-interface GetUserByEmailRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: GetUserByEmailVariables): QueryRef<GetUserByEmailData, GetUserByEmailVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: GetUserByEmailVariables): QueryRef<GetUserByEmailData, GetUserByEmailVariables>;
-  operationName: string;
-}
-export const getUserByEmailRef: GetUserByEmailRef;
-
-export function getUserByEmail(vars: GetUserByEmailVariables): QueryPromise<GetUserByEmailData, GetUserByEmailVariables>;
-export function getUserByEmail(dc: DataConnect, vars: GetUserByEmailVariables): QueryPromise<GetUserByEmailData, GetUserByEmailVariables>;
-
-interface GetUserRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: GetUserVariables): QueryRef<GetUserData, GetUserVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: GetUserVariables): QueryRef<GetUserData, GetUserVariables>;
-  operationName: string;
-}
-export const getUserRef: GetUserRef;
-
-export function getUser(vars: GetUserVariables): QueryPromise<GetUserData, GetUserVariables>;
-export function getUser(dc: DataConnect, vars: GetUserVariables): QueryPromise<GetUserData, GetUserVariables>;
-
-interface ListPapersRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: ListPapersVariables): QueryRef<ListPapersData, ListPapersVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: ListPapersVariables): QueryRef<ListPapersData, ListPapersVariables>;
-  operationName: string;
-}
-export const listPapersRef: ListPapersRef;
-
-export function listPapers(vars: ListPapersVariables): QueryPromise<ListPapersData, ListPapersVariables>;
-export function listPapers(dc: DataConnect, vars: ListPapersVariables): QueryPromise<ListPapersData, ListPapersVariables>;
-
-interface GetPaperRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: GetPaperVariables): QueryRef<GetPaperData, GetPaperVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: GetPaperVariables): QueryRef<GetPaperData, GetPaperVariables>;
-  operationName: string;
-}
-export const getPaperRef: GetPaperRef;
-
-export function getPaper(vars: GetPaperVariables): QueryPromise<GetPaperData, GetPaperVariables>;
-export function getPaper(dc: DataConnect, vars: GetPaperVariables): QueryPromise<GetPaperData, GetPaperVariables>;
-
-interface SearchPapersRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: SearchPapersVariables): QueryRef<SearchPapersData, SearchPapersVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: SearchPapersVariables): QueryRef<SearchPapersData, SearchPapersVariables>;
-  operationName: string;
-}
-export const searchPapersRef: SearchPapersRef;
-
-export function searchPapers(vars: SearchPapersVariables): QueryPromise<SearchPapersData, SearchPapersVariables>;
-export function searchPapers(dc: DataConnect, vars: SearchPapersVariables): QueryPromise<SearchPapersData, SearchPapersVariables>;
-
-interface ListChatSessionsRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: ListChatSessionsVariables): QueryRef<ListChatSessionsData, ListChatSessionsVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: ListChatSessionsVariables): QueryRef<ListChatSessionsData, ListChatSessionsVariables>;
-  operationName: string;
-}
-export const listChatSessionsRef: ListChatSessionsRef;
-
-export function listChatSessions(vars: ListChatSessionsVariables): QueryPromise<ListChatSessionsData, ListChatSessionsVariables>;
-export function listChatSessions(dc: DataConnect, vars: ListChatSessionsVariables): QueryPromise<ListChatSessionsData, ListChatSessionsVariables>;
-
-interface GetChatSessionRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: GetChatSessionVariables): QueryRef<GetChatSessionData, GetChatSessionVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: GetChatSessionVariables): QueryRef<GetChatSessionData, GetChatSessionVariables>;
-  operationName: string;
-}
-export const getChatSessionRef: GetChatSessionRef;
-
-export function getChatSession(vars: GetChatSessionVariables): QueryPromise<GetChatSessionData, GetChatSessionVariables>;
-export function getChatSession(dc: DataConnect, vars: GetChatSessionVariables): QueryPromise<GetChatSessionData, GetChatSessionVariables>;
-
-interface GetChatsForSessionRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: GetChatsForSessionVariables): QueryRef<GetChatsForSessionData, GetChatsForSessionVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: GetChatsForSessionVariables): QueryRef<GetChatsForSessionData, GetChatsForSessionVariables>;
-  operationName: string;
-}
-export const getChatsForSessionRef: GetChatsForSessionRef;
-
-export function getChatsForSession(vars: GetChatsForSessionVariables): QueryPromise<GetChatsForSessionData, GetChatsForSessionVariables>;
-export function getChatsForSession(dc: DataConnect, vars: GetChatsForSessionVariables): QueryPromise<GetChatsForSessionData, GetChatsForSessionVariables>;
-
-interface GetChatPapersForChatRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: GetChatPapersForChatVariables): QueryRef<GetChatPapersForChatData, GetChatPapersForChatVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: GetChatPapersForChatVariables): QueryRef<GetChatPapersForChatData, GetChatPapersForChatVariables>;
-  operationName: string;
-}
-export const getChatPapersForChatRef: GetChatPapersForChatRef;
-
-export function getChatPapersForChat(vars: GetChatPapersForChatVariables): QueryPromise<GetChatPapersForChatData, GetChatPapersForChatVariables>;
-export function getChatPapersForChat(dc: DataConnect, vars: GetChatPapersForChatVariables): QueryPromise<GetChatPapersForChatData, GetChatPapersForChatVariables>;
-
-interface GetCodeLinksForPaperRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: GetCodeLinksForPaperVariables): QueryRef<GetCodeLinksForPaperData, GetCodeLinksForPaperVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: GetCodeLinksForPaperVariables): QueryRef<GetCodeLinksForPaperData, GetCodeLinksForPaperVariables>;
-  operationName: string;
-}
-export const getCodeLinksForPaperRef: GetCodeLinksForPaperRef;
-
-export function getCodeLinksForPaper(vars: GetCodeLinksForPaperVariables): QueryPromise<GetCodeLinksForPaperData, GetCodeLinksForPaperVariables>;
-export function getCodeLinksForPaper(dc: DataConnect, vars: GetCodeLinksForPaperVariables): QueryPromise<GetCodeLinksForPaperData, GetCodeLinksForPaperVariables>;
 
 interface CreateUserRef {
   /* Allow users to create refs without passing in DataConnect */
@@ -547,4 +446,124 @@ export const deleteCodeLinkRef: DeleteCodeLinkRef;
 
 export function deleteCodeLink(vars: DeleteCodeLinkVariables): MutationPromise<DeleteCodeLinkData, DeleteCodeLinkVariables>;
 export function deleteCodeLink(dc: DataConnect, vars: DeleteCodeLinkVariables): MutationPromise<DeleteCodeLinkData, DeleteCodeLinkVariables>;
+
+interface GetUserByEmailRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: GetUserByEmailVariables): QueryRef<GetUserByEmailData, GetUserByEmailVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: GetUserByEmailVariables): QueryRef<GetUserByEmailData, GetUserByEmailVariables>;
+  operationName: string;
+}
+export const getUserByEmailRef: GetUserByEmailRef;
+
+export function getUserByEmail(vars: GetUserByEmailVariables): QueryPromise<GetUserByEmailData, GetUserByEmailVariables>;
+export function getUserByEmail(dc: DataConnect, vars: GetUserByEmailVariables): QueryPromise<GetUserByEmailData, GetUserByEmailVariables>;
+
+interface GetUserRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: GetUserVariables): QueryRef<GetUserData, GetUserVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: GetUserVariables): QueryRef<GetUserData, GetUserVariables>;
+  operationName: string;
+}
+export const getUserRef: GetUserRef;
+
+export function getUser(vars: GetUserVariables): QueryPromise<GetUserData, GetUserVariables>;
+export function getUser(dc: DataConnect, vars: GetUserVariables): QueryPromise<GetUserData, GetUserVariables>;
+
+interface ListPapersRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: ListPapersVariables): QueryRef<ListPapersData, ListPapersVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: ListPapersVariables): QueryRef<ListPapersData, ListPapersVariables>;
+  operationName: string;
+}
+export const listPapersRef: ListPapersRef;
+
+export function listPapers(vars: ListPapersVariables): QueryPromise<ListPapersData, ListPapersVariables>;
+export function listPapers(dc: DataConnect, vars: ListPapersVariables): QueryPromise<ListPapersData, ListPapersVariables>;
+
+interface GetPaperRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: GetPaperVariables): QueryRef<GetPaperData, GetPaperVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: GetPaperVariables): QueryRef<GetPaperData, GetPaperVariables>;
+  operationName: string;
+}
+export const getPaperRef: GetPaperRef;
+
+export function getPaper(vars: GetPaperVariables): QueryPromise<GetPaperData, GetPaperVariables>;
+export function getPaper(dc: DataConnect, vars: GetPaperVariables): QueryPromise<GetPaperData, GetPaperVariables>;
+
+interface SearchPapersRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: SearchPapersVariables): QueryRef<SearchPapersData, SearchPapersVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: SearchPapersVariables): QueryRef<SearchPapersData, SearchPapersVariables>;
+  operationName: string;
+}
+export const searchPapersRef: SearchPapersRef;
+
+export function searchPapers(vars: SearchPapersVariables): QueryPromise<SearchPapersData, SearchPapersVariables>;
+export function searchPapers(dc: DataConnect, vars: SearchPapersVariables): QueryPromise<SearchPapersData, SearchPapersVariables>;
+
+interface ListChatSessionsRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: ListChatSessionsVariables): QueryRef<ListChatSessionsData, ListChatSessionsVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: ListChatSessionsVariables): QueryRef<ListChatSessionsData, ListChatSessionsVariables>;
+  operationName: string;
+}
+export const listChatSessionsRef: ListChatSessionsRef;
+
+export function listChatSessions(vars: ListChatSessionsVariables): QueryPromise<ListChatSessionsData, ListChatSessionsVariables>;
+export function listChatSessions(dc: DataConnect, vars: ListChatSessionsVariables): QueryPromise<ListChatSessionsData, ListChatSessionsVariables>;
+
+interface GetChatSessionRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: GetChatSessionVariables): QueryRef<GetChatSessionData, GetChatSessionVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: GetChatSessionVariables): QueryRef<GetChatSessionData, GetChatSessionVariables>;
+  operationName: string;
+}
+export const getChatSessionRef: GetChatSessionRef;
+
+export function getChatSession(vars: GetChatSessionVariables): QueryPromise<GetChatSessionData, GetChatSessionVariables>;
+export function getChatSession(dc: DataConnect, vars: GetChatSessionVariables): QueryPromise<GetChatSessionData, GetChatSessionVariables>;
+
+interface GetChatsForSessionRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: GetChatsForSessionVariables): QueryRef<GetChatsForSessionData, GetChatsForSessionVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: GetChatsForSessionVariables): QueryRef<GetChatsForSessionData, GetChatsForSessionVariables>;
+  operationName: string;
+}
+export const getChatsForSessionRef: GetChatsForSessionRef;
+
+export function getChatsForSession(vars: GetChatsForSessionVariables): QueryPromise<GetChatsForSessionData, GetChatsForSessionVariables>;
+export function getChatsForSession(dc: DataConnect, vars: GetChatsForSessionVariables): QueryPromise<GetChatsForSessionData, GetChatsForSessionVariables>;
+
+interface GetChatPapersForChatRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: GetChatPapersForChatVariables): QueryRef<GetChatPapersForChatData, GetChatPapersForChatVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: GetChatPapersForChatVariables): QueryRef<GetChatPapersForChatData, GetChatPapersForChatVariables>;
+  operationName: string;
+}
+export const getChatPapersForChatRef: GetChatPapersForChatRef;
+
+export function getChatPapersForChat(vars: GetChatPapersForChatVariables): QueryPromise<GetChatPapersForChatData, GetChatPapersForChatVariables>;
+export function getChatPapersForChat(dc: DataConnect, vars: GetChatPapersForChatVariables): QueryPromise<GetChatPapersForChatData, GetChatPapersForChatVariables>;
+
+interface GetCodeLinksForPaperRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: GetCodeLinksForPaperVariables): QueryRef<GetCodeLinksForPaperData, GetCodeLinksForPaperVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: GetCodeLinksForPaperVariables): QueryRef<GetCodeLinksForPaperData, GetCodeLinksForPaperVariables>;
+  operationName: string;
+}
+export const getCodeLinksForPaperRef: GetCodeLinksForPaperRef;
+
+export function getCodeLinksForPaper(vars: GetCodeLinksForPaperVariables): QueryPromise<GetCodeLinksForPaperData, GetCodeLinksForPaperVariables>;
+export function getCodeLinksForPaper(dc: DataConnect, vars: GetCodeLinksForPaperVariables): QueryPromise<GetCodeLinksForPaperData, GetCodeLinksForPaperVariables>;
 
