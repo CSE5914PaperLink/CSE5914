@@ -1,0 +1,129 @@
+# User Queries
+query GetUserByEmail($email: String!) @auth(level: PUBLIC) {
+  users(where: { email: { eq: $email } }) {
+    id
+    name
+    email
+    createdAt
+  }
+}
+
+query GetUser($userId: UUID!) @auth(level: PUBLIC) {
+  user(id: $userId) {
+    id
+    name
+    email
+    createdAt
+  }
+}
+
+# Paper Queries
+query ListPapers($userId: UUID!) @auth(level: PUBLIC) {
+  papers(where: { user: { id: { eq: $userId } } }, orderBy: { createdAt: DESC }) {
+    id
+    user { id }
+    title
+    authors
+    year
+    paperType
+    abstract
+    arxivId
+    ingestionStatus
+    citationCount
+    createdAt
+    pdfUrl
+  }
+}
+
+query GetPaper($paperId: UUID!) @auth(level: PUBLIC) {
+  paper(id: $paperId) {
+    id
+    title
+    authors
+    year
+    paperType
+    abstract
+    arxivId
+    ingestionStatus
+    citationCount
+    createdAt
+    pdfUrl
+  }
+}
+
+query SearchPapers($userId: UUID!, $searchTerm: String!) @auth(level: PUBLIC) {
+  papers(
+    where: {
+      _and: [
+        { user: { id: { eq: $userId } } }
+        {
+          _or: [
+            { title: { contains: $searchTerm } }
+            { abstract: { contains: $searchTerm } }
+          ]
+        }
+      ]
+    }
+  ) {
+    id
+    user { id }
+    title
+    authors
+    year
+    abstract
+    arxivId
+    ingestionStatus
+  }
+}
+
+# Chat Session Queries
+query ListChatSessions($userId: UUID!) @auth(level: PUBLIC) {
+  chatSessions(where: { user: { id: { eq: $userId } } }, orderBy: { updatedAt: DESC }) {
+    id
+    user { id }
+    title
+    createdAt
+    updatedAt
+  }
+}
+
+query GetChatSession($sessionId: UUID!) @auth(level: PUBLIC) {
+  chatSession(id: $sessionId) {
+    id
+    user { id }
+    title
+    createdAt
+    updatedAt
+  }
+}
+
+query GetChatsForSession($sessionId: UUID!) @auth(level: PUBLIC) {
+  chats(where: { chatSession: { id: { eq: $sessionId } } }, orderBy: { createdAt: ASC }) {
+    id
+    chatSession { id }
+    content
+    response
+    createdAt
+  }
+}
+
+query GetChatPapersForChat($chatId: UUID!) @auth(level: PUBLIC) {
+  chatPapers(where: { chat: { id: { eq: $chatId } } }) {
+    chat { id }
+    paper {
+      id
+      title
+      arxivId
+    }
+  }
+}
+
+# Code Links Queries
+query GetCodeLinksForPaper($paperId: UUID!) @auth(level: PUBLIC) {
+  codeLinks(where: { paper: { id: { eq: $paperId } } }) {
+    id
+    paper { id }
+    url
+    repositoryName
+  }
+}
