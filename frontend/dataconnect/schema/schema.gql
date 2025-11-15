@@ -1,43 +1,52 @@
 type User @table {
+  id: UUID! @default(expr: "uuidV4()")
   name: String!
-  email: String
-  createdAt: Timestamp!
+  email: String! @unique
+  createdAt: Timestamp! @default(expr: "request.time")
 }
 
 type ChatSession @table {
+  id: UUID! @default(expr: "uuidV4()")
   user: User!
   title: String!
-  createdAt: Timestamp!
-  updatedAt: Timestamp!
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
 }
 
 type Paper @table {
+  id: UUID! @default(expr: "uuidV4()")
+  user: User!
   title: String!
   authors: [String!]!
-  year: Int!
-  type: String!
-  abstract: String!
-  ingestionStatus: String!
+  year: Int
+  paperType: String
+  abstract: String
+  arxivId: String @unique
+  pdfUrl: String
+  ingestionStatus: String! @default(value: "pending")
   citationCount: Int
+  createdAt: Timestamp! @default(expr: "request.time")
 }
 
 type Chat @table {
+  id: UUID! @default(expr: "uuidV4()")
   chatSession: ChatSession!
   content: String!
-  response: String!
-  createdAt: Timestamp!
-  updatedAt: Timestamp!
+  response: String
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
 }
 
-type ChatPaper @table {
-  id: ID!
+type ChatPaper @table(key: ["chat", "paper"]) {
   chat: Chat!
   paper: Paper!
-  createdAt: Timestamp!
+  createdAt: Timestamp! @default(expr: "request.time")
 }
 
 type CodeLink @table {
+  id: UUID! @default(expr: "uuidV4()")
   paper: Paper!
   url: String!
-  repo: String!
+  repositoryName: String
+  createdAt: Timestamp! @default(expr: "request.time")
 }

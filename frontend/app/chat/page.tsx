@@ -5,8 +5,10 @@ import { Messages } from "@/components/chat/Messages";
 import { InputForm, type Feature } from "@/components/chat/InputForm";
 import { PdfViewer } from "@/components/chat/PdfViewer";
 import type { ChatMessage, LibraryItem } from "@/components/chat/types";
+import { useUser } from "@/contexts/UserContext";
 
 export default function ChatPage() {
+  const { dataConnectUserId } = useUser();
   // Split ratio for chat/pdf (0..1). Sidebar stays auto.
   // Use a fixed SSR-safe initial value to avoid hydration mismatch; load stored value after mount.
   const [split, setSplit] = useState<number>(0.5);
@@ -40,9 +42,11 @@ export default function ChatPage() {
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // fetch user's library
+    // fetch user's library from API that merges DataConnect + ChromaDB
+    if (!dataConnectUserId) return;
+    
     let mounted = true;
-    fetch("/api/library/list")
+    fetch(`/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`)
       .then((r) => r.json())
       .then((data) => {
         if (!mounted) return;
@@ -54,7 +58,7 @@ export default function ChatPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [dataConnectUserId]);
 
   const addMessage = (text: string, sender: "user" | "ai" | "system") => {
     setMessages((m) => [...m, { id: crypto.randomUUID(), text, sender }]);

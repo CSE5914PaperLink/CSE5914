@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@dataconnect/generated": "file:src/dataconnect-generated",
+    "@firebase/data-connect": "^0.3.12",
     "firebase": "^10.14.1",
     "framer-motion": "^12.23.24",
     "next": "16.0.1",
