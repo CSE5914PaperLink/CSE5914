@@ -60,6 +60,40 @@ export function Sidebar({
     );
   }
 
+  const grouped = new Map<
+    string,
+    {
+      rootId: string;
+      title: string;
+      authors?: string | string[];
+      reprId: string;
+      chunkIds: string[];
+    }
+  >();
+  for (const it of library) {
+    const md = it.metadata as Record<string, unknown> | undefined;
+    const rootId =
+      (md && (md["doc_id"] as string | undefined)) ||
+      (it.id.includes("::chunk::") ? it.id.split("::chunk::")[0] : it.id);
+    const title =
+      (md?.title as string | undefined) ||
+      (md?.arxiv_id as string | undefined) ||
+      rootId;
+    if (!grouped.has(rootId)) {
+      grouped.set(rootId, {
+        rootId,
+        title,
+        authors: md?.authors as string | string[] | undefined,
+        reprId: it.id,
+        chunkIds: [it.id],
+      });
+    } else {
+      grouped.get(rootId)!.chunkIds.push(it.id);
+    }
+  }
+
+  const deduped = Array.from(grouped.values());
+
   return (
     <aside className="w-72 bg-white border-r p-4 flex flex-col min-h-0">
       <div className="flex items-center justify-between mb-3">
@@ -88,30 +122,31 @@ export function Sidebar({
         Select papers to include in chat (RAG)
       </p>
       <div className="space-y-2 overflow-auto min-h-0 py-2">
-        {library.length === 0 && (
+        {deduped.length === 0 && (
           <div className="text-sm text-gray-500">No papers found</div>
         )}
-        {library.map((it) => {
-          const title = it.metadata?.title || it.metadata?.arxiv_id || it.id;
-          const checked = selectedDocs.has(it.id);
+        {deduped.map((it) => {
+          const checked = selectedDocs.has(it.rootId);
           return (
             <label
-              key={it.id}
+              key={it.rootId}
               className="flex text-black items-start space-x-2 rounded hover:bg-gray-50 p-2"
             >
               <input
                 type="checkbox"
                 checked={checked}
-                onChange={(e) => onToggleSelect(it.id, e.target.checked)}
+                onChange={(e) => onToggleSelect(it.rootId, e.target.checked)}
                 className="mt-1"
               />
               <div className="text-sm flex-1">
-                <div className="font-medium">{title}</div>
-                {it.metadata?.authors && (
-                  <div className="text-xs text-gray-500">
-                    {formatAuthors(it.metadata.authors)}
-                  </div>
-                )}
+                <div className="font-medium">{it.title}</div>
+                {it.authors &&
+                  (() => {
+                    const fa = formatAuthors(it.authors as string | string[]);
+                    return fa ? (
+                      <div className="text-xs text-gray-500">{fa}</div>
+                    ) : null;
+                  })()}
               </div>
               <button
                 type="button"
@@ -119,7 +154,9 @@ export function Sidebar({
                 className="p-1 text-neutral-900 hover:text-neutral-800"
                 onClick={(e) => {
                   e.preventDefault();
-                  onDelete(it.id);
+                  // Use the root document id so backend will delete all chunks
+                  // associated with this paper.
+                  onDelete(it.rootId);
                 }}
               >
                 <svg

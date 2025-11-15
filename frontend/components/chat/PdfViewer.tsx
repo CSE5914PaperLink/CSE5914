@@ -6,12 +6,20 @@ export function PdfViewer({
   selectedIds,
   library,
 }: {
+  // selectedIds are root document ids (not chunk ids)
   selectedIds: string[];
   library: LibraryItem[];
 }) {
   const tabs = useMemo(() => {
     const set = new Set(selectedIds);
-    return library.filter((l) => set.has(l.id));
+    // For each selected root id, pick the first library entry that matches
+    return library.filter((l) => {
+      const md = l.metadata as Record<string, unknown> | undefined;
+      const root =
+        (md && (md["doc_id"] as string | undefined)) ||
+        (l.id.includes("::chunk::") ? l.id.split("::chunk::")[0] : l.id);
+      return set.has(root);
+    });
   }, [selectedIds, library]);
 
   const [activeId, setActiveId] = useState<string | null>(tabs[0]?.id ?? null);
