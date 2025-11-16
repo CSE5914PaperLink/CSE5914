@@ -8,12 +8,24 @@ from app.services.docling_service import DoclingService
 router = APIRouter(prefix="/docling", tags=["docling"])
 
 
+class ImageAssetModel(BaseModel):
+    filename: str
+    data_base64: str
+    media_type: str | None = None
+    page: int | None = None
+
+
 class DoclingMetadataModel(BaseModel):
+    # Legacy fields (currently unused in service but kept for compatibility)
     title: str | None = None
     authors: list[str] = Field(default_factory=list)
     abstract: str | None = None
     sections: list[dict] = Field(default_factory=list)
     page_count: int | None = None
+
+    # Actual outputs from DoclingService
+    markdown: str | None = None
+    images: list[ImageAssetModel] = Field(default_factory=list)
 
 
 _service = DoclingService()

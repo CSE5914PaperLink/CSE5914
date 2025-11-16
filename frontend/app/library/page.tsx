@@ -20,11 +20,22 @@ interface LibraryItem {
   in_chromadb: boolean;
 }
 
+interface ImageAsset {
+  filename: string;
+  url: string;
+  media_type?: string;
+  page?: number;
+  doc_id?: string;
+}
+
 export default function LibraryPage() {
   const { dataConnectUserId, loading: userLoading } = useUser();
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedPaperId, setExpandedPaperId] = useState<string | null>(null);
+  const [paperImages, setPaperImages] = useState<Record<string, ImageAsset[]>>({});
+  const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({});
 
   const fetchItems = async () => {
     if (!dataConnectUserId) return;
@@ -51,6 +62,47 @@ export default function LibraryPage() {
       setItems(items.filter(p => p.dataconnect_id !== dataconnectId));
     } catch (e) {
       alert("Failed to delete paper: " + (e as Error).message);
+    }
+  };
+
+  const fetchImages = async (docId: string) => {
+    if (paperImages[docId]) {
+      // Already fetched, just toggle
+      setExpandedPaperId(expandedPaperId === docId ? null : docId);
+      return;
+    }
+
+    setLoadingImages(prev => ({ ...prev, [docId]: true }));
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+      const res = await fetch(`${backendUrl}/library/images/${docId}`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          // No images for this paper
+          setPaperImages(prev => ({ ...prev, [docId]: [] }));
+        } else {
+          throw new Error("Failed to fetch images");
+        }
+      } else {
+        const data = await res.json();
+        // Backend returns {doc_id, images}, extract images array
+        const images = data.images || [];
+        setPaperImages(prev => ({ ...prev, [docId]: images }));
+      }
+      setExpandedPaperId(docId);
+    } catch (e) {
+      console.error("Error fetching images:", e);
+      alert("Failed to load images: " + (e as Error).message);
+    } finally {
+      setLoadingImages(prev => ({ ...prev, [docId]: false }));
+    }
+  };
+
+  const toggleImages = (docId: string) => {
+    if (expandedPaperId === docId) {
+      setExpandedPaperId(null);
+    } else {
+      fetchImages(docId);
     }
   };
 
@@ -105,56 +157,110 @@ export default function LibraryPage() {
           </div>
         )}
         <div className="space-y-4">
-          {items.map((item) => (
-            <div key={item.dataconnect_id} className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    {item.metadata.title}
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-2">
-                    {Array.isArray(item.metadata.authors) 
-                      ? item.metadata.authors.join(", ")
-                      : item.metadata.authors}
-                  </p>
-                  {item.metadata.abstract && (
-                    <p className="text-gray-700 text-sm line-clamp-3 mb-3">
-                      {item.metadata.abstract}
+          {items.map((item) => {
+            const docId = item.id;
+            const isExpanded = expandedPaperId === docId;
+            const images = paperImages[docId] || [];
+            const isLoadingImages = loadingImages[docId] || false;
+            
+            return (
+              <div key={item.dataconnect_id} className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      {item.metadata.title}
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-2">
+                      {Array.isArray(item.metadata.authors) 
+                        ? item.metadata.authors.join(", ")
+                        : item.metadata.authors}
                     </p>
-                  )}
-                  <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-3 items-center">
-                    {item.metadata.arxiv_id && (
-                      <span>🆔 {item.metadata.arxiv_id}</span>
+                    {item.metadata.abstract && (
+                      <p className="text-gray-700 text-sm line-clamp-3 mb-3">
+                        {item.metadata.abstract}
+                      </p>
                     )}
-                    {item.metadata.year && (
-                      <span>📅 {item.metadata.year}</span>
-                    )}
-                    <span className={`px-2 py-1 rounded ${
-                      item.metadata.ingestion_status === 'completed' 
-                        ? 'bg-green-100 text-green-800' 
-                        : item.metadata.ingestion_status === 'pending'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {item.metadata.ingestion_status}
-                    </span>
-                    {item.in_chromadb && (
-                      <span className="px-2 py-1 rounded bg-blue-100 text-blue-800">
-                        ✓ In Vector DB
+                    <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-3 items-center">
+                      {item.metadata.arxiv_id && (
+                        <span>🆔 {item.metadata.arxiv_id}</span>
+                      )}
+                      {item.metadata.year && (
+                        <span>📅 {item.metadata.year}</span>
+                      )}
+                      <span className={`px-2 py-1 rounded ${
+                        item.metadata.ingestion_status === 'completed' 
+                          ? 'bg-green-100 text-green-800' 
+                          : item.metadata.ingestion_status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {item.metadata.ingestion_status}
                       </span>
-                    )}
+                      {item.in_chromadb && (
+                        <span className="px-2 py-1 rounded bg-blue-100 text-blue-800">
+                          ✓ In Vector DB
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="shrink-0 flex gap-2">
+                    {/* <button
+                      onClick={() => toggleImages(docId)}
+                      className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded"
+                      title="View images"
+                      disabled={isLoadingImages}
+                    >
+                      {isLoadingImages ? "Loading..." : isExpanded ? "Hide Images" : "View Images"}
+                    </button> */}
+                    <button
+                      onClick={() => handleDelete(item.dataconnect_id)}
+                      className="px-3 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded"
+                      title="Delete paper"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDelete(item.dataconnect_id)}
-                  className="shrink-0 px-3 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded"
-                  title="Delete paper"
-                >
-                  Delete
-                </button>
+
+                {/* Image viewer dropdown */}
+                {isExpanded && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    {images.length === 0 ? (
+                      <p className="text-sm text-gray-500 italic">No images extracted from this paper.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="text-sm font-semibold text-gray-700">
+                          Extracted Images ({images.length})
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {images.map((img, idx) => (
+                            <div key={idx} className="border rounded-lg overflow-hidden bg-gray-50 hover:shadow-md transition-shadow">
+                              <img
+                                src={`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}${img.url}`}
+                                alt={img.filename}
+                                className="w-full h-48 object-contain bg-white p-2"
+                                loading="lazy"
+                              />
+                              <div className="px-2 py-2 bg-gray-100">
+                                <div className="text-xs font-medium text-gray-700 truncate">
+                                  {img.filename}
+                                </div>
+                                {img.page !== undefined && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    Page {img.page}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
