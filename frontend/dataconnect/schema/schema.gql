@@ -21,7 +21,7 @@ type Paper @table {
   year: Int
   paperType: String
   abstract: String
-  arxivId: String @unique
+  arxivId: String
   pdfUrl: String
   ingestionStatus: String! @default(value: "pending")
   citationCount: Int

@@ -47,10 +47,43 @@ export default function LibraryPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load library");
       setItems(data.results || []);
+      
+      // Check status of any processing papers
+      await checkProcessingPapers(data.results || []);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkProcessingPapers = async (papers: LibraryItem[]) => {
+    const processingPapers = papers.filter(p => p.metadata.ingestion_status === 'processing');
+    
+    for (const paper of processingPapers) {
+      if (!paper.metadata.arxiv_id) continue;
+      
+      try {
+        const res = await fetch('/api/library/check-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paperId: paper.dataconnect_id,
+            arxivId: paper.metadata.arxiv_id
+          })
+        });
+        
+        if (res.ok) {
+          const statusData = await res.json();
+          if (statusData.updated) {
+            // Refresh the list to show updated status
+            fetchItems();
+            break; // Only refresh once
+          }
+        }
+      } catch (e) {
+        console.error(`Failed to check status for ${paper.metadata.arxiv_id}:`, e);
+      }
     }
   };
 
@@ -107,10 +140,24 @@ export default function LibraryPage() {
   };
 
   useEffect(() => {
-    if (dataConnectUserId) {
+    if (dataConnectUserId && items.length === 0) {
       fetchItems();
     }
   }, [dataConnectUserId]);
+
+  // Auto-refresh when there are processing papers
+  useEffect(() => {
+    const hasProcessing = items.some(item => item.metadata.ingestion_status === 'processing');
+    
+    if (!hasProcessing) return;
+    
+    const interval = setInterval(() => {
+      console.log("Auto-checking processing papers...");
+      fetchItems();
+    }, 10000); // Check every 10 seconds
+    
+    return () => clearInterval(interval);
+  }, [items, dataConnectUserId]);
 
   if (userLoading) {
     return (
@@ -151,12 +198,36 @@ export default function LibraryPage() {
             {error}
           </div>
         )}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <svg
+              className="w-12 h-12 animate-spin text-blue-600"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+          </div>
+        )}
         {items.length === 0 && !loading && !error && (
           <div className="text-center py-12 text-gray-500">
             No papers added yet. Go to Discovery to add papers.
           </div>
         )}
-        <div className="space-y-4">
+        {!loading && (
+          <div className="space-y-4">
           {items.map((item) => {
             const docId = item.id;
             const isExpanded = expandedPaperId === docId;
@@ -190,11 +261,15 @@ export default function LibraryPage() {
                       <span className={`px-2 py-1 rounded ${
                         item.metadata.ingestion_status === 'completed' 
                           ? 'bg-green-100 text-green-800' 
+                          : item.metadata.ingestion_status === 'processing'
+                          ? 'bg-blue-100 text-blue-800'
                           : item.metadata.ingestion_status === 'pending'
                           ? 'bg-yellow-100 text-yellow-800'
+                          : item.metadata.ingestion_status === 'failed'
+                          ? 'bg-red-100 text-red-800'
                           : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {item.metadata.ingestion_status}
+                        {item.metadata.ingestion_status === 'processing' ? '⏳ Processing...' : item.metadata.ingestion_status}
                       </span>
                       {item.in_chromadb && (
                         <span className="px-2 py-1 rounded bg-blue-100 text-blue-800">
@@ -261,7 +336,8 @@ export default function LibraryPage() {
               </div>
             );
           })}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
