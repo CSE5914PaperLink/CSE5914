@@ -143,6 +143,7 @@ export async function POST(request: NextRequest) {
       }
     } catch (addError: any) {
       // Check if it's a duplicate error
+      console.error("[Library Add] DataConnect error:", addError);
       if (addError.code === 'other' && addError.message?.includes('ALREADY_EXISTS')) {
         return NextResponse.json(
           { error: "This paper is already in your library" },
