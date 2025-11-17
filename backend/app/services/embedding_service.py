@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import List, Optional
+import json
 
 from langchain_nomic import NomicEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -33,7 +34,11 @@ def ingest_pdf_bytes_into_chroma(
     pdf_bytes: bytes,
     doc_id: str,
     extra_metadata: Optional[dict] = None,
-) -> None:
+) -> dict:
+    """
+    Ingest PDF into Chroma with text chunks and image metadata.
+    Returns dict with ingestion stats including image count.
+    """
     docling = DoclingService()
     meta = docling.extract_from_bytes(pdf_bytes)
     markdown = meta.markdown or ""
@@ -53,8 +58,14 @@ def ingest_pdf_bytes_into_chroma(
     if extra_metadata:
         base_metadata.update(extra_metadata)
 
+    # Serialize images as JSON strings for Chroma compatibility
+    images_json = json.dumps(
+        [{"filename": img.filename, "data_base64": img.data_base64, "media_type": img.media_type, "page": img.page}
+         for img in (meta.images or [])]
+    )
+
     metadatas = [
-        {**base_metadata, "chunk_index": i, "preview": text[:200]}
+        {**base_metadata, "chunk_index": i, "preview": text[:200], "images": images_json}
         for i, text in enumerate(chunk_texts)
     ]
 
@@ -66,4 +77,5 @@ def ingest_pdf_bytes_into_chroma(
         metadatas=metadatas,
     )
 
-    print(f"Ingested {len(chunk_ids)} chunks for {doc_id}")
+    print(f"Ingested {len(chunk_ids)} chunks and {len(meta.images or [])} images for {doc_id}")
+    return {"chunks": len(chunk_ids), "images": len(meta.images or [])}

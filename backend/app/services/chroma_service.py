@@ -27,11 +27,30 @@ class ChromaService:
         )
         self._client: ClientAPI = chromadb.PersistentClient(path=self._persist_path)
 
-        # Use get_or_create; for a new, suffixed name, the dimension will be set on first upsert.
-        # This avoids colliding with older collections created with a different dimension.
-        self._collection: Collection = self._client.get_or_create_collection(
-            name=self._collection_name
-        )
+        # Resolve collection consistently between writers/readers.
+        # If embedding_dim is None, try to attach to an existing suffixed collection
+        # that matches the base name; otherwise fall back to base collection.
+        existing = None
+        if embedding_dim is None:
+            try:
+                cols = self._client.list_collections()
+                base = base_name
+                # Prefer a suffixed collection (any) that starts with base
+                matches = [c for c in cols if getattr(c, 'name', '').startswith(base + '_d')]
+                if matches:
+                    # Pick the first match (collections are few; order not guaranteed)
+                    existing = matches[0]
+            except Exception:
+                existing = None
+
+        if existing is not None:
+            self._collection = existing
+        else:
+            # Use get_or_create; for a new, suffixed name, the dimension will be set on first upsert.
+            # This avoids colliding with older collections created with a different dimension.
+            self._collection: Collection = self._client.get_or_create_collection(
+                name=self._collection_name
+            )
 
     @property
     def collection(self) -> Collection:

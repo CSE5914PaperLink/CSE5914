@@ -14,8 +14,17 @@ export type LibraryItem = {
   document?: string | null;
 };
 
+export type ImageAsset = {
+  filename: string;
+  url: string;
+  media_type?: string;
+  page?: number;
+  doc_id?: string;
+};
+
 export type ChatMessage = {
   id: string;
   text: string;
   sender: "user" | "ai" | "system";
+  images?: ImageAsset[];
 };

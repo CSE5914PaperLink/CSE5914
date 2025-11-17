@@ -132,9 +132,21 @@ export default function ChatPage() {
       const data = await response.json();
       const aiResponse =
         data.content || "Sorry, I couldn't generate a response.";
+      const images = data.images || [];
 
       setTyping(false);
       addMessage(aiResponse, "ai");
+      
+      // Add images to the last message
+      if (images.length > 0) {
+        setMessages((m) => {
+          const updated = [...m];
+          if (updated.length > 0) {
+            updated[updated.length - 1].images = images;
+          }
+          return updated;
+        });
+      }
     } catch (error) {
       setTyping(false);
       addMessage(

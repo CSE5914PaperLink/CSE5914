@@ -1,4 +1,5 @@
 from typing import Optional
+import json
 
 from google import genai
 from google.genai import types
@@ -89,6 +90,10 @@ async def chat_rag(
     doc_ids = body.get("doc_ids") or []
     context_block = ""
     retrieved_chunks: list[dict[str, Any]] = []
+    all_images: list[dict[str, Any]] = []
+    
+    print(f"DEBUG: Received doc_ids filter: {doc_ids}")
+    
     try:
         # 1) Embed query using local Nomic embeddings
         embedder = NomicEmbeddingService()
@@ -109,31 +114,60 @@ async def chat_rag(
         query_kwargs = {
             "query_embeddings": [query_vec],
             "n_results": top_k,
-            "include": cast(Any, ["documents", "metadatas", "ids", "distances"]),
+            "include": cast(Any, ["documents", "metadatas", "distances"]),
         }
         if where_filter:
             query_kwargs["where"] = where_filter
 
         res = chroma.collection.query(**query_kwargs)
 
-        # 4) Unpack first (and only) query's results
+        # 4) Unpack first (and only) query's results and collect unique doc images
         docs = (res.get("documents") or [[]])[0]
         ids = (res.get("ids") or [[]])[0]
         metas = (res.get("metadatas") or [[]])[0]
         dists = (res.get("distances") or [[]])[0]
 
+        # Track unique doc_ids to fetch images
+        doc_id_set = set()
         for i in range(min(len(docs), len(ids))):
             md = metas[i] if i < len(metas) and metas[i] is not None else {}
+            doc_id_val = (md or {}).get("doc_id")
+            if doc_id_val:
+                doc_id_set.add(doc_id_val)
+            
             retrieved_chunks.append(
                 {
                     "id": ids[i],
-                    "doc_id": (md or {}).get("doc_id"),
+                    "doc_id": doc_id_val,
                     "chunk_index": (md or {}).get("chunk_index"),
                     "distance": dists[i] if i < len(dists) else None,
                     "preview": (md or {}).get("preview"),
                     "content": docs[i],
                 }
             )
+
+        # Collect all images from retrieved doc_ids
+        all_images: list[dict[str, Any]] = []
+        for doc_id_val in doc_id_set:
+            # Get images from metadata (stored as JSON string)
+            for i, meta in enumerate(metas):
+                if meta and meta.get("doc_id") == doc_id_val:
+                    images_json = meta.get("images", "[]")
+                    try:
+                        images = json.loads(images_json) if isinstance(images_json, str) else []
+                        print(f"DEBUG: Found {len(images)} images for doc_id={doc_id_val}")
+                        for img in images:
+                            # Add URL endpoint for frontend to fetch image
+                            img["url"] = f"/library/images/{doc_id_val}/{img.get('filename')}"
+                            img["doc_id"] = doc_id_val
+                            # Remove base64 data to keep response size manageable
+                            img.pop("data_base64", None)
+                        all_images.extend(images)
+                    except Exception as e:
+                        print(f"DEBUG: Error parsing images for {doc_id_val}: {e}")
+                    break  # Found images for this doc_id
+        
+        print(f"DEBUG: Total images collected: {len(all_images)}")
 
         if retrieved_chunks:
             parts = []
@@ -149,6 +183,7 @@ async def chat_rag(
         # If RAG retrieval fails, continue without contextual docs
         context_block = ""
         retrieved_chunks = []
+        all_images = []
 
     # Prepend context to the system instruction or create a dedicated system message
     system_instruction = system or "You are a helpful AI assistant for researchers."
@@ -159,6 +194,16 @@ async def chat_rag(
             + context_block
             + "\n"
             + system_instruction
+        )
+    
+    # Add image context to system instruction if images are present
+    if all_images:
+        image_list = "\n".join([f"- {img.get('filename')} (from doc: {img.get('doc_id')})" for img in all_images])
+        system_instruction += (
+            f"\n\nIMPORTANT: The following images/figures/charts were extracted from the retrieved documents:\n{image_list}\n"
+            "These images are available and have been extracted from the paper. "
+            "When asked about images, figures, charts, or diagrams, refer to this list. "
+            "You can describe these images and reference them by their filenames."
         )
 
     try:
@@ -175,6 +220,7 @@ async def chat_rag(
                 "content": content_text,
                 "top_k": top_k,
                 "chunks": retrieved_chunks,
+                "images": all_images,
             }
         )
     except Exception as e:

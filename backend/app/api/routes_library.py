@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from typing import Optional, List
+import json
+import base64
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import httpx
 from xml.etree import ElementTree as ET
 
@@ -14,6 +16,48 @@ router = APIRouter(prefix="/library", tags=["library"])
 
 ARXIV_API = "https://export.arxiv.org/api/query"
 UA = "CSE5914-Backend/0.1 (https://github.com/jeevanadella/CSE5914)"
+
+
+@router.get("/debug/list_all")
+def debug_list_all():
+    """Debug endpoint to see all docs in Chroma with their image counts."""
+    chroma = ChromaService()
+    try:
+        data = chroma.collection.get(include=["metadatas"], limit=100)
+        
+        # Group by doc_id and count images
+        doc_info = {}
+        for i, chunk_id in enumerate(data.get("ids", [])):
+            md = (data.get("metadatas") or [{}])[i] or {}
+            doc_id = md.get("doc_id", "unknown")
+            
+            if doc_id not in doc_info:
+                images_json = md.get("images", "[]")
+                try:
+                    images = json.loads(images_json) if isinstance(images_json, str) else []
+                    doc_info[doc_id] = {
+                        "doc_id": doc_id,
+                        "chunk_count": 1,
+                        "image_count": len(images),
+                        "sample_chunk_id": chunk_id,
+                        "arxiv_id": md.get("arxiv_id"),
+                        "title": md.get("title"),
+                    }
+                except:
+                    doc_info[doc_id] = {
+                        "doc_id": doc_id,
+                        "chunk_count": 1,
+                        "image_count": 0,
+                        "sample_chunk_id": chunk_id,
+                        "arxiv_id": md.get("arxiv_id"),
+                        "title": md.get("title"),
+                    }
+            else:
+                doc_info[doc_id]["chunk_count"] += 1
+        
+        return JSONResponse({"documents": list(doc_info.values()), "total_docs": len(doc_info)})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 def _fetch_arxiv_metadata(arxiv_id: str) -> dict:
@@ -75,10 +119,15 @@ async def add_arxiv(arxiv_id: str):
     meta = _fetch_arxiv_metadata(arxiv_id)
     extra_md = {"arxiv_id": arxiv_id, "pdf_url": pdf_url, **meta}
     # Ingest (doc_id prefixes to avoid collisions)
-    ingest_pdf_bytes_into_chroma(
+    stats = ingest_pdf_bytes_into_chroma(
         pdf_bytes, doc_id=f"arxiv:{arxiv_id}", extra_metadata=extra_md
     )
-    return JSONResponse({"status": "ok", "arxiv_id": arxiv_id, "metadata": extra_md})
+    return JSONResponse({
+        "status": "ok",
+        "arxiv_id": arxiv_id,
+        "metadata": extra_md,
+        "ingestion": stats,
+    })
 
 
 @router.get("/list")
@@ -163,5 +212,64 @@ def delete_item(doc_id: str):
 
         chroma.delete(to_delete)
         return JSONResponse({"status": "deleted", "deleted_count": len(to_delete)})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/images/{doc_id}")
+def get_images(doc_id: str):
+    """Retrieve all images for a document from Chroma metadata."""
+    chroma = ChromaService()
+    try:
+        print(f"DEBUG: Fetching images for doc_id={doc_id}")
+        # Fetch chunks for this doc_id
+        data = chroma.collection.get(
+            where={"doc_id": doc_id},
+            include=["metadatas"],
+            limit=1,  # only need one chunk to get images (all chunks share same images)
+        )
+        print(f"DEBUG: Found {len(data.get('ids', []))} chunks for doc_id={doc_id}")
+        
+        if not data.get("ids"):
+            return JSONResponse({"images": []})
+        
+        md = (data.get("metadatas") or [{}])[0] or {}
+        images_json = md.get("images", "[]")
+        print(f"DEBUG: Raw images_json: {images_json[:200] if images_json else 'None'}")
+        images = json.loads(images_json) if isinstance(images_json, str) else []
+        print(f"DEBUG: Parsed {len(images)} images")
+        
+        return JSONResponse({"doc_id": doc_id, "images": images})
+    except Exception as e:
+        print(f"DEBUG: Error fetching images: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/images/{doc_id}/{filename}")
+def get_image_file(doc_id: str, filename: str):
+    """Serve a specific image file as binary data."""
+    chroma = ChromaService()
+    try:
+        data = chroma.collection.get(
+            where={"doc_id": doc_id},
+            include=["metadatas"],
+            limit=1,
+        )
+        if not data.get("ids"):
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        md = (data.get("metadatas") or [{}])[0] or {}
+        images_json = md.get("images", "[]")
+        images = json.loads(images_json) if isinstance(images_json, str) else []
+        
+        for img in images:
+            if img.get("filename") == filename:
+                img_bytes = base64.b64decode(img["data_base64"])
+                media_type = img.get("media_type") or "image/png"
+                return Response(content=img_bytes, media_type=media_type)
+        
+        raise HTTPException(status_code=404, detail="Image not found")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
