@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initializeApp, getApps } from "firebase/app";
 import { getDataConnect } from "firebase/data-connect";
-import { connectorConfig, addPaper, updatePaperIngestionStatus } from "@/src/dataconnect-generated";
+import { connectorConfig, addPaper, updatePaperIngestionStatus, listPapers } from "@/src/dataconnect-generated";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -74,6 +74,17 @@ export async function POST(request: NextRequest) {
       ? authorsMatch.map(a => a.match(/<name>([^<]+)<\/name>/)![1].trim())
       : [];
 
+    // Check if user already has this paper (application-level duplicate detection)
+    const { data: existingPapers } = await listPapers(dc, { userId });
+    const duplicate = existingPapers.papers.find((p: any) => p.arxivId === arxivId);
+    
+    if (duplicate) {
+      return NextResponse.json(
+        { error: "This paper is already in your library" },
+        { status: 409 }
+      );
+    }
+
     // Try to add paper to DataConnect with pending status
     try {
       const { data: paperData } = await addPaper(dc, {
@@ -141,15 +152,12 @@ export async function POST(request: NextRequest) {
           { status: 504 }
         );
       }
-    } catch (addError: any) {
-      // Check if it's a duplicate error
-      if (addError.code === 'other' && addError.message?.includes('ALREADY_EXISTS')) {
-        return NextResponse.json(
-          { error: "This paper is already in your library" },
-          { status: 409 }
-        );
-      }
-      throw addError;
+    } catch (err) {
+      console.error("/api/library/add error:", err);
+      return NextResponse.json(
+        { error: "Internal server error" },
+        { status: 500 }
+      );
     }
   } catch (err) {
     console.error("/api/library/add error:", err);
