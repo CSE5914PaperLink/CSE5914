@@ -106,6 +106,53 @@ def _fetch_arxiv_metadata(arxiv_id: str) -> dict:
     }
 
 
+@router.post("/check_batch")
+def check_batch_papers(arxiv_ids: List[str]):
+    """Check if multiple papers exist in ChromaDB by their arxiv_ids."""
+    chroma = ChromaService()
+    results = {}
+    
+    # Build doc_ids for all papers
+    doc_ids = [f"arxiv:{aid}" for aid in arxiv_ids]
+    
+    # Try to query all at once using where clause with OR conditions
+    # This is much faster than individual queries
+    try:
+        # Get all chunks that match any of the doc_ids
+        data = chroma.collection.get(
+            include=["metadatas"],
+            limit=10000  # High limit to catch all matching chunks
+        )
+        
+        # Build set of doc_ids that exist
+        existing_doc_ids = set()
+        for i, chunk_id in enumerate(data.get("ids", [])):
+            md = (data.get("metadatas") or [{}])[i] or {}
+            if md.get("doc_id"):
+                existing_doc_ids.add(md["doc_id"])
+        
+        # Check each arxiv_id
+        for arxiv_id in arxiv_ids:
+            doc_id = f"arxiv:{arxiv_id}"
+            results[arxiv_id] = doc_id in existing_doc_ids
+            
+    except Exception as e:
+        # If batch query fails, fall back to individual queries
+        for arxiv_id in arxiv_ids:
+            doc_id = f"arxiv:{arxiv_id}"
+            try:
+                data = chroma.collection.get(
+                    where={"doc_id": doc_id},
+                    limit=1,
+                    include=[]
+                )
+                results[arxiv_id] = len(data.get("ids", [])) > 0
+            except Exception:
+                results[arxiv_id] = False
+    
+    return JSONResponse({"results": results})
+
+
 @router.post("/add/{arxiv_id}")
 async def add_arxiv(arxiv_id: str):
     """Download an arXiv PDF and ingest into vector DB."""
@@ -137,23 +184,22 @@ async def add_arxiv(arxiv_id: str):
 
 
 @router.get("/list")
-def list_library(limit: int = 50, offset: int = 0):
+def list_library(limit: int = 500, offset: int = 0):
     chroma = ChromaService()
     # Chroma doesn't have simple list; use where filter hack by querying all with empty where
     # We'll store ids by doing a range over collection count (not exposed). Instead, rely on get with 'include'.
     # Workaround: use .get with no ids returns all (may be heavy). Limit manually.
+    # Only fetch metadata, not documents, to reduce response size
     data = chroma.collection.get(
-        include=["metadatas", "documents"], limit=limit, offset=offset
+        include=["metadatas"], limit=limit, offset=offset
     )
     results = []
     for i, _id in enumerate(data.get("ids", [])):
         md = (data.get("metadatas") or [{}])[i] or {}
-        doc = (data.get("documents") or [None])[i]
         results.append(
             {
                 "id": _id,
                 "metadata": md,
-                "document": doc,
             }
         )
     return JSONResponse({"results": results, "count": len(results)})

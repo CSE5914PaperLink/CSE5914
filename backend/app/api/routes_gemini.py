@@ -307,7 +307,10 @@ async def chat_rag(
             "Number the sources in the order they appear in the context below (starting from 1). "
             "Place citations immediately after the relevant statement or fact.\n\n"
             + context_block
-            + "\n"
+            + "\n\n"
+            "When the user asks to 'summarize this' or 'what is this about', they are referring to the paper excerpts above. "
+            "Provide detailed answers based on the retrieved content. "
+            "If you need to cite specific information, reference the chunk IDs.\n\n"
             + system_instruction
         )
 
