@@ -22,9 +22,27 @@ export type ImageAsset = {
   doc_id?: string;
 };
 
+export type SourceChunk = {
+  id: string;
+  type: "text" | "image";
+  doc_id?: string;
+  distance?: number;
+  content?: string;
+  chunk_index?: number;
+  page?: number;
+  filename?: string;
+  bbox?: {
+    l: number;
+    r: number;
+    t: number;
+    b: number;
+  };
+};
+
 export type ChatMessage = {
   id: string;
   text: string;
   sender: "user" | "ai" | "system";
   images?: ImageAsset[];
+  sources?: SourceChunk[];
 };

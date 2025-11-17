@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_arxiv import router as arxiv_router
 from app.api.routes_gemini import router as gemini_router
@@ -9,6 +10,18 @@ from app.api.routes_docling import router as docling_router
 from app.core.config import settings
 
 app = FastAPI()
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],  # Frontend origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Register health routes
 app.include_router(health_router)

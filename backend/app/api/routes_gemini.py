@@ -303,6 +303,9 @@ async def chat_rag(
             "Use the following retrieved chunks as authoritative context. "
             "Text chunks contain document content. Image chunks represent figures, charts, and diagrams extracted from the papers. "
             "When referencing images, use the figure number. The images have been semantically embedded and retrieved based on relevance to the query.\n\n"
+            "IMPORTANT: When you reference information from a specific chunk or image in your response, cite it using square brackets with the source number, like [1], [2], etc. "
+            "Number the sources in the order they appear in the context below (starting from 1). "
+            "Place citations immediately after the relevant statement or fact.\n\n"
             + context_block
             + "\n"
             + system_instruction

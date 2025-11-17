@@ -4,7 +4,11 @@ import { Sidebar } from "@/components/chat/Sidebar";
 import { Messages } from "@/components/chat/Messages";
 import { InputForm, type Feature } from "@/components/chat/InputForm";
 import { PdfViewer } from "@/components/chat/PdfViewer";
-import type { ChatMessage, LibraryItem } from "@/components/chat/types";
+import type {
+  ChatMessage,
+  LibraryItem,
+  SourceChunk,
+} from "@/components/chat/types";
 import { useUser } from "@/contexts/UserContext";
 
 export default function ChatPage() {
@@ -40,11 +44,14 @@ export default function ChatPage() {
   const [library, setLibrary] = useState<LibraryItem[]>([]);
 
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
+  const [highlightSource, setHighlightSource] = useState<SourceChunk | null>(
+    null
+  );
 
   useEffect(() => {
     // fetch user's library from API that merges DataConnect + ChromaDB
     if (!dataConnectUserId) return;
-    
+
     let mounted = true;
     fetch(`/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`)
       .then((r) => r.json())
@@ -133,20 +140,67 @@ export default function ChatPage() {
       const aiResponse =
         data.content || "Sorry, I couldn't generate a response.";
       const images = data.images || [];
+      const chunks = data.chunks || [];
+      const imageChunks = data.images || [];
+
+      // Combine text and image chunks into sources
+      const sources: SourceChunk[] = [
+        ...chunks.map(
+          (chunk: {
+            id: string;
+            doc_id?: string;
+            distance?: number;
+            content?: string;
+            chunk_index?: number;
+            page?: number;
+          }) => ({
+            id: chunk.id,
+            type: "text" as const,
+            doc_id: chunk.doc_id,
+            distance: chunk.distance,
+            content: chunk.content,
+            chunk_index: chunk.chunk_index,
+            page: chunk.page,
+          })
+        ),
+        ...imageChunks.map(
+          (img: {
+            id: string;
+            doc_id?: string;
+            distance?: number;
+            content?: string;
+            filename?: string;
+            page?: number;
+            bbox?: { l: number; r: number; t: number; b: number };
+          }) => ({
+            id: img.id,
+            type: "image" as const,
+            doc_id: img.doc_id,
+            distance: img.distance,
+            content: img.content,
+            filename: img.filename,
+            page: img.page,
+            bbox: img.bbox,
+          })
+        ),
+      ];
 
       setTyping(false);
       addMessage(aiResponse, "ai");
-      
-      // Add images to the last message
-      if (images.length > 0) {
-        setMessages((m) => {
-          const updated = [...m];
-          if (updated.length > 0) {
+
+      // Add images and sources to the last message
+      setMessages((m) => {
+        const updated = [...m];
+        if (updated.length > 0) {
+          if (images.length > 0) {
             updated[updated.length - 1].images = images;
           }
-          return updated;
-        });
-      }
+          if (sources.length > 0) {
+            updated[updated.length - 1].sources = sources;
+          }
+        }
+        return updated;
+      });
     } catch (error) {
       setTyping(false);
       addMessage(
@@ -245,7 +299,18 @@ export default function ChatPage() {
           />
 
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
-            <Messages messages={messages} typing={typing} chatRef={chatRef} />
+            <Messages
+              messages={messages}
+              typing={typing}
+              chatRef={chatRef}
+              onSourceClick={(source) => {
+                setHighlightSource(source);
+                // Ensure the document containing the source is selected
+                if (source.doc_id && !selectedDocs.has(source.doc_id)) {
+                  setSelectedDocs((s) => new Set(s).add(source.doc_id!));
+                }
+              }}
+            />
             <InputForm
               active={active}
               input={input}
@@ -305,7 +370,11 @@ export default function ChatPage() {
             }}
           />
 
-          <PdfViewer selectedIds={Array.from(selectedDocs)} library={library} />
+          <PdfViewer
+            selectedIds={Array.from(selectedDocs)}
+            library={library}
+            highlightSource={highlightSource}
+          />
         </div>
       </div>
     </div>
