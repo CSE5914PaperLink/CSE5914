@@ -23,6 +23,7 @@ type Paper @table {
   abstract: String
   arxivId: String @unique
   pdfUrl: String
+  category: String
   ingestionStatus: String! @default(value: "pending")
   citationCount: Int
   createdAt: Timestamp! @default(expr: "request.time")

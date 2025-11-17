@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useUser } from "@/contexts/UserContext";
 
 export default function Navbar() {
+  const { firebaseUser } = useUser();
+
   return (
     <nav className="bg-linear-to-r from-blue-700 to-blue-600 text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center container">
@@ -34,12 +37,29 @@ export default function Navbar() {
           >
             Library
           </Link>
-          <Link
-            href="/login"
-            className="bg-white text-blue-700 px-5 py-2 rounded-lg font-semibold shadow-sm hover:bg-blue-50 transition-all duration-200"
-          >
-            Login
-          </Link>
+          {firebaseUser ? (
+            <Link
+              href="/profile"
+              className="bg-white text-blue-700 px-5 py-2 rounded-lg font-semibold shadow-sm hover:bg-blue-50 transition-all duration-200 flex items-center gap-2"
+            >
+              {firebaseUser.photoURL && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={firebaseUser.photoURL}
+                  alt={firebaseUser.displayName ?? "user avatar"}
+                  className="h-6 w-6 rounded-full"
+                />
+              )}
+              {firebaseUser.displayName || "Profile"}
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="bg-white text-blue-700 px-5 py-2 rounded-lg font-semibold shadow-sm hover:bg-blue-50 transition-all duration-200"
+            >
+              Login
+            </Link>
+          )}
         </div>
       </div>
     </nav>

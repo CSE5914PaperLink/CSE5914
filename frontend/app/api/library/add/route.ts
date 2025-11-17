@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
     const summaryMatch = entryContent.match(/<summary>([\s\S]*?)<\/summary>/);
     const publishedMatch = entryContent.match(/<published>([\s\S]*?)<\/published>/);
     const authorsMatch = entryContent.match(/<author>[\s\S]*?<name>([^<]+)<\/name>/g);
+    const categoryMatch = entryContent.match(/<arxiv:primary_category\s+term="([^"]+)"/);
     
     const title = titleMatch ? titleMatch[1].trim().replace(/\n\s+/g, ' ') : `arXiv:${arxivId}`;
     const abstract = summaryMatch ? summaryMatch[1].trim().replace(/\n\s+/g, ' ') : null;
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
     const authors = authorsMatch 
       ? authorsMatch.map(a => a.match(/<name>([^<]+)<\/name>/)![1].trim())
       : [];
+    const category = categoryMatch ? categoryMatch[1] : null;
 
     // Add paper to DataConnect with pending status
     const { data: paperData } = await addPaper(dc, {
@@ -82,6 +84,7 @@ export async function POST(request: NextRequest) {
       year,
       abstract,
       arxivId,
+      category,
       pdfUrl: `https://arxiv.org/pdf/${arxivId}.pdf`,
     });
 
