@@ -11,8 +11,10 @@ import mimetypes
 from docling.document_converter import DocumentConverter
 from PIL import Image
 from io import BytesIO
+
 try:
     import pypdfium2 as pdfium
+
     HAS_PDFIUM = True
 except ImportError:
     HAS_PDFIUM = False
@@ -24,6 +26,9 @@ class ImageAsset:
     data_base64: str
     media_type: Optional[str] = None
     page: Optional[int] = None
+    bbox: Optional[dict] = (
+        None  # Bounding box in PDF coordinates: {"l": left, "r": right, "t": top, "b": bottom}
+    )
 
 
 @dataclass
@@ -63,18 +68,30 @@ class DoclingService:
             tmp_path = os.path.join(td, "input.pdf")
             with open(tmp_path, "wb") as f:
                 f.write(pdf_bytes)
-            
-            result = self._converter.convert(tmp_path)
-            
-            return self._extract_metadata(result, convert_result=result, pdf_path=tmp_path)
 
-    def _extract_metadata(self, doc_or_result: Any, assets_dir: Optional[str] = None, convert_result: Optional[Any] = None, pdf_path: Optional[str] = None) -> DoclingMetadata:
+            result = self._converter.convert(tmp_path)
+
+            return self._extract_metadata(
+                result, convert_result=result, pdf_path=tmp_path
+            )
+
+    def _extract_metadata(
+        self,
+        doc_or_result: Any,
+        assets_dir: Optional[str] = None,
+        convert_result: Optional[Any] = None,
+        pdf_path: Optional[str] = None,
+    ) -> DoclingMetadata:
         # Handle both cases: old signature (doc) and new signature (convert_result)
         if convert_result is not None:
             doc = convert_result.document
             result = convert_result
         else:
-            doc = doc_or_result.document if hasattr(doc_or_result, 'document') else doc_or_result
+            doc = (
+                doc_or_result.document
+                if hasattr(doc_or_result, "document")
+                else doc_or_result
+            )
             result = doc_or_result
 
         # Export to markdown
@@ -93,9 +110,9 @@ class DoclingService:
 
         # Extract images using the conversion result's page images
         images: List[ImageAsset] = []
-        
+
         print(f"DEBUG: Attempting to extract images from pictures")
-        if hasattr(doc, 'pictures') and doc.pictures:
+        if hasattr(doc, "pictures") and doc.pictures:
             print(f"DEBUG: Found {len(doc.pictures)} pictures in document")
 
             # Prepare PDF renderer once
@@ -109,9 +126,13 @@ class DoclingService:
                     pdf_doc = None
             else:
                 if not HAS_PDFIUM:
-                    print("DEBUG: pypdfium2 not available; cannot render pages for cropping")
+                    print(
+                        "DEBUG: pypdfium2 not available; cannot render pages for cropping"
+                    )
                 elif not pdf_path:
-                    print("DEBUG: No pdf_path provided; cannot render pages for cropping")
+                    print(
+                        "DEBUG: No pdf_path provided; cannot render pages for cropping"
+                    )
 
             # Try to extract each picture
             for idx, picture in enumerate(doc.pictures):
@@ -120,17 +141,33 @@ class DoclingService:
                     img_data = None
                     page_no = None
                     bbox = None
-                    
+                    bbox_dict = None
+
                     # Get page number and bbox from picture's provenance
-                    if hasattr(picture, 'prov') and picture.prov:
+                    if hasattr(picture, "prov") and picture.prov:
                         if len(picture.prov) > 0:
                             prov = picture.prov[0]
-                            if hasattr(prov, 'page_no'):
+                            if hasattr(prov, "page_no"):
                                 page_no = prov.page_no
-                            if hasattr(prov, 'bbox'):
+                            if hasattr(prov, "bbox"):
                                 bbox = prov.bbox
-                            print(f"DEBUG: Picture {idx} - page {page_no}, bbox: {bbox}")
-                    
+                                # Convert bbox object to dict for serialization
+                                if bbox:
+                                    try:
+                                        bbox_dict = {
+                                            "l": float(bbox.l),
+                                            "r": float(bbox.r),
+                                            "t": float(bbox.t),
+                                            "b": float(bbox.b),
+                                        }
+                                        print(
+                                            f"DEBUG: Picture {idx} - page {page_no}, bbox: {bbox_dict}"
+                                        )
+                                    except Exception as e:
+                                        print(
+                                            f"DEBUG: Failed to convert bbox to dict: {e}"
+                                        )
+
                     # Extract image by rendering the page and cropping with bbox
                     if page_no and bbox and pdf_doc is not None:
                         try:
@@ -139,7 +176,7 @@ class DoclingService:
                             # Determine page size in points
                             pw, ph = page.get_size()
                             # Render at 2x scale for clarity
-                            scale = 2.0
+                            scale = 2
                             pil_page = page.render(scale=scale).to_pil()
                             img_w, img_h = pil_page.size
                             # Convert bbox (PDF bottom-left) to pixel box (PIL top-left)
@@ -152,46 +189,56 @@ class DoclingService:
                             if right > left and bottom > top:
                                 cropped = pil_page.crop((left, top, right, bottom))
                                 buffer = BytesIO()
-                                cropped.save(buffer, format='PNG')
+                                cropped.save(buffer, format="PNG")
                                 img_data = buffer.getvalue()
-                                print(f"DEBUG: Cropped image {idx} on page {page_no}: {len(img_data)} bytes")
+                                print(
+                                    f"DEBUG: Cropped image {idx} on page {page_no}: {len(img_data)} bytes"
+                                )
                             else:
-                                print(f"DEBUG: Skipped invalid crop box for picture {idx}: {(left, top, right, bottom)}")
+                                print(
+                                    f"DEBUG: Skipped invalid crop box for picture {idx}: {(left, top, right, bottom)}"
+                                )
                         except Exception as e:
-                            print(f"DEBUG: pypdfium2 crop failed for picture {idx}: {e}")
+                            print(
+                                f"DEBUG: pypdfium2 crop failed for picture {idx}: {e}"
+                            )
                             import traceback
+
                             traceback.print_exc()
-                    
+
                     if img_data:
                         if isinstance(img_data, bytes):
                             b64 = base64.b64encode(img_data).decode("ascii")
                         else:
-                            # Try to convert to bytes if it's a PIL image
-                            buffer = BytesIO()
-                            img_data.save(buffer, format='PNG')
-                            b64 = base64.b64encode(buffer.getvalue()).decode("ascii")
-                        
+                            # Should not happen after our crop logic
+                            print(f"DEBUG: Unexpected img_data type: {type(img_data)}")
+                            continue
+
                         images.append(
                             ImageAsset(
                                 filename=filename,
                                 data_base64=b64,
                                 media_type="image/png",
                                 page=page_no,
+                                bbox=bbox_dict,
                             )
                         )
-                        print(f"DEBUG: Successfully extracted image {filename} from page {page_no}")
+                        print(
+                            f"DEBUG: Successfully extracted image {filename} from page {page_no} with bbox"
+                        )
                     else:
                         print(f"DEBUG: Picture {idx} - no image data obtained")
-                        
+
                 except Exception as e:
                     print(f"DEBUG: Failed to extract picture {idx}: {e}")
                     import traceback
+
                     traceback.print_exc()
                     continue
-        
+
         # Close PDF if opened to release file handle (Windows)
         try:
-            if 'pdf_doc' in locals() and pdf_doc is not None:
+            if "pdf_doc" in locals() and pdf_doc is not None:
                 pdf_doc.close()
         except Exception:
             pass

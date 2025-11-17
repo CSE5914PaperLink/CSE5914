@@ -47,28 +47,6 @@ export function Messages({
                 ) : (
                   <div className="whitespace-pre-wrap">{m.text}</div>
                 )}
-                {m.images && m.images.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    <div className="text-xs font-semibold text-gray-600 mb-2">
-                      Extracted Images:
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {m.images.map((img, idx) => (
-                        <div key={idx} className="border rounded overflow-hidden">
-                          <img
-                            src={`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}${img.url}`}
-                            alt={img.filename}
-                            className="w-full h-auto object-contain"
-                            loading="lazy"
-                          />
-                          <div className="bg-gray-50 px-2 py-1 text-xs text-gray-600 truncate">
-                            {img.filename}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           ))}

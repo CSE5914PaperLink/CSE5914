@@ -97,7 +97,7 @@ async def chat_rag(
         doc_ids = []
     context_block = ""
     retrieved_chunks: list[dict[str, Any]] = []
-    all_images: list[dict[str, Any]] = []
+    image_parts = []
 
     print(f"DEBUG: Received doc_ids filter: {doc_ids}")
 
@@ -109,118 +109,203 @@ async def chat_rag(
         # 2) Build optional metadata filter for Chroma
         where_filter: dict[str, Any] | None = None
         if doc_ids:
-            # Use exact match on metadata.doc_id via $in (handles 1 or many)
             where_filter = {"doc_id": {"$in": doc_ids}}
 
         # 3) Query Chroma for top_k most similar chunks
+        # Use hybrid retrieval: get text chunks + separately get image chunks
         emb_dim = len(query_vec) if isinstance(query_vec, list) else None
         chroma = ChromaService(embedding_dim=emb_dim)
-        query_kwargs = {
+
+        # First, retrieve text chunks using text embedding
+        text_query_kwargs = {
             "query_embeddings": [query_vec],
             "n_results": top_k,
             "include": cast(Any, ["documents", "metadatas", "distances"]),
+        }
+        # Build where clause with $and for multiple conditions
+        if where_filter:
+            text_where = {"$and": [where_filter, {"chunk_type": "text"}]}
+        else:
+            text_where = {"chunk_type": "text"}
+        text_query_kwargs["where"] = text_where
+
+        print(f"DEBUG: Querying for text chunks with where={text_where}")
+        text_res = chroma.collection.query(**text_query_kwargs)
+        print(f"DEBUG: Retrieved {len((text_res.get('ids') or [[]])[0])} text chunks")
+
+        # Second, retrieve image chunks using the same text embedding
+        # (Images were embedded separately, so scores may be lower, but we still want some)
+        image_query_kwargs = {
+            "query_embeddings": [query_vec],
+            "n_results": max(2, top_k // 2),  # Get at least 2 images, or half of top_k
             "include": cast(Any, ["documents", "metadatas", "distances"]),
         }
+        # Build where clause with $and for multiple conditions
         if where_filter:
-            query_kwargs["where"] = where_filter
+            image_where = {"$and": [where_filter, {"chunk_type": "image"}]}
+        else:
+            image_where = {"chunk_type": "image"}
+        image_query_kwargs["where"] = image_where
 
-        res = chroma.collection.query(**query_kwargs)
+        print(f"DEBUG: Querying for image chunks with where={image_where}")
+        try:
+            image_res = chroma.collection.query(**image_query_kwargs)
+            print(
+                f"DEBUG: Retrieved {len((image_res.get('ids') or [[]])[0])} image chunks"
+            )
+        except Exception as e:
+            print(f"DEBUG: Image retrieval failed: {e}")
+            image_res = {
+                "documents": [[]],
+                "ids": [[]],
+                "metadatas": [[]],
+                "distances": [[]],
+            }
 
-        # 4) Unpack first (and only) query's results and collect unique doc images
-        docs = (res.get("documents") or [[]])[0]
-        ids = (res.get("ids") or [[]])[0]
-        metas = (res.get("metadatas") or [[]])[0]
-        dists = (res.get("distances") or [[]])[0]
+        # Combine results
+        docs = (text_res.get("documents") or [[]])[0] + (
+            image_res.get("documents") or [[]]
+        )[0]
+        ids = (text_res.get("ids") or [[]])[0] + (image_res.get("ids") or [[]])[0]
+        metas = (text_res.get("metadatas") or [[]])[0] + (
+            image_res.get("metadatas") or [[]]
+        )[0]
+        dists = (text_res.get("distances") or [[]])[0] + (
+            image_res.get("distances") or [[]]
+        )[0]
 
-        # Track unique doc_ids to fetch images
-        doc_id_set = set()
+        print(f"DEBUG: Retrieved {len(docs)} chunks from Chroma")
+
+        # Debug: print all metadata to see what chunk_type values are present
+        for i, md in enumerate(metas[:3] if len(metas) > 3 else metas):
+            print(f"DEBUG: Metadata {i}: {md}")
+            if md:
+                print(f"DEBUG:   chunk_type = {md.get('chunk_type')}")
+
+        # Separate text and image chunks
+        text_chunks = []
+        image_chunks = []
+
         for i in range(min(len(docs), len(ids))):
             md = metas[i] if i < len(metas) and metas[i] is not None else {}
-            doc_id_val = (md or {}).get("doc_id")
-            if doc_id_val:
-                doc_id_set.add(doc_id_val)
+            chunk_type = (md or {}).get("chunk_type", "text")
 
-            retrieved_chunks.append(
-                {
-                    "id": ids[i],
-                    "doc_id": doc_id_val,
-                    "chunk_index": (md or {}).get("chunk_index"),
-                    "distance": dists[i] if i < len(dists) else None,
-                    "preview": (md or {}).get("preview"),
-                    "content": docs[i],
-                }
-            )
+            chunk_data = {
+                "id": ids[i],
+                "doc_id": (md or {}).get("doc_id"),
+                "distance": dists[i] if i < len(dists) else None,
+                "content": docs[i],
+            }
 
-        # Collect all images from retrieved doc_ids
-        all_images: list[dict[str, Any]] = []
-        for doc_id_val in doc_id_set:
-            # Get images from metadata (stored as JSON string)
-            for i, meta in enumerate(metas):
-                if meta and meta.get("doc_id") == doc_id_val:
-                    images_json = meta.get("images", "[]")
+            if chunk_type == "image":
+                # This is an embedded image chunk
+                chunk_data["type"] = "image"
+                chunk_data["filename"] = (md or {}).get("filename")
+                chunk_data["page"] = (md or {}).get("page")
+                chunk_data["media_type"] = (md or {}).get("media_type")
+                chunk_data["image_index"] = (md or {}).get("image_index")
+
+                # Extract bounding box if available
+                bbox_json = (md or {}).get("bbox")
+                if bbox_json:
                     try:
-                        images = (
-                            json.loads(images_json)
-                            if isinstance(images_json, str)
-                            else []
-                        )
-                        print(
-                            f"DEBUG: Found {len(images)} images for doc_id={doc_id_val}"
-                        )
-                        for img in images:
-                            # Add URL endpoint for frontend to fetch image
-                            img["url"] = (
-                                f"/library/images/{doc_id_val}/{img.get('filename')}"
-                            )
-                            img["doc_id"] = doc_id_val
-                            # Remove base64 data to keep response size manageable
-                            img.pop("data_base64", None)
-                        all_images.extend(images)
+                        # bbox might be stored as JSON string by sanitize
+                        if isinstance(bbox_json, str):
+                            chunk_data["bbox"] = json.loads(bbox_json)
+                        else:
+                            # Or as individual float fields
+                            chunk_data["bbox"] = {
+                                "l": (md or {}).get("bbox_left", 0.0),
+                                "r": (md or {}).get("bbox_right", 0.0),
+                                "t": (md or {}).get("bbox_top", 0.0),
+                                "b": (md or {}).get("bbox_bottom", 0.0),
+                            }
                     except Exception as e:
-                        print(f"DEBUG: Error parsing images for {doc_id_val}: {e}")
-                    break  # Found images for this doc_id
+                        print(f"DEBUG: Failed to parse bbox: {e}")
+                        chunk_data["bbox"] = None
 
-        print(f"DEBUG: Total images collected: {len(all_images)}")
+                # Get image data (base64) for display
+                image_data = (md or {}).get("image_data")
+                if image_data:
+                    # Don't include full base64 in response, provide URL instead
+                    chunk_data["url"] = (
+                        f"/library/images/{chunk_data['doc_id']}/{chunk_data['filename']}"
+                    )
 
+                image_chunks.append(chunk_data)
+            else:
+                # This is a text chunk
+                chunk_data["type"] = "text"
+                chunk_data["chunk_index"] = (md or {}).get("chunk_index")
+                chunk_data["preview"] = (md or {}).get("preview")
+                text_chunks.append(chunk_data)
+
+        retrieved_chunks = text_chunks + image_chunks
+        print(
+            f"DEBUG: Split into {len(text_chunks)} text chunks and {len(image_chunks)} image chunks"
+        )
+
+        # Extract image data from metadata for multimodal context
+        image_parts = []
         if retrieved_chunks:
             parts = []
             for ch in retrieved_chunks:
-                parts.append(
-                    (
+                if ch.get("type") == "image":
+                    # Get the base64 image data from metadata
+                    md = None
+                    for i in range(len(ids)):
+                        if ids[i] == ch.get("id"):
+                            md = metas[i] if i < len(metas) else None
+                            break
+
+                    if md and md.get("image_data"):
+                        # Store image data for multimodal prompt
+                        image_parts.append(
+                            {
+                                "id": ch.get("id"),
+                                "data": md["image_data"],
+                                "page": ch.get("page"),
+                                "filename": ch.get("filename"),
+                                "bbox": ch.get("bbox"),
+                            }
+                        )
+
+                    # Format image chunk reference
+                    bbox_str = ""
+                    if ch.get("bbox"):
+                        bbox = ch["bbox"]
+                        bbox_str = f" bbox=[l:{bbox.get('l'):.1f}, r:{bbox.get('r'):.1f}, t:{bbox.get('t'):.1f}, b:{bbox.get('b'):.1f}]"
+                    parts.append(
+                        f"[IMAGE id={ch.get('id')} doc_id={ch.get('doc_id')} page={ch.get('page')} {ch.get('filename')}{bbox_str}]\n"
+                        f"Description: {ch.get('content')}\n---\n"
+                    )
+                else:
+                    # Format text chunk
+                    parts.append(
                         f"[CHUNK id={ch.get('id')} doc_id={ch.get('doc_id')} idx={ch.get('chunk_index')}]\n"
                         f"{ch.get('content')}\n---\n"
                     )
-                )
             context_block = "".join(parts)
-    except Exception:
+    except Exception as e:
         # If RAG retrieval fails, continue without contextual docs
+        print(f"DEBUG: RAG retrieval error: {e}")
+        import traceback
+
+        traceback.print_exc()
         context_block = ""
         retrieved_chunks = []
-        all_images = []
 
+    print(f"DEBUG: Context block:\n{context_block}")
     # Prepend context to the system instruction or create a dedicated system message
-    system_instruction = "You are a helpful AI assistant for researchers."
+    system_instruction = system or "You are a helpful AI assistant for researchers."
     if context_block:
         system_instruction = (
             "Use the following retrieved chunks as authoritative context. "
+            "Text chunks contain document content. Image chunks represent figures, charts, and diagrams extracted from the papers. "
+            "When referencing images, use the figure number. The images have been semantically embedded and retrieved based on relevance to the query.\n\n"
             + context_block
             + "\n"
             + system_instruction
-        )
-
-    # Add image context to system instruction if images are present
-    if all_images:
-        image_list = "\n".join(
-            [
-                f"- {img.get('filename')} (from doc: {img.get('doc_id')})"
-                for img in all_images
-            ]
-        )
-        system_instruction += (
-            f"\n\nIMPORTANT: The following images/figures/charts were extracted from the retrieved documents:\n{image_list}\n"
-            "These images are available and have been extracted from the paper. "
-            "When asked about images, figures, charts, or diagrams, refer to this list. "
-            "You can describe these images and reference them by their filenames."
         )
 
     try:
@@ -230,14 +315,20 @@ async def chat_rag(
             system_instruction=system_instruction,
             model=model_name,
             temperature=temperature,
+            images=image_parts if image_parts else None,
         )
+
+        # Separate chunks by type for response
+        text_chunks_out = [ch for ch in retrieved_chunks if ch.get("type") == "text"]
+        image_chunks_out = [ch for ch in retrieved_chunks if ch.get("type") == "image"]
+
         return JSONResponse(
             {
                 "model": model_name,
                 "content": content_text,
                 "top_k": top_k,
-                "chunks": retrieved_chunks,
-                "images": all_images,
+                "chunks": text_chunks_out,
+                "images": image_chunks_out,
             }
         )
     except Exception as e:
