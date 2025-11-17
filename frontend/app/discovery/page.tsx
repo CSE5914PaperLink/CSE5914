@@ -28,6 +28,7 @@ export default function DiscoveryPage() {
   const [papers, setPapers] = useState<ArxivResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [processingPapers, setProcessingPapers] = useState<Set<string>>(new Set());
 
   const truncate = (text: string, n = 300) =>
     text.length > n ? text.slice(0, n) + "..." : text;
@@ -60,6 +61,9 @@ export default function DiscoveryPage() {
       return;
     }
 
+    // Add to processing set
+    setProcessingPapers(prev => new Set(prev).add(arxivId));
+
     try {
       const res = await fetch(
         `/api/library/add?arxiv_id=${encodeURIComponent(arxivId)}&user_id=${encodeURIComponent(dataConnectUserId)}`,
@@ -69,9 +73,16 @@ export default function DiscoveryPage() {
         const data = await res.json();
         throw new Error(data.error || "Failed to add paper");
       }
-      alert("Paper added to library and ingestion started!");
+      alert("Paper added to library successfully!");
     } catch (e) {
       alert((e as Error).message);
+    } finally {
+      // Remove from processing set
+      setProcessingPapers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(arxivId);
+        return newSet;
+      });
     }
   };
 
@@ -304,22 +315,45 @@ export default function DiscoveryPage() {
                 </div>
                 <button
                   onClick={() => handleAddPaper(paper.arxiv_id)}
-                  className="shrink-0 w-10 h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors"
+                  disabled={processingPapers.has(paper.arxiv_id)}
+                  className="shrink-0 w-10 h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                   title="Add to collection"
                 >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 4v16m8-8H4"
-                    ></path>
-                  </svg>
+                  {processingPapers.has(paper.arxiv_id) ? (
+                    <svg
+                      className="w-5 h-5 animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  ) : (
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 4v16m8-8H4"
+                      ></path>
+                    </svg>
+                  )}
                 </button>
               </div>
             </div>

@@ -74,47 +74,83 @@ export async function POST(request: NextRequest) {
       ? authorsMatch.map(a => a.match(/<name>([^<]+)<\/name>/)![1].trim())
       : [];
 
-    // Add paper to DataConnect with pending status
-    const { data: paperData } = await addPaper(dc, {
-      userId,
-      title,
-      authors,
-      year,
-      abstract,
-      arxivId,
-      pdfUrl: `https://arxiv.org/pdf/${arxivId}.pdf`,
-    });
-
-    const paperId = paperData.paper_insert.id;
-
-    // Trigger backend ingestion
-    const backendUrl = `${BACKEND_URL}/library/add/${encodeURIComponent(arxivId)}`;
-    const backendResp = await fetch(backendUrl, { method: "POST" });
-    
-    if (!backendResp.ok) {
-      const data = await backendResp.json().catch(() => ({}));
-      // Mark as failed in DataConnect
-      await updatePaperIngestionStatus(dc, { 
-        paperId, 
-        status: "failed" 
+    // Try to add paper to DataConnect with pending status
+    try {
+      const { data: paperData } = await addPaper(dc, {
+        userId,
+        title,
+        authors,
+        year,
+        abstract,
+        arxivId,
+        pdfUrl: `https://arxiv.org/pdf/${arxivId}.pdf`,
       });
-      return NextResponse.json(
-        { error: data.detail || "Failed to ingest paper in backend" },
-        { status: backendResp.status }
-      );
+      
+      const paperId = paperData.paper_insert.id;
+
+      // Trigger backend ingestion
+      const backendUrl = `${BACKEND_URL}/library/add/${encodeURIComponent(arxivId)}`;
+      console.log(`[Library Add] Calling backend: ${backendUrl}`);
+      
+      try {
+        const backendResp = await fetch(backendUrl, { 
+          method: "POST",
+          signal: AbortSignal.timeout(600000) // 10 minutes timeout
+        });
+        
+        console.log(`[Library Add] Backend response status: ${backendResp.status}`);
+        
+        if (!backendResp.ok) {
+          const data = await backendResp.json().catch(() => ({}));
+          console.error(`[Library Add] Backend failed:`, data);
+          // Mark as failed in DataConnect
+          await updatePaperIngestionStatus(dc, { 
+            paperId, 
+            status: "failed" 
+          });
+          return NextResponse.json(
+            { error: data.detail || "Failed to ingest paper in backend" },
+            { status: backendResp.status }
+          );
+        }
+        
+        const backendData = await backendResp.json();
+        console.log(`[Library Add] Backend response:`, backendData);
+        
+        // Backend returns status "completed" after successful ingestion
+        await updatePaperIngestionStatus(dc, { 
+          paperId, 
+          status: "completed" 
+        });
+        
+        return NextResponse.json({ 
+          success: true, 
+          paperId,
+          status: "completed",
+          message: "Paper added and ingested successfully" 
+        });
+      } catch (fetchErr: any) {
+        console.error(`[Library Add] Backend fetch error:`, fetchErr);
+        // Mark as failed in DataConnect
+        await updatePaperIngestionStatus(dc, { 
+          paperId, 
+          status: "failed" 
+        });
+        return NextResponse.json(
+          { error: `Backend timeout or network error: ${fetchErr.message}` },
+          { status: 504 }
+        );
+      }
+    } catch (addError: any) {
+      // Check if it's a duplicate error
+      if (addError.code === 'other' && addError.message?.includes('ALREADY_EXISTS')) {
+        return NextResponse.json(
+          { error: "This paper is already in your library" },
+          { status: 409 }
+        );
+      }
+      throw addError;
     }
-
-    // Mark as completed in DataConnect
-    await updatePaperIngestionStatus(dc, { 
-      paperId, 
-      status: "completed" 
-    });
-
-    return NextResponse.json({ 
-      success: true, 
-      paperId,
-      message: "Paper added and ingested successfully" 
-    });
   } catch (err) {
     console.error("/api/library/add error:", err);
     return NextResponse.json(

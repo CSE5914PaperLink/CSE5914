@@ -18,6 +18,8 @@ export async function POST(request: NextRequest) {
     const useRag = Array.isArray(doc_ids) && doc_ids.length > 0;
     const backendPath = useRag ? "/gemini/chat_rag" : "/gemini/chat";
 
+    console.log("[Chat API] useRag:", useRag, "doc_ids:", doc_ids);
+
     // Build backend URL (non-body Query params for existing /gemini/chat)
     const backendUrl = new URL(`${BACKEND_URL}${backendPath}`);
     if (!useRag) {

@@ -48,26 +48,36 @@ export async function GET(request: NextRequest) {
       .map(p => p.arxivId)
       .filter((id): id is string => id !== null);
 
-    // Get ChromaDB metadata for these papers
-    const backendUrl = new URL(`${BACKEND_URL}/library/list`);
-    const res = await fetch(backendUrl.toString(), { method: "GET" });
-    const chromaData = await res.json();
+    // Batch check which papers exist in ChromaDB
+    let chromaResults: Record<string, boolean> = {};
+    if (arxivIds.length > 0) {
+      try {
+        const backendUrl = `${BACKEND_URL}/library/check_batch`;
+        const res = await fetch(backendUrl, { 
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(arxivIds),
+          signal: AbortSignal.timeout(60000) // 60 second timeout for many papers
+        });
+        if (res.ok) {
+          const data = await res.json();
+          chromaResults = data.results || {};
+        }
+      } catch (fetchErr) {
+        console.error("Failed to check ChromaDB status:", fetchErr);
+      }
+    }
 
-    // Match ChromaDB results with DataConnect papers
-    const chromaMap = new Map(
-      (chromaData.results || []).map((item: any) => [
-        item.metadata?.arxiv_id,
-        item
-      ])
-    );
-
-    // Merge DataConnect metadata with ChromaDB data
+    // Merge DataConnect metadata with ChromaDB status
     const results = data.papers.map(paper => {
-      const chromaItem = chromaMap.get(paper.arxivId);
+      const inChroma = chromaResults[paper.arxivId || ""] || false;
+      // Use the same doc_id format as backend: arxiv:{arxiv_id}
+      const docId = paper.arxivId ? `arxiv:${paper.arxivId}` : paper.id;
       return {
-        id: paper.arxivId || paper.id,
+        id: docId,  // Use full doc_id format for ChromaDB queries
         dataconnect_id: paper.id,
         metadata: {
+          doc_id: docId,  // Also include in metadata for consistency
           title: paper.title,
           authors: paper.authors,
           arxiv_id: paper.arxivId,
@@ -76,10 +86,8 @@ export async function GET(request: NextRequest) {
           ingestion_status: paper.ingestionStatus,
           pdf_url: paper.pdfUrl,
         },
-        // Include ChromaDB document chunks if available
-        document: chromaItem?.document || null,
         // Indicate if paper is in ChromaDB
-        in_chromadb: !!chromaItem,
+        in_chromadb: inChroma,
       };
     });
 

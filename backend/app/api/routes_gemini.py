@@ -168,6 +168,7 @@ async def chat_rag(
                     break  # Found images for this doc_id
         
         print(f"DEBUG: Total images collected: {len(all_images)}")
+        print(f"DEBUG: Retrieved {len(retrieved_chunks)} chunks for RAG")
 
         if retrieved_chunks:
             parts = []
@@ -189,10 +190,15 @@ async def chat_rag(
     system_instruction = system or "You are a helpful AI assistant for researchers."
     if context_block:
         system_instruction = (
-            "Use the following retrieved chunks as authoritative context. "
-            "Cite relevant chunks by id when helpful. If the answer is not contained in them, you may say you don't know.\n\n"
+            "IMPORTANT: The user has selected specific research papers. "
+            "Below are the most relevant excerpts from those papers retrieved based on the user's query. "
+            "Use this content to answer their questions about the papers.\n\n"
+            "RETRIEVED PAPER CONTENT:\n"
             + context_block
-            + "\n"
+            + "\n\n"
+            "When the user asks to 'summarize this' or 'what is this about', they are referring to the paper excerpts above. "
+            "Provide detailed answers based on the retrieved content. "
+            "If you need to cite specific information, reference the chunk IDs.\n\n"
             + system_instruction
         )
     
