@@ -24,17 +24,19 @@ def debug_list_all():
     chroma = ChromaService()
     try:
         data = chroma.collection.get(include=["metadatas"], limit=100)
-        
+
         # Group by doc_id and count images
         doc_info = {}
         for i, chunk_id in enumerate(data.get("ids", [])):
             md = (data.get("metadatas") or [{}])[i] or {}
             doc_id = md.get("doc_id", "unknown")
-            
+
             if doc_id not in doc_info:
                 images_json = md.get("images", "[]")
                 try:
-                    images = json.loads(images_json) if isinstance(images_json, str) else []
+                    images = (
+                        json.loads(images_json) if isinstance(images_json, str) else []
+                    )
                     doc_info[doc_id] = {
                         "doc_id": doc_id,
                         "chunk_count": 1,
@@ -54,8 +56,10 @@ def debug_list_all():
                     }
             else:
                 doc_info[doc_id]["chunk_count"] += 1
-        
-        return JSONResponse({"documents": list(doc_info.values()), "total_docs": len(doc_info)})
+
+        return JSONResponse(
+            {"documents": list(doc_info.values()), "total_docs": len(doc_info)}
+        )
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
@@ -120,14 +124,16 @@ async def add_arxiv(arxiv_id: str):
     extra_md = {"arxiv_id": arxiv_id, "pdf_url": pdf_url, **meta}
     # Ingest (doc_id prefixes to avoid collisions)
     stats = ingest_pdf_bytes_into_chroma(
-        pdf_bytes, doc_id=f"arxiv:{arxiv_id}", extra_metadata=extra_md
+        pdf_bytes, doc_id=arxiv_id, extra_metadata=extra_md
     )
-    return JSONResponse({
-        "status": "ok",
-        "arxiv_id": arxiv_id,
-        "metadata": extra_md,
-        "ingestion": stats,
-    })
+    return JSONResponse(
+        {
+            "status": "ok",
+            "arxiv_id": arxiv_id,
+            "metadata": extra_md,
+            "ingestion": stats,
+        }
+    )
 
 
 @router.get("/list")
@@ -229,16 +235,16 @@ def get_images(doc_id: str):
             limit=1,  # only need one chunk to get images (all chunks share same images)
         )
         print(f"DEBUG: Found {len(data.get('ids', []))} chunks for doc_id={doc_id}")
-        
+
         if not data.get("ids"):
             return JSONResponse({"images": []})
-        
+
         md = (data.get("metadatas") or [{}])[0] or {}
         images_json = md.get("images", "[]")
         print(f"DEBUG: Raw images_json: {images_json[:200] if images_json else 'None'}")
         images = json.loads(images_json) if isinstance(images_json, str) else []
         print(f"DEBUG: Parsed {len(images)} images")
-        
+
         return JSONResponse({"doc_id": doc_id, "images": images})
     except Exception as e:
         print(f"DEBUG: Error fetching images: {e}")
@@ -257,17 +263,17 @@ def get_image_file(doc_id: str, filename: str):
         )
         if not data.get("ids"):
             raise HTTPException(status_code=404, detail="Document not found")
-        
+
         md = (data.get("metadatas") or [{}])[0] or {}
         images_json = md.get("images", "[]")
         images = json.loads(images_json) if isinstance(images_json, str) else []
-        
+
         for img in images:
             if img.get("filename") == filename:
                 img_bytes = base64.b64decode(img["data_base64"])
                 media_type = img.get("media_type") or "image/png"
                 return Response(content=img_bytes, media_type=media_type)
-        
+
         raise HTTPException(status_code=404, detail="Image not found")
     except HTTPException:
         raise

@@ -60,14 +60,23 @@ def ingest_pdf_bytes_into_chroma(
 
     # Serialize images as JSON strings for Chroma compatibility
     images_json = json.dumps(
-        [{"filename": img.filename, "data_base64": img.data_base64, "media_type": img.media_type, "page": img.page}
-         for img in (meta.images or [])]
+        [
+            {
+                "filename": img.filename,
+                "data_base64": img.data_base64,
+                "media_type": img.media_type,
+                "page": img.page,
+            }
+            for img in (meta.images or [])
+        ]
     )
 
     metadatas = [
-        {**base_metadata, "chunk_index": i, "preview": text[:200], "images": images_json}
+        {**base_metadata, "chunk_index": i, "images": images_json}
         for i, text in enumerate(chunk_texts)
     ]
+
+    print(metadatas)
 
     chroma = ChromaService(embedding_dim=emb_dim)
     chroma.upsert(
@@ -77,5 +86,7 @@ def ingest_pdf_bytes_into_chroma(
         metadatas=metadatas,
     )
 
-    print(f"Ingested {len(chunk_ids)} chunks and {len(meta.images or [])} images for {doc_id}")
+    print(
+        f"Ingested {len(chunk_ids)} chunks and {len(meta.images or [])} images for {doc_id}"
+    )
     return {"chunks": len(chunk_ids), "images": len(meta.images or [])}

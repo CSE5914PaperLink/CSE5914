@@ -87,13 +87,20 @@ async def chat_rag(
     top_k = int(body.get("top_k") or 5)
 
     # Build a similarity-retrieved context from chunked Chroma entries
-    doc_ids = body.get("doc_ids") or []
+    raw_doc_ids = body.get("doc_ids")
+    # Normalize doc_ids input to a clean list of strings
+    if isinstance(raw_doc_ids, str):
+        doc_ids = [raw_doc_ids.strip()] if raw_doc_ids.strip() else []
+    elif isinstance(raw_doc_ids, list):
+        doc_ids = [str(d).strip() for d in raw_doc_ids if str(d).strip()]
+    else:
+        doc_ids = []
     context_block = ""
     retrieved_chunks: list[dict[str, Any]] = []
     all_images: list[dict[str, Any]] = []
-    
+
     print(f"DEBUG: Received doc_ids filter: {doc_ids}")
-    
+
     try:
         # 1) Embed query using local Nomic embeddings
         embedder = NomicEmbeddingService()
@@ -101,12 +108,9 @@ async def chat_rag(
 
         # 2) Build optional metadata filter for Chroma
         where_filter: dict[str, Any] | None = None
-        if isinstance(doc_ids, list) and len(doc_ids) > 0:
-            # Chroma supports simple filters; try $in for multiple doc ids
-            if len(doc_ids) == 1:
-                where_filter = {"doc_id": str(doc_ids[0])}
-            else:
-                where_filter = {"doc_id": {"$in": [str(d) for d in doc_ids]}}
+        if doc_ids:
+            # Use exact match on metadata.doc_id via $in (handles 1 or many)
+            where_filter = {"doc_id": {"$in": doc_ids}}
 
         # 3) Query Chroma for top_k most similar chunks
         emb_dim = len(query_vec) if isinstance(query_vec, list) else None
@@ -114,6 +118,7 @@ async def chat_rag(
         query_kwargs = {
             "query_embeddings": [query_vec],
             "n_results": top_k,
+            "include": cast(Any, ["documents", "metadatas", "distances"]),
             "include": cast(Any, ["documents", "metadatas", "distances"]),
         }
         if where_filter:
@@ -134,7 +139,7 @@ async def chat_rag(
             doc_id_val = (md or {}).get("doc_id")
             if doc_id_val:
                 doc_id_set.add(doc_id_val)
-            
+
             retrieved_chunks.append(
                 {
                     "id": ids[i],
@@ -154,11 +159,19 @@ async def chat_rag(
                 if meta and meta.get("doc_id") == doc_id_val:
                     images_json = meta.get("images", "[]")
                     try:
-                        images = json.loads(images_json) if isinstance(images_json, str) else []
-                        print(f"DEBUG: Found {len(images)} images for doc_id={doc_id_val}")
+                        images = (
+                            json.loads(images_json)
+                            if isinstance(images_json, str)
+                            else []
+                        )
+                        print(
+                            f"DEBUG: Found {len(images)} images for doc_id={doc_id_val}"
+                        )
                         for img in images:
                             # Add URL endpoint for frontend to fetch image
-                            img["url"] = f"/library/images/{doc_id_val}/{img.get('filename')}"
+                            img["url"] = (
+                                f"/library/images/{doc_id_val}/{img.get('filename')}"
+                            )
                             img["doc_id"] = doc_id_val
                             # Remove base64 data to keep response size manageable
                             img.pop("data_base64", None)
@@ -166,7 +179,7 @@ async def chat_rag(
                     except Exception as e:
                         print(f"DEBUG: Error parsing images for {doc_id_val}: {e}")
                     break  # Found images for this doc_id
-        
+
         print(f"DEBUG: Total images collected: {len(all_images)}")
 
         if retrieved_chunks:
@@ -186,19 +199,23 @@ async def chat_rag(
         all_images = []
 
     # Prepend context to the system instruction or create a dedicated system message
-    system_instruction = system or "You are a helpful AI assistant for researchers."
+    system_instruction = "You are a helpful AI assistant for researchers."
     if context_block:
         system_instruction = (
             "Use the following retrieved chunks as authoritative context. "
-            "Cite relevant chunks by id when helpful. If the answer is not contained in them, you may say you don't know.\n\n"
             + context_block
             + "\n"
             + system_instruction
         )
-    
+
     # Add image context to system instruction if images are present
     if all_images:
-        image_list = "\n".join([f"- {img.get('filename')} (from doc: {img.get('doc_id')})" for img in all_images])
+        image_list = "\n".join(
+            [
+                f"- {img.get('filename')} (from doc: {img.get('doc_id')})"
+                for img in all_images
+            ]
+        )
         system_instruction += (
             f"\n\nIMPORTANT: The following images/figures/charts were extracted from the retrieved documents:\n{image_list}\n"
             "These images are available and have been extracted from the paper. "
