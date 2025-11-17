@@ -76,7 +76,16 @@ def ingest_pdf_bytes_into_chroma(
         for i, text in enumerate(chunk_texts)
     ]
 
-    print(metadatas)
+    if metadatas:
+        first_meta = metadatas[0]
+        for key, value in first_meta.items():
+            try:
+                length = len(value)
+            except Exception:
+                length = len(str(value))
+            print(f"{key}: {length}")
+    else:
+        print("No metadata available")
 
     chroma = ChromaService(embedding_dim=emb_dim)
     chroma.upsert(

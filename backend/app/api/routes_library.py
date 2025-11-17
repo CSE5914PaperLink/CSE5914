@@ -241,7 +241,6 @@ def get_images(doc_id: str):
 
         md = (data.get("metadatas") or [{}])[0] or {}
         images_json = md.get("images", "[]")
-        print(f"DEBUG: Raw images_json: {images_json[:200] if images_json else 'None'}")
         images = json.loads(images_json) if isinstance(images_json, str) else []
         print(f"DEBUG: Parsed {len(images)} images")
 
