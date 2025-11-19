@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, List
+from dataclasses import asdict
 import json
 import base64
 
@@ -9,7 +10,7 @@ from fastapi.responses import JSONResponse, Response
 import httpx
 from xml.etree import ElementTree as ET
 
-from app.services.embedding_service import ingest_pdf_bytes_into_chroma
+from app.services.embedding_service import ingest_pdf_bytes_into_chroma, PdfMetadata
 from app.services.chroma_service import ChromaService
 
 router = APIRouter(prefix="/library", tags=["library"])
@@ -42,7 +43,6 @@ def debug_list_all():
                         "chunk_count": 1,
                         "image_count": len(images),
                         "sample_chunk_id": chunk_id,
-                        "arxiv_id": md.get("arxiv_id"),
                         "title": md.get("title"),
                     }
                 except:
@@ -51,7 +51,6 @@ def debug_list_all():
                         "chunk_count": 1,
                         "image_count": 0,
                         "sample_chunk_id": chunk_id,
-                        "arxiv_id": md.get("arxiv_id"),
                         "title": md.get("title"),
                     }
             else:
@@ -64,12 +63,11 @@ def debug_list_all():
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-def _fetch_arxiv_metadata(arxiv_id: str) -> dict:
-    """Fetch minimal metadata (title, authors, summary, published) for a given arXiv id."""
+def _fetch_arxiv_metadata(doc_id: str) -> dict:
     try:
         r = httpx.get(
             ARXIV_API,
-            params={"id_list": arxiv_id},
+            params={"id_list": doc_id},
             headers={"User-Agent": UA},
             timeout=30.0,
         )
@@ -107,56 +105,45 @@ def _fetch_arxiv_metadata(arxiv_id: str) -> dict:
 
 
 @router.post("/check_batch")
-def check_batch_papers(arxiv_ids: List[str]):
-    """Check if multiple papers exist in ChromaDB by their arxiv_ids."""
+def check_batch_papers(doc_ids: List[str]):
     chroma = ChromaService()
     results = {}
-    
-    # Build doc_ids for all papers
-    doc_ids = [f"arxiv:{aid}" for aid in arxiv_ids]
-    
-    # Try to query all at once using where clause with OR conditions
-    # This is much faster than individual queries
+
+    doc_id_list = [f"{aid}" for aid in doc_ids]
+
     try:
-        # Get all chunks that match any of the doc_ids
         data = chroma.collection.get(
             include=["metadatas"],
-            limit=10000  # High limit to catch all matching chunks
+            limit=10000,
         )
-        
-        # Build set of doc_ids that exist
+
         existing_doc_ids = set()
         for i, chunk_id in enumerate(data.get("ids", [])):
             md = (data.get("metadatas") or [{}])[i] or {}
             if md.get("doc_id"):
                 existing_doc_ids.add(md["doc_id"])
-        
-        # Check each arxiv_id
-        for arxiv_id in arxiv_ids:
-            doc_id = f"arxiv:{arxiv_id}"
-            results[arxiv_id] = doc_id in existing_doc_ids
-            
+
+        for doc_id in doc_ids:
+            doc_id_str = f"{doc_id}"
+            results[doc_id] = doc_id_str in existing_doc_ids
+
     except Exception as e:
-        # If batch query fails, fall back to individual queries
-        for arxiv_id in arxiv_ids:
-            doc_id = f"arxiv:{arxiv_id}"
+        for doc_id in doc_ids:
+            doc_id_str = f"{doc_id}"
             try:
                 data = chroma.collection.get(
-                    where={"doc_id": doc_id},
-                    limit=1,
-                    include=[]
+                    where={"doc_id": doc_id_str}, limit=1, include=[]
                 )
-                results[arxiv_id] = len(data.get("ids", [])) > 0
+                results[doc_id] = len(data.get("ids", [])) > 0
             except Exception:
-                results[arxiv_id] = False
-    
+                results[doc_id] = False
+
     return JSONResponse({"results": results})
 
 
-@router.post("/add/{arxiv_id}")
-async def add_arxiv(arxiv_id: str):
-    """Download an arXiv PDF and ingest into vector DB."""
-    pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+@router.post("/add/{doc_id}")
+async def add_arxiv(doc_id: str):
+    pdf_url = f"https://arxiv.org/pdf/{doc_id}.pdf"
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(60.0, connect=10.0),
         headers={"User-Agent": UA},
@@ -166,18 +153,24 @@ async def add_arxiv(arxiv_id: str):
         if r.status_code != 200:
             raise HTTPException(status_code=r.status_code, detail="Failed to fetch PDF")
         pdf_bytes = r.content
-    # Fetch and attach minimal metadata
-    meta = _fetch_arxiv_metadata(arxiv_id)
-    extra_md = {"arxiv_id": arxiv_id, "pdf_url": pdf_url, **meta}
-    # Ingest (doc_id prefixes to avoid collisions)
-    stats = ingest_pdf_bytes_into_chroma(
-        pdf_bytes, doc_id=arxiv_id, extra_metadata=extra_md
+
+    meta = _fetch_arxiv_metadata(doc_id)
+
+    pdf_meta = PdfMetadata(
+        doc_id=doc_id,
+        pdf_url=pdf_url,
+        title=meta.get("title", ""),
+        summary=meta.get("summary", ""),
+        published=meta.get("published", ""),
+        authors=meta.get("authors", []),
     )
+
+    stats = ingest_pdf_bytes_into_chroma(pdf_bytes, extra_metadata=pdf_meta)
     return JSONResponse(
         {
             "status": "ok",
-            "arxiv_id": arxiv_id,
-            "metadata": extra_md,
+            "doc_id": doc_id,
+            "metadata": asdict(pdf_meta),
             "ingestion": stats,
         }
     )
@@ -186,13 +179,7 @@ async def add_arxiv(arxiv_id: str):
 @router.get("/list")
 def list_library(limit: int = 500, offset: int = 0):
     chroma = ChromaService()
-    # Chroma doesn't have simple list; use where filter hack by querying all with empty where
-    # We'll store ids by doing a range over collection count (not exposed). Instead, rely on get with 'include'.
-    # Workaround: use .get with no ids returns all (may be heavy). Limit manually.
-    # Only fetch metadata, not documents, to reduce response size
-    data = chroma.collection.get(
-        include=["metadatas"], limit=limit, offset=offset
-    )
+    data = chroma.collection.get(include=["metadatas"], limit=limit, offset=offset)
     results = []
     for i, _id in enumerate(data.get("ids", [])):
         md = (data.get("metadatas") or [{}])[i] or {}
@@ -264,63 +251,5 @@ def delete_item(doc_id: str):
 
         chroma.delete(to_delete)
         return JSONResponse({"status": "deleted", "deleted_count": len(to_delete)})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/images/{doc_id}")
-def get_images(doc_id: str):
-    """Retrieve all images for a document from Chroma metadata."""
-    chroma = ChromaService()
-    try:
-        print(f"DEBUG: Fetching images for doc_id={doc_id}")
-        # Fetch chunks for this doc_id
-        data = chroma.collection.get(
-            where={"doc_id": doc_id},
-            include=["metadatas"],
-            limit=1,  # only need one chunk to get images (all chunks share same images)
-        )
-        print(f"DEBUG: Found {len(data.get('ids', []))} chunks for doc_id={doc_id}")
-
-        if not data.get("ids"):
-            return JSONResponse({"images": []})
-
-        md = (data.get("metadatas") or [{}])[0] or {}
-        images_json = md.get("images", "[]")
-        images = json.loads(images_json) if isinstance(images_json, str) else []
-        print(f"DEBUG: Parsed {len(images)} images")
-
-        return JSONResponse({"doc_id": doc_id, "images": images})
-    except Exception as e:
-        print(f"DEBUG: Error fetching images: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/images/{doc_id}/{filename}")
-def get_image_file(doc_id: str, filename: str):
-    """Serve a specific image file as binary data."""
-    chroma = ChromaService()
-    try:
-        data = chroma.collection.get(
-            where={"doc_id": doc_id},
-            include=["metadatas"],
-            limit=1,
-        )
-        if not data.get("ids"):
-            raise HTTPException(status_code=404, detail="Document not found")
-
-        md = (data.get("metadatas") or [{}])[0] or {}
-        images_json = md.get("images", "[]")
-        images = json.loads(images_json) if isinstance(images_json, str) else []
-
-        for img in images:
-            if img.get("filename") == filename:
-                img_bytes = base64.b64decode(img["data_base64"])
-                media_type = img.get("media_type") or "image/png"
-                return Response(content=img_bytes, media_type=media_type)
-
-        raise HTTPException(status_code=404, detail="Image not found")
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

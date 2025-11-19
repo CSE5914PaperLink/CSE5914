@@ -5,17 +5,16 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const arxivId = searchParams.get("arxiv_id");
-    if (!arxivId) {
+    const docId = searchParams.get("doc_id");
+    if (!docId) {
       return NextResponse.json(
-        { error: "arxiv_id is required" },
+        { error: "doc_id is required" },
         { status: 400 }
       );
     }
 
-    // Backend route is /library/add/{arxiv_id}
     const backendUrl = `${BACKEND_URL}/library/add/${encodeURIComponent(
-      arxivId
+      docId
     )}`;
 
     const resp = await fetch(backendUrl, { method: "POST" });

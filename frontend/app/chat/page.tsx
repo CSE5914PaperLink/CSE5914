@@ -13,6 +13,23 @@ import { useUser } from "@/contexts/UserContext";
 
 export default function ChatPage() {
   const { dataConnectUserId } = useUser();
+
+  // Thread ID for agent conversation memory
+  const [threadId] = useState(() => {
+    // Generate a unique thread ID for this session
+    // Persists across page refreshes via sessionStorage
+    const stored =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("chat_thread_id")
+        : null;
+    if (stored) return stored;
+    const newId = `thread-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("chat_thread_id", newId);
+    }
+    return newId;
+  });
+
   // Split ratio for chat/pdf (0..1). Sidebar stays auto.
   // Use a fixed SSR-safe initial value to avoid hydration mismatch; load stored value after mount.
   const [split, setSplit] = useState<number>(0.5);
@@ -124,8 +141,8 @@ export default function ChatPage() {
         body: JSON.stringify({
           prompt: trimmed,
           system: systemInstruction,
-          temperature: 0.7,
           doc_ids: docs,
+          thread_id: threadId, // Pass thread ID for conversation memory
         }),
       });
 
@@ -136,71 +153,212 @@ export default function ChatPage() {
         throw new Error(errorData.error || "Failed to get response");
       }
 
-      const data = await response.json();
-      const aiResponse =
-        data.content || "Sorry, I couldn't generate a response.";
-      const images = data.images || [];
-      const chunks = data.chunks || [];
-      const imageChunks = data.images || [];
+      // Check if response is streaming (agent mode) or JSON (simple chat)
+      const contentType = response.headers.get("content-type");
+      const isStreaming = contentType?.includes("text/event-stream");
 
-      // Combine text and image chunks into sources
-      const sources: SourceChunk[] = [
-        ...chunks.map(
-          (chunk: {
-            id: string;
-            doc_id?: string;
-            distance?: number;
-            content?: string;
-            chunk_index?: number;
-            page?: number;
-          }) => ({
-            id: chunk.id,
-            type: "text" as const,
-            doc_id: chunk.doc_id,
-            distance: chunk.distance,
-            content: chunk.content,
-            chunk_index: chunk.chunk_index,
-            page: chunk.page,
-          })
-        ),
-        ...imageChunks.map(
-          (img: {
-            id: string;
-            doc_id?: string;
-            distance?: number;
-            content?: string;
-            filename?: string;
-            page?: number;
-            bbox?: { l: number; r: number; t: number; b: number };
-          }) => ({
-            id: img.id,
-            type: "image" as const,
-            doc_id: img.doc_id,
-            distance: img.distance,
-            content: img.content,
-            filename: img.filename,
-            page: img.page,
-            bbox: img.bbox,
-          })
-        ),
-      ];
+      if (isStreaming) {
+        // Handle streaming response from agent
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
 
-      setTyping(false);
-      addMessage(aiResponse, "ai");
+        if (!reader) {
+          throw new Error("No response body");
+        }
 
-      // Add images and sources to the last message
-      setMessages((m) => {
-        const updated = [...m];
-        if (updated.length > 0) {
-          if (images.length > 0) {
-            updated[updated.length - 1].images = images;
-          }
-          if (sources.length > 0) {
-            updated[updated.length - 1].sources = sources;
+        // Create initial AI message with status
+        const aiMessageId = crypto.randomUUID();
+        setMessages((m) => [
+          ...m,
+          {
+            id: aiMessageId,
+            text: "",
+            sender: "ai",
+            status: "thinking",
+          },
+        ]);
+        setTyping(false);
+
+        let fullContent = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split("\n").filter((line) => line.trim());
+
+          for (const line of lines) {
+            try {
+              const event = JSON.parse(line);
+
+              if (event.type === "status") {
+                // Update the status of the AI message
+                setMessages((m) =>
+                  m.map((msg) =>
+                    msg.id === aiMessageId
+                      ? { ...msg, status: event.value }
+                      : msg
+                  )
+                );
+              } else if (event.type === "token") {
+                // Append token to content
+                fullContent += event.value;
+                setMessages((m) =>
+                  m.map((msg) =>
+                    msg.id === aiMessageId ? { ...msg, text: fullContent } : msg
+                  )
+                );
+              } else if (event.type === "sources") {
+                // Update sources on the AI message
+                // Backend now sends a dictionary with IDs as keys
+                type SourceData = {
+                  id?: string;
+                  type: "text" | "image";
+                  doc_id?: string;
+                  title?: string;
+                  distance?: number;
+                  content?: string;
+                  chunk_index?: number;
+                  page?: number;
+                  filename?: string;
+                  image_data?: string;
+                  bbox?: {
+                    left: number;
+                    top: number;
+                    right: number;
+                    bottom: number;
+                  };
+                };
+
+                // Convert dictionary to array
+                const sourcesDict = (event.value || {}) as Record<
+                  string,
+                  SourceData
+                >;
+                const sources: SourceChunk[] = Object.entries(sourcesDict).map(
+                  ([id, src]) => ({
+                    id: id,
+                    type: src.type,
+                    doc_id: src.doc_id,
+                    title: src.title,
+                    distance: src.distance,
+                    content: src.content,
+                    chunk_index: src.chunk_index,
+                    page: src.page,
+                    filename: src.filename,
+                    image_data: src.image_data,
+                    bbox: src.bbox,
+                  })
+                );
+
+                setMessages((m) =>
+                  m.map((msg) =>
+                    msg.id === aiMessageId ? { ...msg, sources } : msg
+                  )
+                );
+              } else if (event.type === "error") {
+                throw new Error(event.value);
+              }
+            } catch (e) {
+              // Skip invalid JSON lines
+              if (e instanceof Error && !e.message.includes("Unexpected")) {
+                throw e;
+              }
+            }
           }
         }
-        return updated;
-      });
+
+        // Clear status when done
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === aiMessageId ? { ...msg, status: undefined } : msg
+          )
+        );
+      } else {
+        // Handle JSON response (simple chat mode)
+        const data = await response.json();
+        const aiResponse =
+          data.content || "Sorry, I couldn't generate a response.";
+        const images = data.images || [];
+        const chunks = data.chunks || [];
+        const imageChunks = data.images || [];
+
+        // Combine text and image chunks into sources
+        const sources: SourceChunk[] = [
+          ...chunks.map(
+            (chunk: {
+              id: string;
+              doc_id?: string;
+              distance?: number;
+              content?: string;
+              chunk_index?: number;
+              page?: number;
+            }) => ({
+              id: chunk.id,
+              type: "text" as const,
+              doc_id: chunk.doc_id,
+              distance: chunk.distance,
+              content: chunk.content,
+              chunk_index: chunk.chunk_index,
+              page: chunk.page,
+            })
+          ),
+          ...imageChunks.map(
+            (img: {
+              id: string;
+              doc_id?: string;
+              distance?: number;
+              content?: string;
+              filename?: string;
+              page?: number;
+              url?: string;
+              image_data?: string;
+              bbox?: {
+                left?: number;
+                right?: number;
+                top?: number;
+                bottom?: number;
+              };
+            }) => ({
+              id: img.id,
+              type: "image" as const,
+              doc_id: img.doc_id,
+              distance: img.distance,
+              content: img.content,
+              filename: img.filename,
+              page: img.page,
+              url: img.url,
+              image_data: img.image_data,
+              bbox: img.bbox
+                ? {
+                    left: img.bbox.left ?? 0,
+                    right: img.bbox.right ?? 1,
+                    top: img.bbox.top ?? 0,
+                    bottom: img.bbox.bottom ?? 1,
+                  }
+                : undefined,
+            })
+          ),
+        ];
+
+        setTyping(false);
+        addMessage(aiResponse, "ai");
+
+        // Add images and sources to the last message
+        setMessages((m) => {
+          const updated = [...m];
+          if (updated.length > 0) {
+            if (images.length > 0) {
+              updated[updated.length - 1].images = images;
+            }
+            if (sources.length > 0) {
+              updated[updated.length - 1].sources = sources;
+            }
+          }
+          return updated;
+        });
+      }
     } catch (error) {
       setTyping(false);
       addMessage(
@@ -268,7 +426,7 @@ export default function ChatPage() {
             onDelete={async (id: string) => {
               const item = library.find((x) => x.id === id);
               const title =
-                item?.metadata?.title || item?.metadata?.arxiv_id || id;
+                item?.metadata?.title || item?.metadata?.doc_id || id;
               try {
                 const res = await fetch(
                   `/api/library/delete?id=${encodeURIComponent(id)}`,

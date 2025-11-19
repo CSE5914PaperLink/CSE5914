@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initializeApp, getApps } from "firebase/app";
 import { getDataConnect } from "firebase/data-connect";
-import { connectorConfig, addPaper, updatePaperIngestionStatus } from "@/src/dataconnect-generated";
+import {
+  connectorConfig,
+  addPaper,
+  updatePaperIngestionStatus,
+} from "@/src/dataconnect-generated";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -23,12 +27,12 @@ function getFirebaseApp() {
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const arxivId = searchParams.get("arxiv_id");
+    const docId = searchParams.get("doc_id");
     const userId = searchParams.get("user_id");
-    
-    if (!arxivId) {
+
+    if (!docId) {
       return NextResponse.json(
-        { error: "arxiv_id is required" },
+        { error: "doc_id is required" },
         { status: 400 }
       );
     }
@@ -40,15 +44,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Initialize Firebase and DataConnect for this API route
     const app = getFirebaseApp();
     const dc = getDataConnect(app, connectorConfig);
 
-    // First, fetch paper metadata from arXiv API
-    const arxivApiUrl = `https://export.arxiv.org/api/query?id_list=${arxivId}`;
+    const arxivApiUrl = `https://export.arxiv.org/api/query?id_list=${docId}`;
     const arxivResp = await fetch(arxivApiUrl);
     const xmlText = await arxivResp.text();
-    
+
     // Parse XML - skip first <title> (feed title) and get entry title
     // Find the <entry> section first
     const entryMatch = xmlText.match(/<entry>([\s\S]*?)<\/entry>/);
@@ -58,23 +60,30 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-    
+
     const entryContent = entryMatch[1];
-    
+
     const titleMatch = entryContent.match(/<title>([\s\S]*?)<\/title>/);
     const summaryMatch = entryContent.match(/<summary>([\s\S]*?)<\/summary>/);
-    const publishedMatch = entryContent.match(/<published>([\s\S]*?)<\/published>/);
-    const authorsMatch = entryContent.match(/<author>[\s\S]*?<name>([^<]+)<\/name>/g);
-    
-    const title = titleMatch ? titleMatch[1].trim().replace(/\n\s+/g, ' ') : `arXiv:${arxivId}`;
-    const abstract = summaryMatch ? summaryMatch[1].trim().replace(/\n\s+/g, ' ') : null;
+    const publishedMatch = entryContent.match(
+      /<published>([\s\S]*?)<\/published>/
+    );
+    const authorsMatch = entryContent.match(
+      /<author>[\s\S]*?<name>([^<]+)<\/name>/g
+    );
+
+    const title = titleMatch
+      ? titleMatch[1].trim().replace(/\n\s+/g, " ")
+      : `arXiv:${docId}`;
+    const abstract = summaryMatch
+      ? summaryMatch[1].trim().replace(/\n\s+/g, " ")
+      : null;
     const publishedDate = publishedMatch ? publishedMatch[1] : null;
     const year = publishedDate ? new Date(publishedDate).getFullYear() : null;
-    const authors = authorsMatch 
-      ? authorsMatch.map(a => a.match(/<name>([^<]+)<\/name>/)![1].trim())
+    const authors = authorsMatch
+      ? authorsMatch.map((a) => a.match(/<name>([^<]+)<\/name>/)![1].trim())
       : [];
 
-    // Try to add paper to DataConnect with pending status
     try {
       const { data: paperData } = await addPaper(dc, {
         userId,
@@ -82,59 +91,62 @@ export async function POST(request: NextRequest) {
         authors,
         year,
         abstract,
-        arxivId,
-        pdfUrl: `https://arxiv.org/pdf/${arxivId}.pdf`,
+        arxivId: docId,
+        pdfUrl: `https://arxiv.org/pdf/${docId}.pdf`,
       });
-      
+
       const paperId = paperData.paper_insert.id;
 
-      // Trigger backend ingestion
-      const backendUrl = `${BACKEND_URL}/library/add/${encodeURIComponent(arxivId)}`;
+      const backendUrl = `${BACKEND_URL}/library/add/${encodeURIComponent(
+        docId
+      )}`;
       console.log(`[Library Add] Calling backend: ${backendUrl}`);
-      
+
       try {
-        const backendResp = await fetch(backendUrl, { 
+        const backendResp = await fetch(backendUrl, {
           method: "POST",
-          signal: AbortSignal.timeout(600000) // 10 minutes timeout
+          signal: AbortSignal.timeout(600000), // 10 minutes timeout
         });
-        
-        console.log(`[Library Add] Backend response status: ${backendResp.status}`);
-        
+
+        console.log(
+          `[Library Add] Backend response status: ${backendResp.status}`
+        );
+
         if (!backendResp.ok) {
           const data = await backendResp.json().catch(() => ({}));
           console.error(`[Library Add] Backend failed:`, data);
           // Mark as failed in DataConnect
-          await updatePaperIngestionStatus(dc, { 
-            paperId, 
-            status: "failed" 
+          await updatePaperIngestionStatus(dc, {
+            paperId,
+            status: "failed",
           });
           return NextResponse.json(
             { error: data.detail || "Failed to ingest paper in backend" },
             { status: backendResp.status }
           );
         }
-        
+
         const backendData = await backendResp.json();
         console.log(`[Library Add] Backend response:`, backendData);
-        
+
         // Backend returns status "completed" after successful ingestion
-        await updatePaperIngestionStatus(dc, { 
-          paperId, 
-          status: "completed" 
-        });
-        
-        return NextResponse.json({ 
-          success: true, 
+        await updatePaperIngestionStatus(dc, {
           paperId,
           status: "completed",
-          message: "Paper added and ingested successfully" 
+        });
+
+        return NextResponse.json({
+          success: true,
+          paperId,
+          status: "completed",
+          message: "Paper added and ingested successfully",
         });
       } catch (fetchErr: any) {
         console.error(`[Library Add] Backend fetch error:`, fetchErr);
         // Mark as failed in DataConnect
-        await updatePaperIngestionStatus(dc, { 
-          paperId, 
-          status: "failed" 
+        await updatePaperIngestionStatus(dc, {
+          paperId,
+          status: "failed",
         });
         return NextResponse.json(
           { error: `Backend timeout or network error: ${fetchErr.message}` },
@@ -143,7 +155,10 @@ export async function POST(request: NextRequest) {
       }
     } catch (addError: any) {
       // Check if it's a duplicate error
-      if (addError.code === 'other' && addError.message?.includes('ALREADY_EXISTS')) {
+      if (
+        addError.code === "other" &&
+        addError.message?.includes("ALREADY_EXISTS")
+      ) {
         return NextResponse.json(
           { error: "This paper is already in your library" },
           { status: 409 }

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useUser } from "@/contexts/UserContext";
 
 interface ArxivResult {
-  arxiv_id: string;
+  doc_id: string;
   title: string;
   summary: string;
   published?: string;
@@ -28,7 +28,9 @@ export default function DiscoveryPage() {
   const [papers, setPapers] = useState<ArxivResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [processingPapers, setProcessingPapers] = useState<Set<string>>(new Set());
+  const [processingPapers, setProcessingPapers] = useState<Set<string>>(
+    new Set()
+  );
 
   const truncate = (text: string, n = 300) =>
     text.length > n ? text.slice(0, n) + "..." : text;
@@ -62,11 +64,13 @@ export default function DiscoveryPage() {
     }
 
     // Add to processing set
-    setProcessingPapers(prev => new Set(prev).add(arxivId));
+    setProcessingPapers((prev) => new Set(prev).add(arxivId));
 
     try {
       const res = await fetch(
-        `/api/library/add?arxiv_id=${encodeURIComponent(arxivId)}&user_id=${encodeURIComponent(dataConnectUserId)}`,
+        `/api/library/add?doc_id=${encodeURIComponent(
+          arxivId
+        )}&user_id=${encodeURIComponent(dataConnectUserId)}`,
         { method: "POST" }
       );
       if (!res.ok) {
@@ -77,8 +81,7 @@ export default function DiscoveryPage() {
     } catch (e) {
       alert((e as Error).message);
     } finally {
-      // Remove from processing set
-      setProcessingPapers(prev => {
+      setProcessingPapers((prev) => {
         const newSet = new Set(prev);
         newSet.delete(arxivId);
         return newSet;
@@ -281,7 +284,7 @@ export default function DiscoveryPage() {
 
           {papers.map((paper) => (
             <div
-              key={paper.arxiv_id}
+              key={paper.doc_id}
               className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
             >
               <div className="flex items-start justify-between gap-4">
@@ -314,12 +317,12 @@ export default function DiscoveryPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => handleAddPaper(paper.arxiv_id)}
-                  disabled={processingPapers.has(paper.arxiv_id)}
+                  onClick={() => handleAddPaper(paper.doc_id)}
+                  disabled={processingPapers.has(paper.doc_id)}
                   className="shrink-0 w-10 h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                   title="Add to collection"
                 >
-                  {processingPapers.has(paper.arxiv_id) ? (
+                  {processingPapers.has(paper.doc_id) ? (
                     <svg
                       className="w-5 h-5 animate-spin"
                       fill="none"

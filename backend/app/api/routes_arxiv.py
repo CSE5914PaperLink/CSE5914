@@ -47,7 +47,7 @@ def _parse_arxiv_feed(xml_text: str) -> list[dict]:
     results: list[dict] = []
     for entry in root.findall("atom:entry", ns):
         id_full = _et_text(entry.find("atom:id", ns))
-        arxiv_id = id_full.rsplit("/", 1)[-1]
+        doc_id = id_full.rsplit("/", 1)[-1]
         title = _et_text(entry.find("atom:title", ns))
         summary = _et_text(entry.find("atom:summary", ns))
         published = _et_text(entry.find("atom:published", ns))
@@ -67,7 +67,7 @@ def _parse_arxiv_feed(xml_text: str) -> list[dict]:
 
         results.append(
             {
-                "arxiv_id": arxiv_id,
+                "doc_id": doc_id,
                 "title": title,
                 "summary": summary,
                 "published": published,
@@ -116,16 +116,15 @@ async def search_arxiv(
         return JSONResponse({"results": items, "count": len(items)})
 
 
-@router.get("/download/{arxiv_id}")
-async def download_arxiv_pdf(arxiv_id: str, version: Optional[str] = None):
-    # arXiv PDFs follow https://arxiv.org/pdf/<id>.pdf. Version can be appended like 2101.00001v2
+@router.get("/download/{doc_id}")
+async def download_arxiv_pdf(doc_id: str, version: Optional[str] = None):
     if version:
         if version.startswith("v"):
-            pdf_id = f"{arxiv_id}{version}"
+            pdf_id = f"{doc_id}{version}"
         else:
-            pdf_id = f"{arxiv_id}v{version}"
+            pdf_id = f"{doc_id}v{version}"
     else:
-        pdf_id = arxiv_id
+        pdf_id = doc_id
 
     pdf_url = f"https://arxiv.org/pdf/{pdf_id}.pdf"
 
@@ -147,7 +146,7 @@ async def download_arxiv_pdf(arxiv_id: str, version: Optional[str] = None):
             iter([r.content]),
             media_type=r.headers.get("content-type", "application/pdf"),
             headers={
-                "Content-Disposition": f'attachment; filename="{arxiv_id}.pdf"',
+                "Content-Disposition": f'attachment; filename="{doc_id}.pdf"',
                 "Cache-Control": "public, max-age=86400",
             },
         )

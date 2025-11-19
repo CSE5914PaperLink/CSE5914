@@ -38,26 +38,24 @@ export async function GET(request: NextRequest) {
 
     // Get user's papers from DataConnect
     const { data } = await listPapers(dc, { userId });
-    
+
     if (data.papers.length === 0) {
       return NextResponse.json({ results: [] });
     }
 
-    // Extract arxiv_ids to query ChromaDB
     const arxivIds = data.papers
-      .map(p => p.arxivId)
+      .map((p) => p.arxivId)
       .filter((id): id is string => id !== null);
 
-    // Batch check which papers exist in ChromaDB
     let chromaResults: Record<string, boolean> = {};
     if (arxivIds.length > 0) {
       try {
         const backendUrl = `${BACKEND_URL}/library/check_batch`;
-        const res = await fetch(backendUrl, { 
+        const res = await fetch(backendUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(arxivIds),
-          signal: AbortSignal.timeout(60000) // 60 second timeout for many papers
+          signal: AbortSignal.timeout(60000), // 60 second timeout for many papers
         });
         if (res.ok) {
           const data = await res.json();
@@ -69,24 +67,21 @@ export async function GET(request: NextRequest) {
     }
 
     // Merge DataConnect metadata with ChromaDB status
-    const results = data.papers.map(paper => {
+    const results = data.papers.map((paper) => {
       const inChroma = chromaResults[paper.arxivId || ""] || false;
-      // Use the same doc_id format as backend: arxiv:{arxiv_id}
-      const docId = paper.arxivId ? `arxiv:${paper.arxivId}` : paper.id;
+      const docId = paper.arxivId ? `${paper.arxivId}` : paper.id;
       return {
-        id: docId,  // Use full doc_id format for ChromaDB queries
+        id: docId,
         dataconnect_id: paper.id,
         metadata: {
-          doc_id: docId,  // Also include in metadata for consistency
+          doc_id: docId,
           title: paper.title,
           authors: paper.authors,
-          arxiv_id: paper.arxivId,
           year: paper.year,
           abstract: paper.abstract,
           ingestion_status: paper.ingestionStatus,
           pdf_url: paper.pdfUrl,
         },
-        // Indicate if paper is in ChromaDB
         in_chromadb: inChroma,
       };
     });

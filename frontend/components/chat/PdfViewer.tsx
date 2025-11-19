@@ -1,7 +1,7 @@
 "use client";
 
 import { LibraryItem, SourceChunk } from "./types";
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 
 import { Worker, Viewer, SpecialZoomLevel } from "@react-pdf-viewer/core";
 import { highlightPlugin, Trigger } from "@react-pdf-viewer/highlight";
@@ -38,6 +38,15 @@ export function PdfViewer({
     reps[0]?.rootId ?? null
   );
 
+  // Track pending highlight jump after PDF loads
+  const pendingJumpRef = useRef<{
+    pageIndex: number;
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
   // Determine which document to show based on highlight source
   const targetRoot = useMemo(() => {
     if (!highlightSource?.doc_id) {
@@ -66,19 +75,59 @@ export function PdfViewer({
   const highlightAreas = useMemo(() => {
     if (!highlightSource || highlightSource.page === undefined) return [];
 
+    console.log("PdfViewer - Creating highlight for source:", {
+      page: highlightSource.page,
+      bbox: highlightSource.bbox,
+      type: highlightSource.type,
+      doc_id: highlightSource.doc_id,
+    });
+
+    // Validate bbox - skip if missing or has null/undefined values
+    if (
+      !highlightSource.bbox ||
+      highlightSource.bbox.left == null ||
+      highlightSource.bbox.top == null ||
+      highlightSource.bbox.right == null ||
+      highlightSource.bbox.bottom == null
+    ) {
+      console.warn(
+        "PdfViewer - Skipping highlight: bbox is missing or incomplete",
+        highlightSource.bbox
+      );
+      return [];
+    }
+
+    const bbox = highlightSource.bbox;
+
+    // Validate that coordinates are in valid range (0-1)
+    if (
+      bbox.left < 0 ||
+      bbox.left > 1 ||
+      bbox.right < 0 ||
+      bbox.right > 1 ||
+      bbox.top < 0 ||
+      bbox.top > 1 ||
+      bbox.bottom < 0 ||
+      bbox.bottom > 1
+    ) {
+      console.warn(
+        "PdfViewer - bbox coordinates out of range (should be 0-1):",
+        bbox
+      );
+      // Try to use anyway in case it's old data
+    }
+
     const areas = [
       {
         pageIndex: highlightSource.page - 1, // PDF pages are 0-indexed
-        height: highlightSource.bbox
-          ? (highlightSource.bbox.b - highlightSource.bbox.t) * 100
-          : 20, // default height
-        width: highlightSource.bbox
-          ? (highlightSource.bbox.r - highlightSource.bbox.l) * 100
-          : 80, // default width
-        left: highlightSource.bbox ? highlightSource.bbox.l * 100 : 10,
-        top: highlightSource.bbox ? highlightSource.bbox.t * 100 : 10,
+        height: (bbox.bottom - bbox.top) * 100,
+        width: (bbox.right - bbox.left) * 100,
+        left: bbox.left * 100,
+        top: bbox.top * 100,
       },
     ];
+
+    console.log("PdfViewer - Highlight areas:", areas);
 
     return areas;
   }, [highlightSource]);
@@ -119,11 +168,39 @@ export function PdfViewer({
   const { jumpToHighlightArea } = highlightPluginInstance;
 
   // Jump to the highlighted area when it changes
+  // Store the jump request for when PDF loads
   useEffect(() => {
     if (highlightAreas.length > 0) {
-      jumpToHighlightArea(highlightAreas[0]);
+      const area = highlightAreas[0];
+      console.log("PdfViewer - Requesting jump to:", area);
+
+      // Store pending jump
+      pendingJumpRef.current = area;
+
+      // Try to jump immediately (works if PDF is already loaded)
+      jumpToHighlightArea(area);
     }
   }, [highlightAreas, jumpToHighlightArea]);
+
+  // Callback when PDF document loads
+  const handleDocumentLoad = useCallback(() => {
+    console.log("PdfViewer - PDF loaded");
+
+    // Execute pending jump if any
+    if (pendingJumpRef.current) {
+      console.log(
+        "PdfViewer - Executing pending jump:",
+        pendingJumpRef.current
+      );
+      // Small delay to ensure PDF is fully rendered
+      setTimeout(() => {
+        if (pendingJumpRef.current) {
+          jumpToHighlightArea(pendingJumpRef.current);
+          pendingJumpRef.current = null;
+        }
+      }, 100);
+    }
+  }, [jumpToHighlightArea]);
 
   if (reps.length === 0) {
     return (
@@ -139,11 +216,11 @@ export function PdfViewer({
     reps.find((r) => r.rootId === resolvedActiveRoot)?.item ?? reps[0].item;
 
   // Use backend proxy for PDF URLs to avoid CORS issues
-  const arxivId = active?.metadata?.arxiv_id;
+  const docId = active?.metadata?.doc_id;
   const backendUrl =
     process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-  const pdfUrl = arxivId
-    ? `${backendUrl}/arxiv/download/${arxivId}`
+  const pdfUrl = docId
+    ? `${backendUrl}/arxiv/download/${docId}`
     : active?.metadata?.pdf_url;
 
   return (
@@ -152,7 +229,7 @@ export function PdfViewer({
       <div className="flex border-b overflow-x-auto">
         {reps.map((r) => {
           const t = r.item;
-          const title = t.metadata?.title || t.metadata?.arxiv_id || r.rootId;
+          const title = t.metadata?.title || t.metadata?.doc_id || r.rootId;
           const isActive = r.rootId === resolvedActiveRoot;
           return (
             <button
@@ -183,6 +260,7 @@ export function PdfViewer({
                 fileUrl={pdfUrl}
                 plugins={[highlightPluginInstance]}
                 defaultScale={SpecialZoomLevel.PageFit}
+                onDocumentLoad={handleDocumentLoad}
               />
             </div>
           </Worker>

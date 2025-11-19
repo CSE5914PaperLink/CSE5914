@@ -20,45 +20,62 @@ function MessageWithCitations({
     );
   }
 
-  // Parse text for inline citations like [1], [2], etc.
-  const parts: (string | { type: "citation"; index: number })[] = [];
+  // Split text into segments and citations
+  const segments: Array<{
+    type: "text" | "citation";
+    content: string | number;
+  }> = [];
   let lastIndex = 0;
   const citationRegex = /\[(\d+)\]/g;
   let match;
 
   while ((match = citationRegex.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(text.substring(lastIndex, match.index));
+      segments.push({
+        type: "text",
+        content: text.substring(lastIndex, match.index),
+      });
     }
-    const citationNum = parseInt(match[1], 10);
-    parts.push({ type: "citation", index: citationNum });
+    segments.push({ type: "citation", content: parseInt(match[1], 10) });
     lastIndex = match.index + match[0].length;
   }
 
   if (lastIndex < text.length) {
-    parts.push(text.substring(lastIndex));
+    segments.push({ type: "text", content: text.substring(lastIndex) });
   }
 
   return (
     <div className="prose prose-sm max-w-none">
-      {parts.map((part, idx) => {
-        if (typeof part === "string") {
-          return <ReactMarkdown key={idx}>{part}</ReactMarkdown>;
+      {segments.map((segment, idx) => {
+        if (segment.type === "text") {
+          return (
+            <span key={idx}>
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <span>{children}</span>,
+                }}
+              >
+                {segment.content as string}
+              </ReactMarkdown>
+            </span>
+          );
         } else {
-          const source = sources[part.index - 1];
-          if (!source) return <span key={idx}>[{part.index}]</span>;
+          const citationNum = segment.content as number;
+          const source = sources[citationNum - 1];
+          if (!source) return <span key={idx}>[{citationNum}]</span>;
           return (
             <button
               key={idx}
               onClick={() => onSourceClick?.(source)}
-              className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-full cursor-pointer transition-colors align-super"
-              title={`Source ${part.index}: ${
+              className="inline-flex items-center justify-center w-5 h-5 mx-0.5 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-full cursor-pointer transition-colors"
+              style={{ verticalAlign: "super", fontSize: "0.65em" }}
+              title={`Source ${citationNum}: ${
                 source.type === "image"
                   ? source.filename || "Image"
-                  : `Chunk ${source.chunk_index ?? part.index}`
+                  : `Chunk ${source.chunk_index ?? citationNum}`
               }`}
             >
-              {part.index}
+              {citationNum}
             </button>
           );
         }
@@ -108,59 +125,111 @@ export function Messages({
               >
                 {m.sender === "ai" ? (
                   <div>
+                    {/* Show status indicator if status is present */}
+                    {m.status && (
+                      <div className="mb-3 flex items-center gap-2 text-sm text-neutral-600">
+                        <div className="flex space-x-1">
+                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
+                          <div
+                            className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"
+                            style={{ animationDelay: "0.15s" }}
+                          ></div>
+                          <div
+                            className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"
+                            style={{ animationDelay: "0.3s" }}
+                          ></div>
+                        </div>
+                        <span className="font-medium capitalize">
+                          {m.status}
+                        </span>
+                      </div>
+                    )}
+
                     <MessageWithCitations
                       text={m.text}
                       sources={m.sources}
                       onSourceClick={onSourceClick}
                     />
+
+                    {/* Note: Images are embedded in the LLM response text, 
+                        so no need for a separate "Referenced Images" section */}
+
+                    {/* Compact horizontal sources section */}
                     {m.sources && m.sources.length > 0 && (
                       <div className="mt-4 pt-4 border-t border-neutral-300">
-                        <div className="text-xs font-semibold text-neutral-600 mb-2">
-                          Sources:
+                        <div className="text-xs font-semibold text-neutral-600 mb-3">
+                          Sources Used ({m.sources.length}):
                         </div>
-                        <div className="space-y-2">
-                          {m.sources.map((source, idx) => (
-                            <button
-                              key={source.id}
-                              onClick={() => onSourceClick?.(source)}
-                              className="block w-full text-left text-xs bg-white border border-neutral-300 rounded px-3 py-2 hover:bg-neutral-50 hover:border-neutral-400 transition-colors"
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <span className="font-semibold text-neutral-700">
-                                    [{idx + 1}]
-                                  </span>{" "}
-                                  <span className="text-neutral-600">
-                                    {source.type === "image"
-                                      ? `Image: ${source.filename || "Figure"}`
-                                      : `Chunk ${source.chunk_index ?? idx}`}
-                                    {source.page !== undefined && (
-                                      <span className="text-neutral-500">
-                                        {" "}
-                                        • Page {source.page}
-                                      </span>
-                                    )}
+                        <div className="flex flex-wrap gap-2">
+                          {m.sources.map((source, idx) => {
+                            const isImage = source.type === "image";
+                            const displayTitle =
+                              source.title ||
+                              source.doc_id ||
+                              `Source ${idx + 1}`;
+                            const pageInfo = source.page
+                              ? ` • p.${source.page}`
+                              : "";
+
+                            return (
+                              <button
+                                key={source.id}
+                                onClick={() => onSourceClick?.(source)}
+                                className="inline-flex items-center gap-2 text-xs bg-white border-2 border-neutral-300 rounded-lg px-3 py-2 hover:bg-neutral-50 hover:border-blue-400 transition-all shadow-sm"
+                                title={`Click to view ${
+                                  isImage ? "image" : "text"
+                                } from ${displayTitle}`}
+                              >
+                                {/* Icon */}
+                                {isImage ? (
+                                  <svg
+                                    className="w-4 h-4 text-purple-600"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="2"
+                                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                    ></path>
+                                  </svg>
+                                ) : (
+                                  <svg
+                                    className="w-4 h-4 text-blue-600"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="2"
+                                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                    ></path>
+                                  </svg>
+                                )}
+
+                                {/* Content */}
+                                <div className="flex flex-col items-start text-left">
+                                  <span className="font-semibold text-neutral-800 max-w-[200px] truncate">
+                                    {displayTitle}
                                   </span>
-                                  {source.content && (
-                                    <div className="text-neutral-500 mt-1 line-clamp-2">
-                                      {source.content.substring(0, 100)}
-                                      {source.content.length > 100 && "..."}
-                                    </div>
-                                  )}
+                                  <span className="text-[10px] text-neutral-500">
+                                    {isImage
+                                      ? source.filename || "Image"
+                                      : `Chunk ${
+                                          source.chunk_index ?? idx + 1
+                                        }`}
+                                    {pageInfo}
+                                    {source.distance !== undefined &&
+                                      ` • ${source.distance.toFixed(3)}`}
+                                  </span>
                                 </div>
-                                <div className="text-neutral-500 text-xs whitespace-nowrap">
-                                  {source.distance !== undefined && (
-                                    <span
-                                      title="Distance score (lower is better)"
-                                      className="font-mono"
-                                    >
-                                      {source.distance.toFixed(3)}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </button>
-                          ))}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
