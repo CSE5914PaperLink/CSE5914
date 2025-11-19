@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { User } from "firebase/auth";
 import {
   signInWithGoogle,
@@ -11,13 +12,18 @@ import {
 export default function LoginButton() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const unsub = onAuthStateChangedListener((u) => {
       setUser(u);
+      // Redirect to profile after login
+      if (u) {
+        router.push("/profile");
+      }
     });
     return () => unsub();
-  }, []);
+  }, [router]);
 
   async function handleSignIn() {
     setLoading(true);
