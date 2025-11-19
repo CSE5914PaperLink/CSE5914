@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     // Check if user already has this paper (application-level duplicate detection)
     const { data: existingPapers } = await listPapers(dc, { userId });
     const duplicate = existingPapers.papers.find(
-      (p: any) => p.arxivId === arxivId
+      (p: any) => p.doc_id === docId
     );
 
     if (duplicate) {
