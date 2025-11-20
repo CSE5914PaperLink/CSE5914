@@ -30,6 +30,7 @@ query ListPapers($userId: UUID!) @auth(level: PUBLIC) {
     arxivId
     ingestionStatus
     citationCount
+    isFavorite
     createdAt
     pdfUrl
   }

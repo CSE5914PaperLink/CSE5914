@@ -50,6 +50,17 @@ export function deletePaper(dcOrVars, vars) {
   return executeMutation(deletePaperRef(dcOrVars, vars));
 }
 
+export const togglePaperFavoriteRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'TogglePaperFavorite', inputVars);
+}
+togglePaperFavoriteRef.operationName = 'TogglePaperFavorite';
+
+export function togglePaperFavorite(dcOrVars, vars) {
+  return executeMutation(togglePaperFavoriteRef(dcOrVars, vars));
+}
+
 export const createChatSessionRef = (dcOrVars, vars) => {
   const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
   dcInstance._useGeneratedSdk();

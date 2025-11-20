@@ -1,4 +1,4 @@
-import { createUserRef, addPaperRef, updatePaperIngestionStatusRef, deletePaperRef, createChatSessionRef, updateChatSessionRef, deleteChatSessionRef, addChatRef, linkPaperToChatRef, addCodeLinkRef, deleteCodeLinkRef, getUserByEmailRef, getUserRef, listPapersRef, getPaperRef, searchPapersRef, listChatSessionsRef, getChatSessionRef, getChatsForSessionRef, getChatPapersForChatRef, getCodeLinksForPaperRef, connectorConfig } from '../../esm/index.esm.js';
+import { createUserRef, addPaperRef, updatePaperIngestionStatusRef, deletePaperRef, togglePaperFavoriteRef, createChatSessionRef, updateChatSessionRef, deleteChatSessionRef, addChatRef, linkPaperToChatRef, addCodeLinkRef, deleteCodeLinkRef, getUserByEmailRef, getUserRef, listPapersRef, getPaperRef, searchPapersRef, listChatSessionsRef, getChatSessionRef, getChatsForSessionRef, getChatPapersForChatRef, getCodeLinksForPaperRef, connectorConfig } from '../../esm/index.esm.js';
 import { validateArgs, CallerSdkTypeEnum } from 'firebase/data-connect';
 import { useDataConnectQuery, useDataConnectMutation, validateReactArgs } from '@tanstack-query-firebase/react/data-connect';
 
@@ -30,6 +30,14 @@ export function useDeletePaper(dcOrOptions, options) {
   const { dc: dcInstance, vars: inputOpts } = validateArgs(connectorConfig, dcOrOptions, options);
   function refFactory(vars) {
     return deletePaperRef(dcInstance, vars);
+  }
+  return useDataConnectMutation(refFactory, inputOpts, CallerSdkTypeEnum.GeneratedReact);
+}
+
+export function useTogglePaperFavorite(dcOrOptions, options) {
+  const { dc: dcInstance, vars: inputOpts } = validateArgs(connectorConfig, dcOrOptions, options);
+  function refFactory(vars) {
+    return togglePaperFavoriteRef(dcInstance, vars);
   }
   return useDataConnectMutation(refFactory, inputOpts, CallerSdkTypeEnum.GeneratedReact);
 }

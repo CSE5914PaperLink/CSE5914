@@ -25,6 +25,7 @@ This README will guide you through the process of using the generated JavaScript
   - [*AddPaper*](#addpaper)
   - [*UpdatePaperIngestionStatus*](#updatepaperingestionstatus)
   - [*DeletePaper*](#deletepaper)
+  - [*TogglePaperFavorite*](#togglepaperfavorite)
   - [*CreateChatSession*](#createchatsession)
   - [*UpdateChatSession*](#updatechatsession)
   - [*DeleteChatSession*](#deletechatsession)
@@ -362,6 +363,7 @@ export interface ListPapersData {
       arxivId?: string | null;
       ingestionStatus: string;
       citationCount?: number | null;
+      isFavorite: boolean;
       createdAt: TimestampString;
       pdfUrl?: string | null;
   } & Paper_Key)[];
@@ -1734,6 +1736,118 @@ console.log(data.paper_delete);
 executeMutation(ref).then((response) => {
   const data = response.data;
   console.log(data.paper_delete);
+});
+```
+
+## TogglePaperFavorite
+You can execute the `TogglePaperFavorite` mutation using the following action shortcut function, or by calling `executeMutation()` after calling the following `MutationRef` function, both of which are defined in [dataconnect-generated/index.d.ts](./index.d.ts):
+```typescript
+togglePaperFavorite(vars: TogglePaperFavoriteVariables): MutationPromise<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+
+interface TogglePaperFavoriteRef {
+  ...
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: TogglePaperFavoriteVariables): MutationRef<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+}
+export const togglePaperFavoriteRef: TogglePaperFavoriteRef;
+```
+You can also pass in a `DataConnect` instance to the action shortcut function or `MutationRef` function.
+```typescript
+togglePaperFavorite(dc: DataConnect, vars: TogglePaperFavoriteVariables): MutationPromise<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+
+interface TogglePaperFavoriteRef {
+  ...
+  (dc: DataConnect, vars: TogglePaperFavoriteVariables): MutationRef<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+}
+export const togglePaperFavoriteRef: TogglePaperFavoriteRef;
+```
+
+If you need the name of the operation without creating a ref, you can retrieve the operation name by calling the `operationName` property on the togglePaperFavoriteRef:
+```typescript
+const name = togglePaperFavoriteRef.operationName;
+console.log(name);
+```
+
+### Variables
+The `TogglePaperFavorite` mutation requires an argument of type `TogglePaperFavoriteVariables`, which is defined in [dataconnect-generated/index.d.ts](./index.d.ts). It has the following fields:
+
+```typescript
+export interface TogglePaperFavoriteVariables {
+  paperId: UUIDString;
+  isFavorite: boolean;
+}
+```
+### Return Type
+Recall that executing the `TogglePaperFavorite` mutation returns a `MutationPromise` that resolves to an object with a `data` property.
+
+The `data` property is an object of type `TogglePaperFavoriteData`, which is defined in [dataconnect-generated/index.d.ts](./index.d.ts). It has the following fields:
+```typescript
+export interface TogglePaperFavoriteData {
+  paper_update?: Paper_Key | null;
+}
+```
+### Using `TogglePaperFavorite`'s action shortcut function
+
+```typescript
+import { getDataConnect } from 'firebase/data-connect';
+import { connectorConfig, togglePaperFavorite, TogglePaperFavoriteVariables } from '@dataconnect/generated';
+
+// The `TogglePaperFavorite` mutation requires an argument of type `TogglePaperFavoriteVariables`:
+const togglePaperFavoriteVars: TogglePaperFavoriteVariables = {
+  paperId: ..., 
+  isFavorite: ..., 
+};
+
+// Call the `togglePaperFavorite()` function to execute the mutation.
+// You can use the `await` keyword to wait for the promise to resolve.
+const { data } = await togglePaperFavorite(togglePaperFavoriteVars);
+// Variables can be defined inline as well.
+const { data } = await togglePaperFavorite({ paperId: ..., isFavorite: ..., });
+
+// You can also pass in a `DataConnect` instance to the action shortcut function.
+const dataConnect = getDataConnect(connectorConfig);
+const { data } = await togglePaperFavorite(dataConnect, togglePaperFavoriteVars);
+
+console.log(data.paper_update);
+
+// Or, you can use the `Promise` API.
+togglePaperFavorite(togglePaperFavoriteVars).then((response) => {
+  const data = response.data;
+  console.log(data.paper_update);
+});
+```
+
+### Using `TogglePaperFavorite`'s `MutationRef` function
+
+```typescript
+import { getDataConnect, executeMutation } from 'firebase/data-connect';
+import { connectorConfig, togglePaperFavoriteRef, TogglePaperFavoriteVariables } from '@dataconnect/generated';
+
+// The `TogglePaperFavorite` mutation requires an argument of type `TogglePaperFavoriteVariables`:
+const togglePaperFavoriteVars: TogglePaperFavoriteVariables = {
+  paperId: ..., 
+  isFavorite: ..., 
+};
+
+// Call the `togglePaperFavoriteRef()` function to get a reference to the mutation.
+const ref = togglePaperFavoriteRef(togglePaperFavoriteVars);
+// Variables can be defined inline as well.
+const ref = togglePaperFavoriteRef({ paperId: ..., isFavorite: ..., });
+
+// You can also pass in a `DataConnect` instance to the `MutationRef` function.
+const dataConnect = getDataConnect(connectorConfig);
+const ref = togglePaperFavoriteRef(dataConnect, togglePaperFavoriteVars);
+
+// Call `executeMutation()` on the reference to execute the mutation.
+// You can use the `await` keyword to wait for the promise to resolve.
+const { data } = await executeMutation(ref);
+
+console.log(data.paper_update);
+
+// Or, you can use the `Promise` API.
+executeMutation(ref).then((response) => {
+  const data = response.data;
+  console.log(data.paper_update);
 });
 ```
 

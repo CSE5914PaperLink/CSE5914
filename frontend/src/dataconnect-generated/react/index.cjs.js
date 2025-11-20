@@ -1,4 +1,4 @@
-const { createUserRef, addPaperRef, updatePaperIngestionStatusRef, deletePaperRef, createChatSessionRef, updateChatSessionRef, deleteChatSessionRef, addChatRef, linkPaperToChatRef, addCodeLinkRef, deleteCodeLinkRef, getUserByEmailRef, getUserRef, listPapersRef, getPaperRef, searchPapersRef, listChatSessionsRef, getChatSessionRef, getChatsForSessionRef, getChatPapersForChatRef, getCodeLinksForPaperRef, connectorConfig } = require('../index.cjs.js');
+const { createUserRef, addPaperRef, updatePaperIngestionStatusRef, deletePaperRef, togglePaperFavoriteRef, createChatSessionRef, updateChatSessionRef, deleteChatSessionRef, addChatRef, linkPaperToChatRef, addCodeLinkRef, deleteCodeLinkRef, getUserByEmailRef, getUserRef, listPapersRef, getPaperRef, searchPapersRef, listChatSessionsRef, getChatSessionRef, getChatsForSessionRef, getChatPapersForChatRef, getCodeLinksForPaperRef, connectorConfig } = require('../index.cjs.js');
 const { validateArgs, CallerSdkTypeEnum } = require('firebase/data-connect');
 const { useDataConnectQuery, useDataConnectMutation, validateReactArgs } = require('@tanstack-query-firebase/react/data-connect');
 
@@ -30,6 +30,14 @@ exports.useDeletePaper = function useDeletePaper(dcOrOptions, options) {
   const { dc: dcInstance, vars: inputOpts } = validateArgs(connectorConfig, dcOrOptions, options);
   function refFactory(vars) {
     return deletePaperRef(dcInstance, vars);
+  }
+  return useDataConnectMutation(refFactory, inputOpts, CallerSdkTypeEnum.GeneratedReact);
+}
+
+exports.useTogglePaperFavorite = function useTogglePaperFavorite(dcOrOptions, options) {
+  const { dc: dcInstance, vars: inputOpts } = validateArgs(connectorConfig, dcOrOptions, options);
+  function refFactory(vars) {
+    return togglePaperFavoriteRef(dcInstance, vars);
   }
   return useDataConnectMutation(refFactory, inputOpts, CallerSdkTypeEnum.GeneratedReact);
 }

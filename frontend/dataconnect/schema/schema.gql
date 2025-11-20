@@ -25,6 +25,7 @@ type Paper @table {
   pdfUrl: String
   ingestionStatus: String! @default(value: "pending")
   citationCount: Int
+  isFavorite: Boolean! @default(value: false)
   createdAt: Timestamp! @default(expr: "request.time")
 }
 

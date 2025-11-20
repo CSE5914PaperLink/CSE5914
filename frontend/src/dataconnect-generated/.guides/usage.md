@@ -12,7 +12,7 @@ For each operation, there is a wrapper hook that can be used to call the operati
 
 Here are all of the hooks that get generated:
 ```ts
-import { useCreateUser, useAddPaper, useUpdatePaperIngestionStatus, useDeletePaper, useCreateChatSession, useUpdateChatSession, useDeleteChatSession, useAddChat, useLinkPaperToChat, useAddCodeLink } from '@dataconnect/generated/react';
+import { useCreateUser, useAddPaper, useUpdatePaperIngestionStatus, useDeletePaper, useTogglePaperFavorite, useCreateChatSession, useUpdateChatSession, useDeleteChatSession, useAddChat, useLinkPaperToChat } from '@dataconnect/generated/react';
 // The types of these hooks are available in react/index.d.ts
 
 const { data, isPending, isSuccess, isError, error } = useCreateUser(createUserVars);
@@ -23,6 +23,8 @@ const { data, isPending, isSuccess, isError, error } = useUpdatePaperIngestionSt
 
 const { data, isPending, isSuccess, isError, error } = useDeletePaper(deletePaperVars);
 
+const { data, isPending, isSuccess, isError, error } = useTogglePaperFavorite(togglePaperFavoriteVars);
+
 const { data, isPending, isSuccess, isError, error } = useCreateChatSession(createChatSessionVars);
 
 const { data, isPending, isSuccess, isError, error } = useUpdateChatSession(updateChatSessionVars);
@@ -32,8 +34,6 @@ const { data, isPending, isSuccess, isError, error } = useDeleteChatSession(dele
 const { data, isPending, isSuccess, isError, error } = useAddChat(addChatVars);
 
 const { data, isPending, isSuccess, isError, error } = useLinkPaperToChat(linkPaperToChatVars);
-
-const { data, isPending, isSuccess, isError, error } = useAddCodeLink(addCodeLinkVars);
 
 ```
 
@@ -72,7 +72,7 @@ If a user is not using a supported framework, they can use the generated SDK dir
 Here's an example of how to use it with the first 5 operations:
 
 ```js
-import { createUser, addPaper, updatePaperIngestionStatus, deletePaper, createChatSession, updateChatSession, deleteChatSession, addChat, linkPaperToChat, addCodeLink } from '@dataconnect/generated';
+import { createUser, addPaper, updatePaperIngestionStatus, deletePaper, togglePaperFavorite, createChatSession, updateChatSession, deleteChatSession, addChat, linkPaperToChat } from '@dataconnect/generated';
 
 
 // Operation CreateUser:  For variables, look at type CreateUserVars in ../index.d.ts
@@ -86,6 +86,9 @@ const { data } = await UpdatePaperIngestionStatus(dataConnect, updatePaperIngest
 
 // Operation DeletePaper:  For variables, look at type DeletePaperVars in ../index.d.ts
 const { data } = await DeletePaper(dataConnect, deletePaperVars);
+
+// Operation TogglePaperFavorite:  For variables, look at type TogglePaperFavoriteVars in ../index.d.ts
+const { data } = await TogglePaperFavorite(dataConnect, togglePaperFavoriteVars);
 
 // Operation CreateChatSession:  For variables, look at type CreateChatSessionVars in ../index.d.ts
 const { data } = await CreateChatSession(dataConnect, createChatSessionVars);
@@ -101,9 +104,6 @@ const { data } = await AddChat(dataConnect, addChatVars);
 
 // Operation LinkPaperToChat:  For variables, look at type LinkPaperToChatVars in ../index.d.ts
 const { data } = await LinkPaperToChat(dataConnect, linkPaperToChatVars);
-
-// Operation AddCodeLink:  For variables, look at type AddCodeLinkVars in ../index.d.ts
-const { data } = await AddCodeLink(dataConnect, addCodeLinkVars);
 
 
 ```

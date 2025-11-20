@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
           abstract: paper.abstract,
           ingestion_status: paper.ingestionStatus,
           pdf_url: paper.pdfUrl,
+          is_favorite: paper.isFavorite || false,
         },
         in_chromadb: inChroma,
       };

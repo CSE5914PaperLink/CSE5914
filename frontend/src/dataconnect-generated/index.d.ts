@@ -258,6 +258,7 @@ export interface ListPapersData {
       arxivId?: string | null;
       ingestionStatus: string;
       citationCount?: number | null;
+      isFavorite: boolean;
       createdAt: TimestampString;
       pdfUrl?: string | null;
   } & Paper_Key)[];
@@ -290,6 +291,15 @@ export interface SearchPapersData {
 export interface SearchPapersVariables {
   userId: UUIDString;
   searchTerm: string;
+}
+
+export interface TogglePaperFavoriteData {
+  paper_update?: Paper_Key | null;
+}
+
+export interface TogglePaperFavoriteVariables {
+  paperId: UUIDString;
+  isFavorite: boolean;
 }
 
 export interface UpdateChatSessionData {
@@ -362,6 +372,18 @@ export const deletePaperRef: DeletePaperRef;
 
 export function deletePaper(vars: DeletePaperVariables): MutationPromise<DeletePaperData, DeletePaperVariables>;
 export function deletePaper(dc: DataConnect, vars: DeletePaperVariables): MutationPromise<DeletePaperData, DeletePaperVariables>;
+
+interface TogglePaperFavoriteRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: TogglePaperFavoriteVariables): MutationRef<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: TogglePaperFavoriteVariables): MutationRef<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+  operationName: string;
+}
+export const togglePaperFavoriteRef: TogglePaperFavoriteRef;
+
+export function togglePaperFavorite(vars: TogglePaperFavoriteVariables): MutationPromise<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+export function togglePaperFavorite(dc: DataConnect, vars: TogglePaperFavoriteVariables): MutationPromise<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
 
 interface CreateChatSessionRef {
   /* Allow users to create refs without passing in DataConnect */
