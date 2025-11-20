@@ -20,6 +20,7 @@ This README will guide you through the process of using the generated JavaScript
   - [*GetChatsForSession*](#getchatsforsession)
   - [*GetChatPapersForChat*](#getchatpapersforchat)
   - [*GetCodeLinksForPaper*](#getcodelinksforpaper)
+  - [*ListSearchHistory*](#listsearchhistory)
 - [**Mutations**](#mutations)
   - [*CreateUser*](#createuser)
   - [*AddPaper*](#addpaper)
@@ -33,6 +34,7 @@ This README will guide you through the process of using the generated JavaScript
   - [*LinkPaperToChat*](#linkpapertochat)
   - [*AddCodeLink*](#addcodelink)
   - [*DeleteCodeLink*](#deletecodelink)
+  - [*AddSearchHistory*](#addsearchhistory)
 
 # Accessing the connector
 A connector is a collection of Queries and Mutations. One SDK is generated for each connector - this SDK is generated for the connector `example`. You can find more information about connectors in the [Data Connect documentation](https://firebase.google.com/docs/data-connect#how-does).
@@ -1258,6 +1260,120 @@ console.log(data.codeLinks);
 executeQuery(ref).then((response) => {
   const data = response.data;
   console.log(data.codeLinks);
+});
+```
+
+## ListSearchHistory
+You can execute the `ListSearchHistory` query using the following action shortcut function, or by calling `executeQuery()` after calling the following `QueryRef` function, both of which are defined in [dataconnect-generated/index.d.ts](./index.d.ts):
+```typescript
+listSearchHistory(vars: ListSearchHistoryVariables): QueryPromise<ListSearchHistoryData, ListSearchHistoryVariables>;
+
+interface ListSearchHistoryRef {
+  ...
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: ListSearchHistoryVariables): QueryRef<ListSearchHistoryData, ListSearchHistoryVariables>;
+}
+export const listSearchHistoryRef: ListSearchHistoryRef;
+```
+You can also pass in a `DataConnect` instance to the action shortcut function or `QueryRef` function.
+```typescript
+listSearchHistory(dc: DataConnect, vars: ListSearchHistoryVariables): QueryPromise<ListSearchHistoryData, ListSearchHistoryVariables>;
+
+interface ListSearchHistoryRef {
+  ...
+  (dc: DataConnect, vars: ListSearchHistoryVariables): QueryRef<ListSearchHistoryData, ListSearchHistoryVariables>;
+}
+export const listSearchHistoryRef: ListSearchHistoryRef;
+```
+
+If you need the name of the operation without creating a ref, you can retrieve the operation name by calling the `operationName` property on the listSearchHistoryRef:
+```typescript
+const name = listSearchHistoryRef.operationName;
+console.log(name);
+```
+
+### Variables
+The `ListSearchHistory` query requires an argument of type `ListSearchHistoryVariables`, which is defined in [dataconnect-generated/index.d.ts](./index.d.ts). It has the following fields:
+
+```typescript
+export interface ListSearchHistoryVariables {
+  userId: UUIDString;
+}
+```
+### Return Type
+Recall that executing the `ListSearchHistory` query returns a `QueryPromise` that resolves to an object with a `data` property.
+
+The `data` property is an object of type `ListSearchHistoryData`, which is defined in [dataconnect-generated/index.d.ts](./index.d.ts). It has the following fields:
+```typescript
+export interface ListSearchHistoryData {
+  searchHistories: ({
+    id: UUIDString;
+    query: string;
+    resultsCount?: number | null;
+    createdAt: TimestampString;
+  } & SearchHistory_Key)[];
+}
+```
+### Using `ListSearchHistory`'s action shortcut function
+
+```typescript
+import { getDataConnect } from 'firebase/data-connect';
+import { connectorConfig, listSearchHistory, ListSearchHistoryVariables } from '@dataconnect/generated';
+
+// The `ListSearchHistory` query requires an argument of type `ListSearchHistoryVariables`:
+const listSearchHistoryVars: ListSearchHistoryVariables = {
+  userId: ..., 
+};
+
+// Call the `listSearchHistory()` function to execute the query.
+// You can use the `await` keyword to wait for the promise to resolve.
+const { data } = await listSearchHistory(listSearchHistoryVars);
+// Variables can be defined inline as well.
+const { data } = await listSearchHistory({ userId: ..., });
+
+// You can also pass in a `DataConnect` instance to the action shortcut function.
+const dataConnect = getDataConnect(connectorConfig);
+const { data } = await listSearchHistory(dataConnect, listSearchHistoryVars);
+
+console.log(data.searchHistories);
+
+// Or, you can use the `Promise` API.
+listSearchHistory(listSearchHistoryVars).then((response) => {
+  const data = response.data;
+  console.log(data.searchHistories);
+});
+```
+
+### Using `ListSearchHistory`'s `QueryRef` function
+
+```typescript
+import { getDataConnect, executeQuery } from 'firebase/data-connect';
+import { connectorConfig, listSearchHistoryRef, ListSearchHistoryVariables } from '@dataconnect/generated';
+
+// The `ListSearchHistory` query requires an argument of type `ListSearchHistoryVariables`:
+const listSearchHistoryVars: ListSearchHistoryVariables = {
+  userId: ..., 
+};
+
+// Call the `listSearchHistoryRef()` function to get a reference to the query.
+const ref = listSearchHistoryRef(listSearchHistoryVars);
+// Variables can be defined inline as well.
+const ref = listSearchHistoryRef({ userId: ..., });
+
+// You can also pass in a `DataConnect` instance to the `QueryRef` function.
+const dataConnect = getDataConnect(connectorConfig);
+const ref = listSearchHistoryRef(dataConnect, listSearchHistoryVars);
+
+// Call `executeQuery()` on the reference to execute the query.
+// You can use the `await` keyword to wait for the promise to resolve.
+const { data } = await executeQuery(ref);
+
+console.log(data.searchHistories);
+
+// Or, you can use the `Promise` API.
+executeQuery(ref).then((response) => {
+  const data = response.data;
+  console.log(data.searchHistories);
 });
 ```
 
@@ -2635,6 +2751,121 @@ console.log(data.codeLink_delete);
 executeMutation(ref).then((response) => {
   const data = response.data;
   console.log(data.codeLink_delete);
+});
+```
+
+## AddSearchHistory
+You can execute the `AddSearchHistory` mutation using the following action shortcut function, or by calling `executeMutation()` after calling the following `MutationRef` function, both of which are defined in [dataconnect-generated/index.d.ts](./index.d.ts):
+```typescript
+addSearchHistory(vars: AddSearchHistoryVariables): MutationPromise<AddSearchHistoryData, AddSearchHistoryVariables>;
+
+interface AddSearchHistoryRef {
+  ...
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: AddSearchHistoryVariables): MutationRef<AddSearchHistoryData, AddSearchHistoryVariables>;
+}
+export const addSearchHistoryRef: AddSearchHistoryRef;
+```
+You can also pass in a `DataConnect` instance to the action shortcut function or `MutationRef` function.
+```typescript
+addSearchHistory(dc: DataConnect, vars: AddSearchHistoryVariables): MutationPromise<AddSearchHistoryData, AddSearchHistoryVariables>;
+
+interface AddSearchHistoryRef {
+  ...
+  (dc: DataConnect, vars: AddSearchHistoryVariables): MutationRef<AddSearchHistoryData, AddSearchHistoryVariables>;
+}
+export const addSearchHistoryRef: AddSearchHistoryRef;
+```
+
+If you need the name of the operation without creating a ref, you can retrieve the operation name by calling the `operationName` property on the addSearchHistoryRef:
+```typescript
+const name = addSearchHistoryRef.operationName;
+console.log(name);
+```
+
+### Variables
+The `AddSearchHistory` mutation requires an argument of type `AddSearchHistoryVariables`, which is defined in [dataconnect-generated/index.d.ts](./index.d.ts). It has the following fields:
+
+```typescript
+export interface AddSearchHistoryVariables {
+  userId: UUIDString;
+  query: string;
+  resultsCount?: number | null;
+}
+```
+### Return Type
+Recall that executing the `AddSearchHistory` mutation returns a `MutationPromise` that resolves to an object with a `data` property.
+
+The `data` property is an object of type `AddSearchHistoryData`, which is defined in [dataconnect-generated/index.d.ts](./index.d.ts). It has the following fields:
+```typescript
+export interface AddSearchHistoryData {
+  searchHistory_insert: SearchHistory_Key;
+}
+```
+### Using `AddSearchHistory`'s action shortcut function
+
+```typescript
+import { getDataConnect } from 'firebase/data-connect';
+import { connectorConfig, addSearchHistory, AddSearchHistoryVariables } from '@dataconnect/generated';
+
+// The `AddSearchHistory` mutation requires an argument of type `AddSearchHistoryVariables`:
+const addSearchHistoryVars: AddSearchHistoryVariables = {
+  userId: ..., 
+  query: ..., 
+  resultsCount: ..., // optional
+};
+
+// Call the `addSearchHistory()` function to execute the mutation.
+// You can use the `await` keyword to wait for the promise to resolve.
+const { data } = await addSearchHistory(addSearchHistoryVars);
+// Variables can be defined inline as well.
+const { data } = await addSearchHistory({ userId: ..., query: ..., resultsCount: ..., });
+
+// You can also pass in a `DataConnect` instance to the action shortcut function.
+const dataConnect = getDataConnect(connectorConfig);
+const { data } = await addSearchHistory(dataConnect, addSearchHistoryVars);
+
+console.log(data.searchHistory_insert);
+
+// Or, you can use the `Promise` API.
+addSearchHistory(addSearchHistoryVars).then((response) => {
+  const data = response.data;
+  console.log(data.searchHistory_insert);
+});
+```
+
+### Using `AddSearchHistory`'s `MutationRef` function
+
+```typescript
+import { getDataConnect, executeMutation } from 'firebase/data-connect';
+import { connectorConfig, addSearchHistoryRef, AddSearchHistoryVariables } from '@dataconnect/generated';
+
+// The `AddSearchHistory` mutation requires an argument of type `AddSearchHistoryVariables`:
+const addSearchHistoryVars: AddSearchHistoryVariables = {
+  userId: ..., 
+  query: ..., 
+  resultsCount: ..., // optional
+};
+
+// Call the `addSearchHistoryRef()` function to get a reference to the mutation.
+const ref = addSearchHistoryRef(addSearchHistoryVars);
+// Variables can be defined inline as well.
+const ref = addSearchHistoryRef({ userId: ..., query: ..., resultsCount: ..., });
+
+// You can also pass in a `DataConnect` instance to the `MutationRef` function.
+const dataConnect = getDataConnect(connectorConfig);
+const ref = addSearchHistoryRef(dataConnect, addSearchHistoryVars);
+
+// Call `executeMutation()` on the reference to execute the mutation.
+// You can use the `await` keyword to wait for the promise to resolve.
+const { data } = await executeMutation(ref);
+
+console.log(data.searchHistory_insert);
+
+// Or, you can use the `Promise` API.
+executeMutation(ref).then((response) => {
+  const data = response.data;
+  console.log(data.searchHistory_insert);
 });
 ```
 

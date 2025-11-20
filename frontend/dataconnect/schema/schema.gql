@@ -51,3 +51,11 @@ type CodeLink @table {
   repositoryName: String
   createdAt: Timestamp! @default(expr: "request.time")
 }
+
+type SearchHistory @table {
+  id: UUID! @default(expr: "uuidV4()")
+  user: User!
+  query: String!
+  resultsCount: Int
+  createdAt: Timestamp! @default(expr: "request.time")
+}

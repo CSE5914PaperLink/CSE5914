@@ -49,7 +49,21 @@ export default function DiscoveryPage() {
         throw new Error(`Search failed: ${res.statusText}`);
       }
       const data = await res.json();
-      setPapers(data.results || []);
+      const results = data.results || [];
+      setPapers(results);
+
+      // Save search to history if user is logged in
+      if (dataConnectUserId) {
+        fetch("/api/discovery/save-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: dataConnectUserId,
+            query: query.trim(),
+            resultsCount: results.length,
+          }),
+        }).catch((err) => console.error("Failed to save search history:", err));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to search papers");
     } finally {

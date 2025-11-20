@@ -84,3 +84,11 @@ mutation AddCodeLink($paperId: UUID!, $url: String!, $repositoryName: String) @a
 mutation DeleteCodeLink($linkId: UUID!) @auth(level: PUBLIC) {
   codeLink_delete(id: $linkId)
 }
+
+# Search History Mutations
+mutation AddSearchHistory($userId: UUID!, $query: String!, $resultsCount: Int) @auth(level: PUBLIC) {
+  searchHistory_insert(
+    data: { user: { id: $userId }, query: $query, resultsCount: $resultsCount }
+  )
+}
+

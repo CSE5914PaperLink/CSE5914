@@ -128,3 +128,14 @@ query GetCodeLinksForPaper($paperId: UUID!) @auth(level: PUBLIC) {
     repositoryName
   }
 }
+
+# Search History Queries
+query ListSearchHistory($userId: UUID!) @auth(level: PUBLIC) {
+  searchHistories(where: { user: { id: { eq: $userId } } }, orderBy: { createdAt: DESC }) {
+    id
+    query
+    resultsCount
+    createdAt
+  }
+}
+
