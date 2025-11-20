@@ -52,7 +52,8 @@ class NomicEmbeddingService:
         Queries should be prefixed with 'search_query:' for optimal retrieval.
         """
         # Add search_query prefix if not already present
-        return self.embedder.embed_query(text)
+        normalized = text if text.strip().startswith("search_query:") else f"search_query: {text}"
+        return self.embedder.embed_query(normalized)
 
     def embed_images(
         self, images: List[Union[Image.Image, bytes, str]]

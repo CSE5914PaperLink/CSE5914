@@ -3,6 +3,7 @@ import json
 
 from google import genai
 from google.genai import types
+from google.api_core.exceptions import ResourceExhausted
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 from typing import Optional, Any, cast
@@ -158,6 +159,11 @@ async def chat_agent(
             # Done
             yield json.dumps({"type": "done"}) + "\n"
 
+        except ResourceExhausted:
+            message = (
+                "The Gemini API rate limit was hit. Please wait a few seconds and try again."
+            )
+            yield json.dumps({"type": "error", "value": message}) + "\n"
         except Exception as e:
             # In case of error, yield an error event and stop
             yield json.dumps({"type": "error", "value": str(e)}) + "\n"

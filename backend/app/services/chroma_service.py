@@ -23,7 +23,9 @@ class ChromaService:
 
         self.persist_path = settings.chroma_persist_path
         self.collection_name = settings.chroma_collection_name
-
+        print(
+            f"[ChromaService] Using persist path: {self.persist_path}, collection: {self.collection_name}"
+        )
         # Initialize or load persistent Chroma database
         self.vectorstore = Chroma(
             collection_name=self.collection_name,

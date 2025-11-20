@@ -1,7 +1,21 @@
 "use client";
+import { annotateWithCitations, parseCitationGroup } from "./citations";
+import { truncateTitle } from "./sourceUtils";
 import { ChatMessage, SourceChunk } from "./types";
 import { RefObject } from "react";
 import ReactMarkdown from "react-markdown";
+
+const NON_BREAKING_SPACE = "\u00A0";
+
+const handleSourceInteraction = (
+  source: SourceChunk,
+  callback?: (source: SourceChunk) => void
+) => {
+  if (source.type === "text" && source.content) {
+    console.log("Source content:", source.content);
+  }
+  callback?.(source);
+};
 
 function MessageWithCitations({
   text,
@@ -12,42 +26,59 @@ function MessageWithCitations({
   sources?: SourceChunk[];
   onSourceClick?: (source: SourceChunk) => void;
 }) {
-  if (!sources || sources.length === 0) {
-    return (
-      <div className="prose prose-sm max-w-none">
-        <ReactMarkdown>{text}</ReactMarkdown>
-      </div>
-    );
-  }
+  const resolvedText =
+    sources && sources.length > 0 ? annotateWithCitations(text, sources) : text;
 
-  // Split text into segments and citations
-  const segments: Array<{
-    type: "text" | "citation";
-    content: string | number;
-  }> = [];
+  const sourceMap = new Map<number, SourceChunk>();
+  sources?.forEach((source, idx) => {
+    const citationNumber = source.citation_number ?? idx + 1;
+    if (!sourceMap.has(citationNumber)) {
+      sourceMap.set(citationNumber, source);
+    }
+  });
+
+  type Segment =
+    | { type: "text"; content: string }
+    | { type: "citation"; content: number };
+
+  const segments: Segment[] = [];
+  const citationGroupRegex = /\[(\s*\d+(?:\s*,\s*\d+)*)\]/g;
   let lastIndex = 0;
-  const citationRegex = /\[(\d+)\]/g;
-  let match;
-
-  while ((match = citationRegex.exec(text)) !== null) {
+  let match: RegExpExecArray | null;
+  while ((match = citationGroupRegex.exec(resolvedText)) !== null) {
     if (match.index > lastIndex) {
       segments.push({
         type: "text",
-        content: text.substring(lastIndex, match.index),
+        content: resolvedText.slice(lastIndex, match.index),
       });
     }
-    segments.push({ type: "citation", content: parseInt(match[1], 10) });
+
+    const prevChar =
+      match.index > 0 ? resolvedText.charAt(match.index - 1) : "";
+    if (prevChar && !/\s/.test(prevChar)) {
+      segments.push({ type: "text", content: NON_BREAKING_SPACE });
+    }
+
+    const citationNumbers = parseCitationGroup(match[1]);
+    citationNumbers.forEach((num, idx) => {
+      if (idx > 0) {
+        segments.push({ type: "text", content: NON_BREAKING_SPACE });
+      }
+      segments.push({ type: "citation", content: num });
+    });
+
     lastIndex = match.index + match[0].length;
   }
 
-  if (lastIndex < text.length) {
-    segments.push({ type: "text", content: text.substring(lastIndex) });
+  if (lastIndex < resolvedText.length) {
+    segments.push({ type: "text", content: resolvedText.slice(lastIndex) });
   }
 
   return (
     <div className="prose prose-sm max-w-none">
       {segments.map((segment, idx) => {
         if (segment.type === "text") {
+          const content = segment.content as string;
           return (
             <span key={idx}>
               <ReactMarkdown
@@ -55,30 +86,34 @@ function MessageWithCitations({
                   p: ({ children }) => <span>{children}</span>,
                 }}
               >
-                {segment.content as string}
+                {content}
               </ReactMarkdown>
             </span>
           );
-        } else {
-          const citationNum = segment.content as number;
-          const source = sources[citationNum - 1];
-          if (!source) return <span key={idx}>[{citationNum}]</span>;
-          return (
-            <button
-              key={idx}
-              onClick={() => onSourceClick?.(source)}
-              className="inline-flex items-center justify-center w-5 h-5 mx-0.5 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-full cursor-pointer transition-colors"
-              style={{ verticalAlign: "super", fontSize: "0.65em" }}
-              title={`Source ${citationNum}: ${
-                source.type === "image"
-                  ? source.filename || "Image"
-                  : `Chunk ${source.chunk_index ?? citationNum}`
-              }`}
-            >
-              {citationNum}
-            </button>
-          );
         }
+        const citationNum = segment.content as number;
+        const source =
+          sourceMap.get(citationNum) ||
+          (sources ? sources[citationNum - 1] : undefined);
+        if (!source) return <span key={idx}>[{citationNum}]</span>;
+        return (
+          <button
+            key={idx}
+            onClick={() => handleSourceInteraction(source, onSourceClick)}
+            type="button"
+            className="inline text-blue-700 hover:underline align-super px-1 whitespace-nowrap"
+            style={{ fontSize: "0.7em" }}
+            title={
+              source.title
+                ? `${source.title} (Doc ${source.doc_id ?? "?"})`
+                : source.doc_id
+                ? `Doc ${source.doc_id}`
+                : `Source ${citationNum}`
+            }
+          >
+            {citationNum}
+          </button>
+        );
       })}
     </div>
   );
@@ -163,27 +198,39 @@ export function Messages({
                         <div className="flex flex-wrap gap-2">
                           {m.sources.map((source, idx) => {
                             const isImage = source.type === "image";
+                            const citationLabel =
+                              source.citation_number ?? idx + 1;
                             const displayTitle =
                               source.title ||
                               source.doc_id ||
-                              `Source ${idx + 1}`;
-                            const pageInfo = source.page
-                              ? ` • p.${source.page}`
-                              : "";
+                              `Source ${citationLabel}`;
+                            const shortTitle = truncateTitle(displayTitle, 15);
+                            const tooltipDetails = [
+                              source.title,
+                              source.doc_id,
+                              source.page ? `p.${source.page}` : undefined,
+                              source.heading,
+                              source.caption,
+                            ]
+                              .filter(Boolean)
+                              .join(" • ");
 
                             return (
                               <button
-                                key={source.id}
-                                onClick={() => onSourceClick?.(source)}
-                                className="inline-flex items-center gap-2 text-xs bg-white border-2 border-neutral-300 rounded-lg px-3 py-2 hover:bg-neutral-50 hover:border-blue-400 transition-all shadow-sm"
-                                title={`Click to view ${
-                                  isImage ? "image" : "text"
-                                } from ${displayTitle}`}
+                                key={source.id || `${source.doc_id}-${idx}`}
+                                onClick={() =>
+                                  handleSourceInteraction(source, onSourceClick)
+                                }
+                                className="inline-flex min-w-0 items-center gap-1 text-[11px] font-semibold bg-white border border-neutral-300 rounded-full px-2.5 py-1 hover:bg-neutral-50 hover:border-blue-400 transition-all shadow-sm"
+                                title={
+                                  tooltipDetails ||
+                                  `Source ${citationLabel} • ${displayTitle}`
+                                }
                               >
                                 {/* Icon */}
                                 {isImage ? (
                                   <svg
-                                    className="w-4 h-4 text-purple-600"
+                                    className="w-3.5 h-3.5 text-purple-600 shrink-0"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -197,7 +244,7 @@ export function Messages({
                                   </svg>
                                 ) : (
                                   <svg
-                                    className="w-4 h-4 text-blue-600"
+                                    className="w-3.5 h-3.5 text-blue-600 shrink-0"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -212,21 +259,9 @@ export function Messages({
                                 )}
 
                                 {/* Content */}
-                                <div className="flex flex-col items-start text-left">
-                                  <span className="font-semibold text-neutral-800 max-w-[200px] truncate">
-                                    {displayTitle}
-                                  </span>
-                                  <span className="text-[10px] text-neutral-500">
-                                    {isImage
-                                      ? source.filename || "Image"
-                                      : `Chunk ${
-                                          source.chunk_index ?? idx + 1
-                                        }`}
-                                    {pageInfo}
-                                    {source.distance !== undefined &&
-                                      ` • ${source.distance.toFixed(3)}`}
-                                  </span>
-                                </div>
+                                <span className="text-neutral-800 truncate max-w-[140px]">
+                                  [{citationLabel}] {shortTitle}
+                                </span>
                               </button>
                             );
                           })}
