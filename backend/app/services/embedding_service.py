@@ -14,7 +14,7 @@ from langchain_core.documents import Document
 
 from app.services.docling_service import DoclingService
 from app.services.chroma_service import ChromaService
-
+from app.core.config import settings
 
 @dataclass
 class PdfMetadata:
@@ -34,7 +34,8 @@ class NomicEmbeddingService:
     def __init__(self):
         self.embedder = NomicEmbeddings(  # type: ignore[call-arg]
             model="nomic-embed-text-v1.5",
-            inference_mode="local",
+            inference_mode="remote",
+            nomic_api_key=settings.nomic_api_key,
             vision_model="nomic-embed-vision-v1.5",
         )
 
