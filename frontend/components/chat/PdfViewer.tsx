@@ -75,12 +75,13 @@ export function PdfViewer({
   const highlightAreas = useMemo(() => {
     if (!highlightSource || highlightSource.page === undefined) return [];
 
-    console.log("PdfViewer - Creating highlight for source:", {
-      page: highlightSource.page,
-      bbox: highlightSource.bbox,
-      type: highlightSource.type,
-      doc_id: highlightSource.doc_id,
-    });
+    // Create highlight for the provided source (silently)
+
+    // Validate page number (must be >= 1, as PDFs are 1-indexed in our system)
+    if (!highlightSource.page || highlightSource.page < 1) {
+      // Invalid page number, skip highlight
+      return [];
+    }
 
     // Validate bbox - skip if missing or has null/undefined values
     if (
@@ -90,10 +91,7 @@ export function PdfViewer({
       highlightSource.bbox.right == null ||
       highlightSource.bbox.bottom == null
     ) {
-      console.warn(
-        "PdfViewer - Skipping highlight: bbox is missing or incomplete",
-        highlightSource.bbox
-      );
+      // Missing or incomplete bbox, skip highlight
       return [];
     }
 
@@ -127,7 +125,7 @@ export function PdfViewer({
       },
     ];
 
-    console.log("PdfViewer - Highlight areas:", areas);
+    // computed highlight areas
 
     return areas;
   }, [highlightSource]);
@@ -172,7 +170,6 @@ export function PdfViewer({
   useEffect(() => {
     if (highlightAreas.length > 0) {
       const area = highlightAreas[0];
-      console.log("PdfViewer - Requesting jump to:", area);
 
       // Store pending jump
       pendingJumpRef.current = area;
@@ -184,14 +181,8 @@ export function PdfViewer({
 
   // Callback when PDF document loads
   const handleDocumentLoad = useCallback(() => {
-    console.log("PdfViewer - PDF loaded");
-
     // Execute pending jump if any
     if (pendingJumpRef.current) {
-      console.log(
-        "PdfViewer - Executing pending jump:",
-        pendingJumpRef.current
-      );
       // Small delay to ensure PDF is fully rendered
       setTimeout(() => {
         if (pendingJumpRef.current) {

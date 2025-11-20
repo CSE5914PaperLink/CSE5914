@@ -1963,6 +1963,22 @@ tenacity = ">=8.1.0,<8.4.0 || >8.4.0,<10.0.0"
 typing-extensions = ">=4.7.0,<5.0.0"
 
 [[package]]
+name = "langchain-docling"
+version = "2.0.0"
+description = "Docling LangChain integration"
+optional = false
+python-versions = "<4,>=3.10"
+groups = ["main"]
+files = [
+    {file = "langchain_docling-2.0.0-py3-none-any.whl", hash = "sha256:cb08ddf66dfc40310c8cbffef23e52e325e4d43317e23426202640aae395faf1"},
+    {file = "langchain_docling-2.0.0.tar.gz", hash = "sha256:7bc7c93a6272114b6dd307c6033e2a62e843906afdd691a0d87246f1a1a154dd"},
+]
+
+[package.dependencies]
+docling = ">=2.26,<3.0"
+langchain-core = ">=1.0,<2.0"
+
+[[package]]
 name = "langchain-google-genai"
 version = "3.1.0"
 description = "An integration package connecting Google's genai package and LangChain"
@@ -7119,4 +7135,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4.0"
-content-hash = "91314f1b1ec321ea7319f821d06d562cb39c74049e799dedbe7226a351f24cf4"
+content-hash = "8d9d5a6abe15c5e2f1948605fc5b44cbd30816b688b5bfdc34f075bdeea18220"

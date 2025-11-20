@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const useAgent = Array.isArray(doc_ids) && doc_ids.length > 0;
     const backendPath = useAgent ? "/gemini/chat_agent" : "/gemini/chat";
 
-    console.log("[Chat API] useAgent:", useAgent, "doc_ids:", doc_ids);
+    // Chat API called; useAgent determines agent vs simple chat
 
     // Build backend URL
     const backendUrl = new URL(`${BACKEND_URL}${backendPath}`);
@@ -115,7 +115,6 @@ export async function POST(request: NextRequest) {
 
                   // Forward all events (status, token, sources, error) to frontend
                   if (event.type === "status") {
-                    console.log("[Agent Status]:", event.value);
                     controller.enqueue(
                       new TextEncoder().encode(JSON.stringify(event) + "\n")
                     );
@@ -125,7 +124,6 @@ export async function POST(request: NextRequest) {
                     );
                   } else if (event.type === "sources") {
                     // Forward sources to frontend
-                    console.log("[Agent Sources]:", event.value?.length || 0);
                     controller.enqueue(
                       new TextEncoder().encode(JSON.stringify(event) + "\n")
                     );
@@ -135,29 +133,8 @@ export async function POST(request: NextRequest) {
                     );
                     throw new Error(event.value);
                   }
-                } catch (e) {
-                  // Log parsing errors but continue
-                  if (e instanceof Error && e.message.includes("JSON")) {
-                    console.error(
-                      "[JSON Parse Error]:",
-                      e.message,
-                      "Line:",
-                      line.substring(0, 100)
-                    );
-                  } else if (
-                    e instanceof Error &&
-                    !e.message.includes("Unexpected")
-                  ) {
-                    controller.enqueue(
-                      new TextEncoder().encode(
-                        JSON.stringify({
-                          type: "error",
-                          value: e.message,
-                        }) + "\n"
-                      )
-                    );
-                    throw e;
-                  }
+                } catch {
+                  // Ignore malformed JSON chunks; continue streaming
                 }
               }
             }
@@ -166,17 +143,15 @@ export async function POST(request: NextRequest) {
             if (buffer.trim()) {
               try {
                 const event = JSON.parse(buffer);
-                if (event.type === "sources") {
-                  console.log("[Agent Sources]:", event.value?.length || 0);
-                  controller.enqueue(
-                    new TextEncoder().encode(JSON.stringify(event) + "\n")
-                  );
-                }
-              } catch (e) {
-                console.error("[Final buffer parse error]:", e);
+                controller.enqueue(
+                  new TextEncoder().encode(JSON.stringify(event) + "\n")
+                );
+              } catch {
+                // ignore final partial buffer parse errors
               }
             }
           } catch (error) {
+            // Log stream-level errors
             console.error("[Stream Error]:", error);
           } finally {
             controller.close();

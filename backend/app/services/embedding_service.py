@@ -8,8 +8,8 @@ from PIL import Image
 import shutil
 
 from langchain_nomic import NomicEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores.utils import filter_complex_metadata
+from langchain_core.documents import Document
 
 
 from app.services.docling_service import DoclingService
@@ -36,11 +36,6 @@ class NomicEmbeddingService:
             model="nomic-embed-text-v1.5",
             inference_mode="local",
             vision_model="nomic-embed-vision-v1.5",
-        )
-        self.splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=100,
-            length_function=len,
         )
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
@@ -93,57 +88,59 @@ class NomicEmbeddingService:
         return embeddings
 
 
-def ingest_pdf_bytes_into_chroma(
-    pdf_bytes: bytes,
-    extra_metadata: PdfMetadata,
-) -> dict:
-    """
-    Ingest PDF into Chroma with text chunks and separately embedded images.
-    Returns dict with ingestion stats including image count.
-
-    Args:
-        pdf_bytes: Raw PDF bytes
-        extra_metadata: Structured metadata (e.g., arXiv paper info)
-    """
+def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
     docling = DoclingService()
     docs = docling.extract_from_bytes(pdf_bytes)
-    docling_doc, markdown, image_info = (
-        docs["doc"],
-        docs["markdown"],
-        docs["images"],
-    )
+
+    image_info = docs["images"]
+    chunk_info = docs["chunks"]
 
     embedder = NomicEmbeddingService()
     chroma = ChromaService(embedding_fn=embedder.embedder)
 
-    # Process text chunks - add 'type' field to metadata
-    base_metadata = asdict(extra_metadata)
-    base_metadata["type"] = "text"  # Add type field for text chunks
+    chroma_text_docs = []
+    # Text metadata: doc_id, title, type, page, bbox_*, headings
+    for chunk in chunk_info:
+        merged_meta = {
+            **chunk["metadata"],  # docling chunk metadata
+            "doc_id": extra_metadata.doc_id,
+            "title": extra_metadata.title,
+            "type": "text",
+        }
+        chroma_text_docs.append(
+            Document(
+                page_content=chunk["text"],
+                metadata=merged_meta,
+            )
+        )
+        print("\n\n\n\nChunk:", chunk["text"])
+    chroma.vectorstore.add_documents(chroma_text_docs, embedding_fn=embedder.embedder)
 
-    chunks = embedder.splitter.create_documents([markdown], metadatas=[base_metadata])
+    # Image metadata: doc_id, title, type, picture_number, page, caption, bbox_*
+    for meta in image_info["metadatas"]:
+        meta.update(
+            {
+                "doc_id": extra_metadata.doc_id,
+                "title": extra_metadata.title,
+                "type": "image",
+            }
+        )
 
-    chroma.vectorstore.add_documents(
-        filter_complex_metadata(chunks), embedding_fn=embedder.embedder
-    )
-
-    # Add 'type' field to image metadata
-    for img_meta in image_info["metadatas"]:
-        img_meta["doc_id"] = extra_metadata.doc_id
-        img_meta["title"] = extra_metadata.title
-        img_meta["type"] = "image"
-    print("DEBUG: Text chunk metadatas:", getattr(chunks[0], "metadata", {}).keys())
-    print("DEBUG: Image chunk metadatas:", image_info["metadatas"][0].keys())
     chroma.vectorstore.add_images(
         image_info["uris"],
         metadatas=image_info["metadatas"],
         ids=image_info["ids"],
     )
 
+    # Cleanup
     if image_info["tmp_dir"]:
         shutil.rmtree(image_info["tmp_dir"], ignore_errors=True)
 
     print(
-        f"INGESTED PDF: {len(chunks)} text chunks, {len(image_info['uris'])} image chunks"
+        f"INGESTED PDF: {len(chunk_info)} text chunks, {len(image_info['uris'])} image chunks"
     )
 
-    return {"text_chunks": len(chunks), "image_chunks": len(image_info["uris"])}
+    return {
+        "text_chunks": len(chunk_info),
+        "image_chunks": len(image_info["uris"]),
+    }

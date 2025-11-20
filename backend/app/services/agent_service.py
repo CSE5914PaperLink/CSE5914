@@ -95,26 +95,42 @@ def create_search_tools(
                 for i, doc in enumerate(docs):
                     md = metas[i] or {}
                     title = md.get("title", md.get("doc_id", "Unknown"))
-
                     # Create a stable unique ID based on metadata
                     doc_id = md.get("doc_id", "unknown")
                     chunk_idx = md.get("chunk_index", i)
-                    page_num = md.get("page", 0)
-                    unique_id = f"text:{doc_id}:chunk{chunk_idx}:p{page_num}"
+                    page = md.get("page")
+                    unique_id = f"text:{doc_id}:chunk{chunk_idx}:p{page}"
+                    heading = md.get("headings", "unknown")
+                    bbox_left = md.get("bbox_left")
+                    bbox_top = md.get("bbox_top")
+                    bbox_right = md.get("bbox_right")
+                    bbox_bottom = md.get("bbox_bottom")
+
+                    bbox_dict = None
+                    if all(
+                        coord is not None
+                        for coord in [bbox_left, bbox_top, bbox_right, bbox_bottom]
+                    ):
+                        bbox_dict = {
+                            "left": bbox_left,
+                            "top": bbox_top,
+                            "right": bbox_right,
+                            "bottom": bbox_bottom,
+                        }
 
                     parts.append(
-                        f"[Text Source {i+1}: Title: {title}]\nContent: {doc.strip()}\n"
+                        f"[Source {i+1}] Title: {title}\n"
+                        f"Heading: {heading}\n"
+                        f"Content:\n{doc.strip()}\n"
                     )
 
                     # Track source for UI - duplicates are automatically handled by dict keys
                     sources_tracker[unique_id] = {
                         "type": "text",
                         "doc_id": doc_id,
-                        "title": title,
                         "distance": dists[i] if i < len(dists) else None,
-                        "content": doc.strip() if doc else "",
-                        "chunk_index": chunk_idx,
-                        "page": page_num,
+                        "page": page,
+                        "bbox": bbox_dict,
                     }
 
                 output_sections.append("## TEXT RESULTS\n" + "\n---\n".join(parts))
@@ -179,8 +195,6 @@ def create_search_tools(
                         f"[Image Source {i+1}: Title {title}] | Caption: {caption}\nContent: {img}\n"
                     )
 
-                    # Track source for UI - duplicates are automatically handled by dict keys
-                    # Only include bbox if all coordinates are present and valid
                     bbox_dict = None
                     if all(
                         coord is not None
@@ -192,11 +206,6 @@ def create_search_tools(
                             "right": bbox_right,
                             "bottom": bbox_bottom,
                         }
-                        print(f"DEBUG: Sending bbox for image {i}: {bbox_dict}")
-                    else:
-                        print(
-                            f"DEBUG: Skipping bbox for image {i} - incomplete coordinates: left={bbox_left}, top={bbox_top}, right={bbox_right}, bottom={bbox_bottom}"
-                        )
 
                     sources_tracker[unique_id] = {
                         "type": "image",
@@ -205,8 +214,6 @@ def create_search_tools(
                         "distance": dists[i] if i < len(dists) else None,
                         "page": page_num,
                         "bbox": bbox_dict,
-                        # NOTE: Don't send image_data - it's huge and causes JSON parsing issues
-                        # The image is already in the LLM response, we only need bbox for highlighting
                     }
 
                 output_sections.append("## IMAGE RESULTS\n" + "\n---\n".join(parts))
