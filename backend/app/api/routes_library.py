@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Optional, List
 from dataclasses import asdict
 import json
@@ -9,9 +10,14 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, Response
 import httpx
 from xml.etree import ElementTree as ET
+from pydantic import BaseModel, Field
 
 from app.services.embedding_service import ingest_pdf_bytes_into_chroma, PdfMetadata
+from app.services.gemini_service import ingest_repo_files_into_chroma
+from app.services.github_service import GitHubService, normalize_github_url
 from app.services.chroma_service import ChromaService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/library", tags=["library"])
 
@@ -19,14 +25,19 @@ ARXIV_API = "https://export.arxiv.org/api/query"
 UA = "CSE5914-Backend/0.1 (https://github.com/jeevanadella/CSE5914)"
 
 
+class AddArxivRequest(BaseModel):
+    github_repos: List[str] = Field(
+        default_factory=list,
+        description="Optional list of GitHub repository URLs to ingest alongside the PDF.",
+    )
+
+
 @router.get("/debug/list_all")
 def debug_list_all():
-    """Debug endpoint to see all docs in Chroma with their image counts."""
     chroma = ChromaService()
     try:
         data = chroma.collection.get(include=["metadatas"], limit=100)
 
-        # Group by doc_id and count images
         doc_info = {}
         for i, chunk_id in enumerate(data.get("ids", [])):
             md = (data.get("metadatas") or [{}])[i] or {}
@@ -45,7 +56,7 @@ def debug_list_all():
                         "sample_chunk_id": chunk_id,
                         "title": md.get("title"),
                     }
-                except:
+                except Exception:
                     doc_info[doc_id] = {
                         "doc_id": doc_id,
                         "chunk_count": 1,
@@ -142,7 +153,10 @@ def check_batch_papers(doc_ids: List[str]):
 
 
 @router.post("/add/{doc_id}")
-async def add_arxiv(doc_id: str):
+async def add_arxiv(doc_id: str, request: Optional[AddArxivRequest] = None):
+    if request is None:
+        request = AddArxivRequest()
+
     pdf_url = f"https://arxiv.org/pdf/{doc_id}.pdf"
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(60.0, connect=10.0),
@@ -166,14 +180,65 @@ async def add_arxiv(doc_id: str):
     )
 
     stats = ingest_pdf_bytes_into_chroma(pdf_bytes, extra_metadata=pdf_meta)
-    return JSONResponse(
-        {
-            "status": "ok",
-            "doc_id": doc_id,
-            "metadata": asdict(pdf_meta),
-            "ingestion": stats,
-        }
-    )
+
+    response_data = {
+        "status": "ok",
+        "doc_id": doc_id,
+        "metadata": asdict(pdf_meta),
+        "ingestion": stats,
+        "repos": [],
+    }
+
+    if request.github_repos:
+        github_service = GitHubService()
+        base_metadata = asdict(pdf_meta)
+
+        for repo_url in request.github_repos:
+            try:
+                normalized_url = normalize_github_url(repo_url)
+                logger.info(f"Fetching files from {normalized_url}")
+                repo_files = await github_service.fetch_repo_files(normalized_url)
+
+                if not repo_files:
+                    logger.warning(f"No files fetched from {normalized_url}")
+                    response_data["repos"].append(
+                        {
+                            "url": normalized_url,
+                            "status": "warning",
+                            "files_ingested": 0,
+                            "reason": "No files fetched",
+                        }
+                    )
+                    continue
+
+                files_ingested = ingest_repo_files_into_chroma(
+                    repo_url=normalized_url,
+                    arxiv_id=doc_id,
+                    repo_files=repo_files,
+                    base_metadata=base_metadata,
+                )
+
+                response_data["repos"].append(
+                    {
+                        "url": normalized_url,
+                        "status": "ok",
+                        "files_ingested": files_ingested,
+                    }
+                )
+                logger.info(
+                    f"Ingested {files_ingested} files from {normalized_url} for {doc_id}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to ingest repo {repo_url}: {e}")
+                response_data["repos"].append(
+                    {
+                        "url": repo_url,
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
+
+    return JSONResponse(response_data)
 
 
 @router.get("/list")
@@ -194,7 +259,6 @@ def list_library(limit: int = 500, offset: int = 0):
 
 @router.get("/chunks/{doc_id}")
 def list_chunks(doc_id: str, limit: int = 200, offset: int = 0):
-    """List chunk vectors for a given root document id."""
     chroma = ChromaService()
     try:
         data = chroma.collection.get(
@@ -224,19 +288,14 @@ def list_chunks(doc_id: str, limit: int = 200, offset: int = 0):
 
 @router.delete("/delete/{doc_id}")
 def delete_item(doc_id: str):
-    """Delete a paper/vector by its id in the Chroma collection."""
     chroma = ChromaService()
 
     try:
-        # If the provided id is a root document id (not a chunk id), delete all
-        # entries that belong to that root (metadata.doc_id == doc_id or id startswith root::chunk::).
         to_delete = []
 
-        # Fetch all items and filter - Chroma .get with where can be used but not all deployments support complex filters.
         data = chroma.collection.get(include=["metadatas", "documents"])
         for i, _id in enumerate(data.get("ids", [])):
             md = (data.get("metadatas") or [{}])[i] or {}
-            # If metadata stores doc_id, compare; else check chunk prefix
             if (
                 md.get("doc_id") == doc_id
                 or str(_id).startswith(f"{doc_id}::chunk::")
@@ -245,7 +304,6 @@ def delete_item(doc_id: str):
                 to_delete.append(_id)
 
         if not to_delete:
-            # Fall back: try to delete the exact id if present
             chroma.delete([doc_id])
             return JSONResponse({"status": "deleted", "id": doc_id})
 
