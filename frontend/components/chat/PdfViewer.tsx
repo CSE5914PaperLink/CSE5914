@@ -242,7 +242,7 @@ export function PdfViewer({
       {/* PDF viewer area */}
       <div className="flex-1 min-h-0 overflow-auto p-4 container">
         {pdfUrl ? (
-          <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+          <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
             <div
               className="w-full h-full border rounded-md"
               style={{ height: "100%" }}
