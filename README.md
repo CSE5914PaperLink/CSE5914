@@ -1,11 +1,11 @@
 # PaperLink
 
-**AU25 CSE5914 Team 1**  
+**AU25 CSE5914 PaperLink**  
 Search, ingest, manage, and compare CS research papers with AI assistance.
 
 ## Overview
 
-CS Paper Compare is a full‑stack web application for exploring computer science research literature. It integrates external scholarly sources (ArXiv, OpenAlex), parses and embeds uploaded PDFs, and enables Retrieval Augmented Generation (RAG) style chat and analysis. Users can build personal libraries, run semantic searches, and interact with AI to extract insights and compare papers.
+PaperLink is a full‑stack web application for exploring computer science research literature. It integrates external scholarly sources (ArXiv, OpenAlex), parses and embeds uploaded PDFs, and enables Retrieval Augmented Generation (RAG) style chat and analysis. Users can build personal libraries, run semantic searches, and interact with AI to extract insights and compare papers.
 
 ## High-Level Features
 

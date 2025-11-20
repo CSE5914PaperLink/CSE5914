@@ -45,7 +45,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto text-center">
           <h3 className="text-3xl font-bold mb-4">Meet the Team</h3>
           <p className="text-gray-600 mb-10">
-            Developed by Team 1 — AU25 CSE 5914 Knowledge-Based Systems
+            Developed by PaperLink Team — AU25 CSE 5914 Knowledge-Based Systems
           </p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
             {[
@@ -72,7 +72,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="text-center py-6 bg-blue-700 text-white mt-auto">
         <p className="text-sm">
-          &copy; 2025 <span className="font-semibold">CS Paper Compare</span> |
+          &copy; 2025 <span className="font-semibold">PaperLink</span> |
           Built with Next.js, FastAPI, and AWS
         </p>
       </footer>

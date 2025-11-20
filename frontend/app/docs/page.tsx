@@ -41,7 +41,7 @@ export default function DocsPage() {
                 Overview
               </h3>
               <p className="text-gray-700 mb-4">
-                The CS Paper Compare API enables researchers to search, analyze,
+                The PaperLink API enables researchers to search, analyze,
                 and compare computer science research papers from multiple
                 sources including arXiv and OpenAlex. The API integrates with
                 GitHub to link papers with their corresponding codebases for
@@ -158,7 +158,7 @@ export default function DocsPage() {
                 Team
               </h3>
               <p className="text-gray-700">
-                Developed by Team 1 for AU25 CSE 5914 Knowledge-Based Systems at
+                Developed by PaperLink Team for AU25 CSE 5914 Knowledge-Based Systems at
                 The Ohio State University.
               </p>
             </section>

@@ -15,7 +15,7 @@ export default function Navbar() {
     <nav className="bg-linear-to-r from-blue-700 to-blue-600 text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center container">
         <Link href="/" className="text-2xl font-bold tracking-tight">
-          CS Paper Compare
+          PaperLink
         </Link>
         <div className="space-x-4 flex items-center">
           <Link
