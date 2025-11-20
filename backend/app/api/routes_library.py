@@ -13,7 +13,7 @@ from xml.etree import ElementTree as ET
 from pydantic import BaseModel, Field
 
 from app.services.embedding_service import ingest_pdf_bytes_into_chroma, PdfMetadata
-from app.services.gemini_service import ingest_repo_files_into_chroma
+from app.services.embedding_service import ingest_repo_files_into_chroma
 from app.services.github_service import GitHubService, normalize_github_url
 from app.services.chroma_service import ChromaService
 

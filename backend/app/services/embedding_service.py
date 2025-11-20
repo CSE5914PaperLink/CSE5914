@@ -27,6 +27,13 @@ class PdfMetadata:
     published: str
     authors: List[str]
 
+@dataclass
+class RepoMetadata:
+    """Metadata for GitHub repositories."""
+    repo_url: str
+    readme: str
+    arxiv_id: str
+    filename: str
 
 class NomicEmbeddingService:
     """Service for local Nomic embeddings with multimodal support."""
@@ -145,3 +152,54 @@ def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
         "text_chunks": len(chunk_info),
         "image_chunks": len(image_info["uris"]),
     }
+
+def ingest_repo_files_into_chroma(
+    repo_url: str,
+    arxiv_id: str,
+    repo_files: List[Dict[str, Any]],
+    base_metadata: Dict[str, Any],
+) -> int:
+    """
+    Ingest GitHub repo files (including README text) into Chroma.
+    repo_files: each item should contain {"path": "...", "content": "..."}
+    """
+    embedder = NomicEmbeddingService()
+    chroma = ChromaService(embedding_fn=embedder.embedder)
+
+    documents = []
+    readme_text = ""
+
+    # 1) extract README if exists
+    for f in repo_files:
+        name = f.get("path", "").lower()
+        if "readme" in name:
+            readme_text = f.get("content") or ""
+
+    # 2) generate metadata template
+    for f in repo_files:
+        text = f.get("content")
+        if not text:
+            continue
+
+        filename = f.get("path", "unknown")
+
+        merged_meta = {
+            **base_metadata,  
+            "repo_url": repo_url,
+            "root_id": arxiv_id,  
+            "type": "repo",
+            "filename": filename,
+            "github_readme": readme_text,
+        }
+
+        documents.append(
+            Document(
+                page_content=text,
+                metadata=merged_meta,
+            )
+        )
+
+    if documents:
+        chroma.vectorstore.add_documents(documents, embedding_fn=embedder.embedder)
+
+    return len(documents)
