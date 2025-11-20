@@ -46,6 +46,16 @@ export interface AddPaperVariables {
   pdfUrl?: string | null;
 }
 
+export interface AddSearchHistoryData {
+  searchHistory_insert: SearchHistory_Key;
+}
+
+export interface AddSearchHistoryVariables {
+  userId: UUIDString;
+  query: string;
+  resultsCount?: number | null;
+}
+
 export interface ChatPaper_Key {
   chatId: UUIDString;
   paperId: UUIDString;
@@ -258,6 +268,7 @@ export interface ListPapersData {
       arxivId?: string | null;
       ingestionStatus: string;
       citationCount?: number | null;
+      isFavorite: boolean;
       createdAt: TimestampString;
       pdfUrl?: string | null;
   } & Paper_Key)[];
@@ -267,9 +278,27 @@ export interface ListPapersVariables {
   userId: UUIDString;
 }
 
+export interface ListSearchHistoryData {
+  searchHistories: ({
+    id: UUIDString;
+    query: string;
+    resultsCount?: number | null;
+    createdAt: TimestampString;
+  } & SearchHistory_Key)[];
+}
+
+export interface ListSearchHistoryVariables {
+  userId: UUIDString;
+}
+
 export interface Paper_Key {
   id: UUIDString;
   __typename?: 'Paper_Key';
+}
+
+export interface SearchHistory_Key {
+  id: UUIDString;
+  __typename?: 'SearchHistory_Key';
 }
 
 export interface SearchPapersData {
@@ -290,6 +319,15 @@ export interface SearchPapersData {
 export interface SearchPapersVariables {
   userId: UUIDString;
   searchTerm: string;
+}
+
+export interface TogglePaperFavoriteData {
+  paper_update?: Paper_Key | null;
+}
+
+export interface TogglePaperFavoriteVariables {
+  paperId: UUIDString;
+  isFavorite: boolean;
 }
 
 export interface UpdateChatSessionData {
@@ -314,138 +352,6 @@ export interface User_Key {
   id: UUIDString;
   __typename?: 'User_Key';
 }
-
-interface CreateUserRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: CreateUserVariables): MutationRef<CreateUserData, CreateUserVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: CreateUserVariables): MutationRef<CreateUserData, CreateUserVariables>;
-  operationName: string;
-}
-export const createUserRef: CreateUserRef;
-
-export function createUser(vars: CreateUserVariables): MutationPromise<CreateUserData, CreateUserVariables>;
-export function createUser(dc: DataConnect, vars: CreateUserVariables): MutationPromise<CreateUserData, CreateUserVariables>;
-
-interface AddPaperRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: AddPaperVariables): MutationRef<AddPaperData, AddPaperVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: AddPaperVariables): MutationRef<AddPaperData, AddPaperVariables>;
-  operationName: string;
-}
-export const addPaperRef: AddPaperRef;
-
-export function addPaper(vars: AddPaperVariables): MutationPromise<AddPaperData, AddPaperVariables>;
-export function addPaper(dc: DataConnect, vars: AddPaperVariables): MutationPromise<AddPaperData, AddPaperVariables>;
-
-interface UpdatePaperIngestionStatusRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: UpdatePaperIngestionStatusVariables): MutationRef<UpdatePaperIngestionStatusData, UpdatePaperIngestionStatusVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: UpdatePaperIngestionStatusVariables): MutationRef<UpdatePaperIngestionStatusData, UpdatePaperIngestionStatusVariables>;
-  operationName: string;
-}
-export const updatePaperIngestionStatusRef: UpdatePaperIngestionStatusRef;
-
-export function updatePaperIngestionStatus(vars: UpdatePaperIngestionStatusVariables): MutationPromise<UpdatePaperIngestionStatusData, UpdatePaperIngestionStatusVariables>;
-export function updatePaperIngestionStatus(dc: DataConnect, vars: UpdatePaperIngestionStatusVariables): MutationPromise<UpdatePaperIngestionStatusData, UpdatePaperIngestionStatusVariables>;
-
-interface DeletePaperRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: DeletePaperVariables): MutationRef<DeletePaperData, DeletePaperVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: DeletePaperVariables): MutationRef<DeletePaperData, DeletePaperVariables>;
-  operationName: string;
-}
-export const deletePaperRef: DeletePaperRef;
-
-export function deletePaper(vars: DeletePaperVariables): MutationPromise<DeletePaperData, DeletePaperVariables>;
-export function deletePaper(dc: DataConnect, vars: DeletePaperVariables): MutationPromise<DeletePaperData, DeletePaperVariables>;
-
-interface CreateChatSessionRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: CreateChatSessionVariables): MutationRef<CreateChatSessionData, CreateChatSessionVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: CreateChatSessionVariables): MutationRef<CreateChatSessionData, CreateChatSessionVariables>;
-  operationName: string;
-}
-export const createChatSessionRef: CreateChatSessionRef;
-
-export function createChatSession(vars: CreateChatSessionVariables): MutationPromise<CreateChatSessionData, CreateChatSessionVariables>;
-export function createChatSession(dc: DataConnect, vars: CreateChatSessionVariables): MutationPromise<CreateChatSessionData, CreateChatSessionVariables>;
-
-interface UpdateChatSessionRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: UpdateChatSessionVariables): MutationRef<UpdateChatSessionData, UpdateChatSessionVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: UpdateChatSessionVariables): MutationRef<UpdateChatSessionData, UpdateChatSessionVariables>;
-  operationName: string;
-}
-export const updateChatSessionRef: UpdateChatSessionRef;
-
-export function updateChatSession(vars: UpdateChatSessionVariables): MutationPromise<UpdateChatSessionData, UpdateChatSessionVariables>;
-export function updateChatSession(dc: DataConnect, vars: UpdateChatSessionVariables): MutationPromise<UpdateChatSessionData, UpdateChatSessionVariables>;
-
-interface DeleteChatSessionRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: DeleteChatSessionVariables): MutationRef<DeleteChatSessionData, DeleteChatSessionVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: DeleteChatSessionVariables): MutationRef<DeleteChatSessionData, DeleteChatSessionVariables>;
-  operationName: string;
-}
-export const deleteChatSessionRef: DeleteChatSessionRef;
-
-export function deleteChatSession(vars: DeleteChatSessionVariables): MutationPromise<DeleteChatSessionData, DeleteChatSessionVariables>;
-export function deleteChatSession(dc: DataConnect, vars: DeleteChatSessionVariables): MutationPromise<DeleteChatSessionData, DeleteChatSessionVariables>;
-
-interface AddChatRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: AddChatVariables): MutationRef<AddChatData, AddChatVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: AddChatVariables): MutationRef<AddChatData, AddChatVariables>;
-  operationName: string;
-}
-export const addChatRef: AddChatRef;
-
-export function addChat(vars: AddChatVariables): MutationPromise<AddChatData, AddChatVariables>;
-export function addChat(dc: DataConnect, vars: AddChatVariables): MutationPromise<AddChatData, AddChatVariables>;
-
-interface LinkPaperToChatRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: LinkPaperToChatVariables): MutationRef<LinkPaperToChatData, LinkPaperToChatVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: LinkPaperToChatVariables): MutationRef<LinkPaperToChatData, LinkPaperToChatVariables>;
-  operationName: string;
-}
-export const linkPaperToChatRef: LinkPaperToChatRef;
-
-export function linkPaperToChat(vars: LinkPaperToChatVariables): MutationPromise<LinkPaperToChatData, LinkPaperToChatVariables>;
-export function linkPaperToChat(dc: DataConnect, vars: LinkPaperToChatVariables): MutationPromise<LinkPaperToChatData, LinkPaperToChatVariables>;
-
-interface AddCodeLinkRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: AddCodeLinkVariables): MutationRef<AddCodeLinkData, AddCodeLinkVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: AddCodeLinkVariables): MutationRef<AddCodeLinkData, AddCodeLinkVariables>;
-  operationName: string;
-}
-export const addCodeLinkRef: AddCodeLinkRef;
-
-export function addCodeLink(vars: AddCodeLinkVariables): MutationPromise<AddCodeLinkData, AddCodeLinkVariables>;
-export function addCodeLink(dc: DataConnect, vars: AddCodeLinkVariables): MutationPromise<AddCodeLinkData, AddCodeLinkVariables>;
-
-interface DeleteCodeLinkRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: DeleteCodeLinkVariables): MutationRef<DeleteCodeLinkData, DeleteCodeLinkVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: DeleteCodeLinkVariables): MutationRef<DeleteCodeLinkData, DeleteCodeLinkVariables>;
-  operationName: string;
-}
-export const deleteCodeLinkRef: DeleteCodeLinkRef;
-
-export function deleteCodeLink(vars: DeleteCodeLinkVariables): MutationPromise<DeleteCodeLinkData, DeleteCodeLinkVariables>;
-export function deleteCodeLink(dc: DataConnect, vars: DeleteCodeLinkVariables): MutationPromise<DeleteCodeLinkData, DeleteCodeLinkVariables>;
 
 interface GetUserByEmailRef {
   /* Allow users to create refs without passing in DataConnect */
@@ -566,4 +472,172 @@ export const getCodeLinksForPaperRef: GetCodeLinksForPaperRef;
 
 export function getCodeLinksForPaper(vars: GetCodeLinksForPaperVariables): QueryPromise<GetCodeLinksForPaperData, GetCodeLinksForPaperVariables>;
 export function getCodeLinksForPaper(dc: DataConnect, vars: GetCodeLinksForPaperVariables): QueryPromise<GetCodeLinksForPaperData, GetCodeLinksForPaperVariables>;
+
+interface ListSearchHistoryRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: ListSearchHistoryVariables): QueryRef<ListSearchHistoryData, ListSearchHistoryVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: ListSearchHistoryVariables): QueryRef<ListSearchHistoryData, ListSearchHistoryVariables>;
+  operationName: string;
+}
+export const listSearchHistoryRef: ListSearchHistoryRef;
+
+export function listSearchHistory(vars: ListSearchHistoryVariables): QueryPromise<ListSearchHistoryData, ListSearchHistoryVariables>;
+export function listSearchHistory(dc: DataConnect, vars: ListSearchHistoryVariables): QueryPromise<ListSearchHistoryData, ListSearchHistoryVariables>;
+
+interface CreateUserRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: CreateUserVariables): MutationRef<CreateUserData, CreateUserVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: CreateUserVariables): MutationRef<CreateUserData, CreateUserVariables>;
+  operationName: string;
+}
+export const createUserRef: CreateUserRef;
+
+export function createUser(vars: CreateUserVariables): MutationPromise<CreateUserData, CreateUserVariables>;
+export function createUser(dc: DataConnect, vars: CreateUserVariables): MutationPromise<CreateUserData, CreateUserVariables>;
+
+interface AddPaperRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: AddPaperVariables): MutationRef<AddPaperData, AddPaperVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: AddPaperVariables): MutationRef<AddPaperData, AddPaperVariables>;
+  operationName: string;
+}
+export const addPaperRef: AddPaperRef;
+
+export function addPaper(vars: AddPaperVariables): MutationPromise<AddPaperData, AddPaperVariables>;
+export function addPaper(dc: DataConnect, vars: AddPaperVariables): MutationPromise<AddPaperData, AddPaperVariables>;
+
+interface UpdatePaperIngestionStatusRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: UpdatePaperIngestionStatusVariables): MutationRef<UpdatePaperIngestionStatusData, UpdatePaperIngestionStatusVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: UpdatePaperIngestionStatusVariables): MutationRef<UpdatePaperIngestionStatusData, UpdatePaperIngestionStatusVariables>;
+  operationName: string;
+}
+export const updatePaperIngestionStatusRef: UpdatePaperIngestionStatusRef;
+
+export function updatePaperIngestionStatus(vars: UpdatePaperIngestionStatusVariables): MutationPromise<UpdatePaperIngestionStatusData, UpdatePaperIngestionStatusVariables>;
+export function updatePaperIngestionStatus(dc: DataConnect, vars: UpdatePaperIngestionStatusVariables): MutationPromise<UpdatePaperIngestionStatusData, UpdatePaperIngestionStatusVariables>;
+
+interface DeletePaperRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: DeletePaperVariables): MutationRef<DeletePaperData, DeletePaperVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: DeletePaperVariables): MutationRef<DeletePaperData, DeletePaperVariables>;
+  operationName: string;
+}
+export const deletePaperRef: DeletePaperRef;
+
+export function deletePaper(vars: DeletePaperVariables): MutationPromise<DeletePaperData, DeletePaperVariables>;
+export function deletePaper(dc: DataConnect, vars: DeletePaperVariables): MutationPromise<DeletePaperData, DeletePaperVariables>;
+
+interface TogglePaperFavoriteRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: TogglePaperFavoriteVariables): MutationRef<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: TogglePaperFavoriteVariables): MutationRef<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+  operationName: string;
+}
+export const togglePaperFavoriteRef: TogglePaperFavoriteRef;
+
+export function togglePaperFavorite(vars: TogglePaperFavoriteVariables): MutationPromise<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+export function togglePaperFavorite(dc: DataConnect, vars: TogglePaperFavoriteVariables): MutationPromise<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+
+interface CreateChatSessionRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: CreateChatSessionVariables): MutationRef<CreateChatSessionData, CreateChatSessionVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: CreateChatSessionVariables): MutationRef<CreateChatSessionData, CreateChatSessionVariables>;
+  operationName: string;
+}
+export const createChatSessionRef: CreateChatSessionRef;
+
+export function createChatSession(vars: CreateChatSessionVariables): MutationPromise<CreateChatSessionData, CreateChatSessionVariables>;
+export function createChatSession(dc: DataConnect, vars: CreateChatSessionVariables): MutationPromise<CreateChatSessionData, CreateChatSessionVariables>;
+
+interface UpdateChatSessionRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: UpdateChatSessionVariables): MutationRef<UpdateChatSessionData, UpdateChatSessionVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: UpdateChatSessionVariables): MutationRef<UpdateChatSessionData, UpdateChatSessionVariables>;
+  operationName: string;
+}
+export const updateChatSessionRef: UpdateChatSessionRef;
+
+export function updateChatSession(vars: UpdateChatSessionVariables): MutationPromise<UpdateChatSessionData, UpdateChatSessionVariables>;
+export function updateChatSession(dc: DataConnect, vars: UpdateChatSessionVariables): MutationPromise<UpdateChatSessionData, UpdateChatSessionVariables>;
+
+interface DeleteChatSessionRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: DeleteChatSessionVariables): MutationRef<DeleteChatSessionData, DeleteChatSessionVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: DeleteChatSessionVariables): MutationRef<DeleteChatSessionData, DeleteChatSessionVariables>;
+  operationName: string;
+}
+export const deleteChatSessionRef: DeleteChatSessionRef;
+
+export function deleteChatSession(vars: DeleteChatSessionVariables): MutationPromise<DeleteChatSessionData, DeleteChatSessionVariables>;
+export function deleteChatSession(dc: DataConnect, vars: DeleteChatSessionVariables): MutationPromise<DeleteChatSessionData, DeleteChatSessionVariables>;
+
+interface AddChatRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: AddChatVariables): MutationRef<AddChatData, AddChatVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: AddChatVariables): MutationRef<AddChatData, AddChatVariables>;
+  operationName: string;
+}
+export const addChatRef: AddChatRef;
+
+export function addChat(vars: AddChatVariables): MutationPromise<AddChatData, AddChatVariables>;
+export function addChat(dc: DataConnect, vars: AddChatVariables): MutationPromise<AddChatData, AddChatVariables>;
+
+interface LinkPaperToChatRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: LinkPaperToChatVariables): MutationRef<LinkPaperToChatData, LinkPaperToChatVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: LinkPaperToChatVariables): MutationRef<LinkPaperToChatData, LinkPaperToChatVariables>;
+  operationName: string;
+}
+export const linkPaperToChatRef: LinkPaperToChatRef;
+
+export function linkPaperToChat(vars: LinkPaperToChatVariables): MutationPromise<LinkPaperToChatData, LinkPaperToChatVariables>;
+export function linkPaperToChat(dc: DataConnect, vars: LinkPaperToChatVariables): MutationPromise<LinkPaperToChatData, LinkPaperToChatVariables>;
+
+interface AddCodeLinkRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: AddCodeLinkVariables): MutationRef<AddCodeLinkData, AddCodeLinkVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: AddCodeLinkVariables): MutationRef<AddCodeLinkData, AddCodeLinkVariables>;
+  operationName: string;
+}
+export const addCodeLinkRef: AddCodeLinkRef;
+
+export function addCodeLink(vars: AddCodeLinkVariables): MutationPromise<AddCodeLinkData, AddCodeLinkVariables>;
+export function addCodeLink(dc: DataConnect, vars: AddCodeLinkVariables): MutationPromise<AddCodeLinkData, AddCodeLinkVariables>;
+
+interface DeleteCodeLinkRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: DeleteCodeLinkVariables): MutationRef<DeleteCodeLinkData, DeleteCodeLinkVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: DeleteCodeLinkVariables): MutationRef<DeleteCodeLinkData, DeleteCodeLinkVariables>;
+  operationName: string;
+}
+export const deleteCodeLinkRef: DeleteCodeLinkRef;
+
+export function deleteCodeLink(vars: DeleteCodeLinkVariables): MutationPromise<DeleteCodeLinkData, DeleteCodeLinkVariables>;
+export function deleteCodeLink(dc: DataConnect, vars: DeleteCodeLinkVariables): MutationPromise<DeleteCodeLinkData, DeleteCodeLinkVariables>;
+
+interface AddSearchHistoryRef {
+  /* Allow users to create refs without passing in DataConnect */
+  (vars: AddSearchHistoryVariables): MutationRef<AddSearchHistoryData, AddSearchHistoryVariables>;
+  /* Allow users to pass in custom DataConnect instances */
+  (dc: DataConnect, vars: AddSearchHistoryVariables): MutationRef<AddSearchHistoryData, AddSearchHistoryVariables>;
+  operationName: string;
+}
+export const addSearchHistoryRef: AddSearchHistoryRef;
+
+export function addSearchHistory(vars: AddSearchHistoryVariables): MutationPromise<AddSearchHistoryData, AddSearchHistoryVariables>;
+export function addSearchHistory(dc: DataConnect, vars: AddSearchHistoryVariables): MutationPromise<AddSearchHistoryData, AddSearchHistoryVariables>;
 
