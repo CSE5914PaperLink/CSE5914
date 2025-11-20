@@ -1,81 +1,147 @@
 from __future__ import annotations
 
-from typing import List, Optional
-import json
+from typing import List, Optional, Union, Dict, Any
+from dataclasses import dataclass, asdict
+import base64
+from io import BytesIO
+from PIL import Image
+import shutil
 
 from langchain_nomic import NomicEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores.utils import filter_complex_metadata
+from langchain_core.documents import Document
+
 
 from app.services.docling_service import DoclingService
 from app.services.chroma_service import ChromaService
+from app.core.config import settings
+
+@dataclass
+class PdfMetadata:
+    """Structured metadata for PDF documents (e.g., arXiv papers)."""
+
+    doc_id: str
+    pdf_url: str
+    title: str
+    summary: str
+    published: str
+    authors: List[str]
 
 
 class NomicEmbeddingService:
-    """Service for local Nomic embeddings."""
+    """Service for local Nomic embeddings with multimodal support."""
 
     def __init__(self):
-        self.embedder = NomicEmbeddings(
+        self.embedder = NomicEmbeddings(  # type: ignore[call-arg]
             model="nomic-embed-text-v1.5",
-            inference_mode="local",
-        )
-        self.splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
+            inference_mode="remote",
+            nomic_api_key=settings.nomic_api_key,
+            vision_model="nomic-embed-vision-v1.5",
         )
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """
+        Embed text documents.
+        Documents are automatically prefixed with 'search_document:' by the model.
+        """
         return self.embedder.embed_documents(texts)
 
     def embed_query(self, text: str) -> List[float]:
+        """
+        Embed a single text query.
+        Queries should be prefixed with 'search_query:' for optimal retrieval.
+        """
+        # Add search_query prefix if not already present
         return self.embedder.embed_query(text)
 
+    def embed_images(
+        self, images: List[Union[Image.Image, bytes, str]]
+    ) -> List[List[float]]:
+        """
+        Embed images using nomic-embed-vision-v1.5.
 
-def ingest_pdf_bytes_into_chroma(
-    pdf_bytes: bytes,
-    doc_id: str,
-    extra_metadata: Optional[dict] = None,
-) -> dict:
-    """
-    Ingest PDF into Chroma with text chunks and image metadata.
-    Returns dict with ingestion stats including image count.
-    """
+        Args:
+            images: List of PIL Images, raw bytes, or base64 strings
+
+        Returns:
+            List of embedding vectors
+        """
+        # Convert all images to PIL Images for Nomic vision model
+        # The nomic.embed.image() function accepts PIL Images and converts them internally
+        pil_images = []
+        for img in images:
+            if isinstance(img, Image.Image):
+                pil_images.append(img)
+            elif isinstance(img, bytes):
+                pil_images.append(Image.open(BytesIO(img)))
+            elif isinstance(img, str):
+                # Assume base64 encoded string
+                img_bytes = base64.b64decode(img)
+                pil_images.append(Image.open(BytesIO(img_bytes)))
+            else:
+                raise ValueError(f"Unsupported image type: {type(img)}")
+
+        embeddings = self.embedder.embed_image(pil_images)
+        dim = len(embeddings[0]) if embeddings else 0
+        print(f"DEBUG: Nomic returned {len(embeddings)} image embeddings, dim={dim}")
+        if embeddings:
+            print(f"DEBUG: First 5 dims of first image embedding: {embeddings[0][:5]}")
+        return embeddings
+
+
+def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
     docling = DoclingService()
-    meta = docling.extract_from_bytes(pdf_bytes)
-    markdown = meta.markdown or ""
+    docs = docling.extract_from_bytes(pdf_bytes)
 
-    if not markdown.strip():
-        raise RuntimeError("No content extracted from PDF")
+    image_info = docs["images"]
+    chunk_info = docs["chunks"]
 
     embedder = NomicEmbeddingService()
-    chunks = embedder.splitter.create_documents([markdown])
+    chroma = ChromaService(embedding_fn=embedder.embedder)
 
-    chunk_texts = [chunk.page_content for chunk in chunks]
-    chunk_ids = [f"{doc_id}::chunk::{i}" for i in range(len(chunks))]
-    embeddings = embedder.embed_texts(chunk_texts)
-    emb_dim = len(embeddings[0]) if embeddings and embeddings[0] else None
+    chroma_text_docs = []
+    # Text metadata: doc_id, title, type, page, bbox_*, headings
+    for chunk in chunk_info:
+        merged_meta = {
+            **chunk["metadata"],  # docling chunk metadata
+            "doc_id": extra_metadata.doc_id,
+            "title": extra_metadata.title,
+            "type": "text",
+        }
+        chroma_text_docs.append(
+            Document(
+                page_content=chunk["text"],
+                metadata=merged_meta,
+            )
+        )
+        print("\n\n\n\nChunk:", chunk["text"])
+    chroma.vectorstore.add_documents(chroma_text_docs, embedding_fn=embedder.embedder)
 
-    base_metadata = {"doc_id": doc_id, "source": "docling", "format": "pdf"}
-    if extra_metadata:
-        base_metadata.update(extra_metadata)
+    # Image metadata: doc_id, title, type, picture_number, page, caption, bbox_*
+    for meta in image_info["metadatas"]:
+        meta.update(
+            {
+                "doc_id": extra_metadata.doc_id,
+                "title": extra_metadata.title,
+                "type": "image",
+            }
+        )
 
-    # Serialize images as JSON strings for Chroma compatibility
-    images_json = json.dumps(
-        [{"filename": img.filename, "data_base64": img.data_base64, "media_type": img.media_type, "page": img.page}
-         for img in (meta.images or [])]
+    chroma.vectorstore.add_images(
+        image_info["uris"],
+        metadatas=image_info["metadatas"],
+        ids=image_info["ids"],
     )
 
-    metadatas = [
-        {**base_metadata, "chunk_index": i, "preview": text[:200], "images": images_json}
-        for i, text in enumerate(chunk_texts)
-    ]
+    # Cleanup
+    if image_info["tmp_dir"]:
+        shutil.rmtree(image_info["tmp_dir"], ignore_errors=True)
 
-    chroma = ChromaService(embedding_dim=emb_dim)
-    chroma.upsert(
-        ids=chunk_ids,
-        embeddings=embeddings,
-        documents=chunk_texts,
-        metadatas=metadatas,
+    print(
+        f"INGESTED PDF: {len(chunk_info)} text chunks, {len(image_info['uris'])} image chunks"
     )
 
-    print(f"Ingested {len(chunk_ids)} chunks and {len(meta.images or [])} images for {doc_id}")
-    return {"chunks": len(chunk_ids), "images": len(meta.images or [])}
+    return {
+        "text_chunks": len(chunk_info),
+        "image_chunks": len(image_info["uris"]),
+    }

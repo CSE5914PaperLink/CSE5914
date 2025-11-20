@@ -77,7 +77,7 @@ export function Sidebar({
       (it.id.includes("::chunk::") ? it.id.split("::chunk::")[0] : it.id);
     const title =
       (md?.title as string | undefined) ||
-      (md?.arxiv_id as string | undefined) ||
+      (md?.doc_id as string | undefined) ||
       rootId;
     if (!grouped.has(rootId)) {
       grouped.set(rootId, {

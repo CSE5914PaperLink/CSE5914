@@ -7,13 +7,13 @@ import Link from "next/link";
 import { signOutUser } from "@/lib/firebase";
 
 export default function ProfilePage() {
-  const { firebaseUser, dataConnectUserId, loading } = useUser(); 
+  const { firebaseUser, dataConnectUserId, loading } = useUser();
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  const [topTags, setTopTags] = useState<{ name: string; count: number }[]>([]); 
+  const [topTags, setTopTags] = useState<{ name: string; count: number }[]>([]);
   const [tagLoading, setTagLoading] = useState(false);
 
   useEffect(() => {
@@ -30,17 +30,22 @@ export default function ProfilePage() {
     const fetchAndComputeTags = async () => {
       try {
         setTagLoading(true);
-        const res = await fetch(`/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`);
+        const res = await fetch(
+          `/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`
+        );
         if (!res.ok) return;
         const data = await res.json();
         const items = data.results || [];
-        
+
         // Compute tag frequency based on title keywords (simple split by space)
         const tagCounts: Record<string, number> = {};
         items.forEach((item: any) => {
-          const titleWords = (item?.metadata?.title || "").toLowerCase().split(/[\s:,-]+/);
+          const titleWords = (item?.metadata?.title || "")
+            .toLowerCase()
+            .split(/[\s:,-]+/);
           titleWords.forEach((word: string) => {
-            if (word.length > 3) { // ignore stop-words / short words
+            if (word.length > 3) {
+              // ignore stop-words / short words
               tagCounts[word] = (tagCounts[word] || 0) + 1;
             }
           });
@@ -63,7 +68,7 @@ export default function ProfilePage() {
 
   const handleSaveName = async () => {
     if (!firebaseUser) return;
-    
+
     setIsSaving(true);
     try {
       // Update display name in Firebase
@@ -97,14 +102,6 @@ export default function ProfilePage() {
 
   return (
     <div className="bg-gray-50 font-sans text-gray-800 min-h-screen flex flex-col">
-      {/* Header */}
-      <div className="bg-linear-to-r from-blue-700 via-blue-600 to-blue-500 text-white py-16">
-        <div className="max-w-4xl mx-auto px-6">
-          <h1 className="text-4xl font-extrabold tracking-tight">My Profile</h1>
-          <p className="text-blue-100 mt-2">Manage your account settings and preferences</p>
-        </div>
-      </div>
-
       {/* Main Content */}
       <main className="max-w-4xl mx-auto w-full px-6 py-12 flex-1">
         {/* Profile Card */}
@@ -114,7 +111,9 @@ export default function ProfilePage() {
             <div className="flex-shrink-0">
               <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
                 <span className="text-4xl font-bold text-white">
-                  {(firebaseUser.displayName || firebaseUser.email || "U")[0].toUpperCase()}
+                  {(firebaseUser.displayName ||
+                    firebaseUser.email ||
+                    "U")[0].toUpperCase()}
                 </span>
               </div>
             </div>
@@ -128,8 +127,11 @@ export default function ProfilePage() {
                   </h2>
                   <p className="text-gray-600">{firebaseUser.email}</p>
                   <p className="text-gray-500 text-sm mt-1">
-                    Joined {firebaseUser.metadata?.creationTime 
-                      ? new Date(firebaseUser.metadata.creationTime).toLocaleDateString()
+                    Joined{" "}
+                    {firebaseUser.metadata?.creationTime
+                      ? new Date(
+                          firebaseUser.metadata.creationTime
+                        ).toLocaleDateString()
                       : "recently"}
                   </p>
                 </div>
@@ -150,21 +152,24 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          
 
-          
           {/* Top Tags Section */}
           <div className="bg-white rounded-2xl shadow-md p-8 mb-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Your Top Topics</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-4">
+              Your Top Topics
+            </h3>
             {tagLoading ? (
               <p className="text-gray-500">Loading...</p>
             ) : topTags.length === 0 ? (
-              <p className="text-gray-500 italic">No data yet. Add some papers to your library!</p>
+              <p className="text-gray-500 italic">
+                No data yet. Add some papers to your library!
+              </p>
             ) : (
               <ul className="space-y-2">
                 {topTags.map((tag) => (
                   <li key={tag.name} className="text-gray-700">
-                    <span className="font-semibold">{tag.name}</span> · {tag.count} paper(s)
+                    <span className="font-semibold">{tag.name}</span> ·{" "}
+                    {tag.count} paper(s)
                   </li>
                 ))}
               </ul>
@@ -174,7 +179,9 @@ export default function ProfilePage() {
           {/* Edit Mode */}
           {isEditing && (
             <div className="mt-8 pt-8 border-t border-gray-200">
-              <h3 className="text-lg font-semibold mb-4 text-gray-900">Edit Profile</h3>
+              <h3 className="text-lg font-semibold mb-4 text-gray-900">
+                Edit Profile
+              </h3>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -231,15 +238,19 @@ export default function ProfilePage() {
 
         {/* Account Settings */}
         <div className="bg-white rounded-2xl shadow-md p-8 mb-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">Account Settings</h3>
-          
+          <h3 className="text-xl font-bold text-gray-900 mb-6">
+            Account Settings
+          </h3>
+
           <div className="space-y-4">
             <div className="flex items-center justify-between py-4 border-b border-gray-200">
               <div>
                 <h4 className="font-semibold text-gray-900">Email</h4>
                 <p className="text-gray-600 text-sm">{firebaseUser.email}</p>
               </div>
-              <span className="text-green-600 text-sm font-medium">✓ Verified</span>
+              <span className="text-green-600 text-sm font-medium">
+                ✓ Verified
+              </span>
             </div>
           </div>
         </div>
@@ -257,16 +268,28 @@ export default function ProfilePage() {
         <div className="max-w-4xl mx-auto px-6">
           <h3 className="font-semibold text-gray-900 mb-4">Quick Links</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link href="/chat" className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
+            <Link
+              href="/chat"
+              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            >
               → Chat
             </Link>
-            <Link href="/library" className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
+            <Link
+              href="/library"
+              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            >
               → Library
             </Link>
-            <Link href="/discovery" className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
+            <Link
+              href="/discovery"
+              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            >
               → Discovery
             </Link>
-            <Link href="/" className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
+            <Link
+              href="/"
+              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            >
               → Home
             </Link>
           </div>

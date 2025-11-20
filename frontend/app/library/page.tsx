@@ -10,7 +10,7 @@ interface LibraryItem {
   metadata: {
     title: string;
     authors: string[];
-    arxiv_id: string | null;
+    doc_id: string | null;
     year: number | null;
     abstract: string | null;
     ingestion_status: string;
@@ -34,20 +34,26 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedPaperId, setExpandedPaperId] = useState<string | null>(null);
-  const [paperImages, setPaperImages] = useState<Record<string, ImageAsset[]>>({});
-  const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({});
+  const [paperImages, setPaperImages] = useState<Record<string, ImageAsset[]>>(
+    {}
+  );
+  const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>(
+    {}
+  );
 
   const fetchItems = async () => {
     if (!dataConnectUserId) return;
-    
+
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`);
+      const res = await fetch(
+        `/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load library");
       setItems(data.results || []);
-      
+
       // Check status of any processing papers
       await checkProcessingPapers(data.results || []);
     } catch (e) {
@@ -58,41 +64,48 @@ export default function LibraryPage() {
   };
 
   const checkProcessingPapers = async (papers: LibraryItem[]) => {
-    const processingPapers = papers.filter(p => p.metadata.ingestion_status === 'processing');
-    
+    const processingPapers = papers.filter(
+      (p) => p.metadata.ingestion_status === "processing"
+    );
+
     for (const paper of processingPapers) {
-      if (!paper.metadata.arxiv_id) continue;
-      
+      if (!paper.metadata.doc_id) continue;
+
       try {
-        const res = await fetch('/api/library/check-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const res = await fetch("/api/library/check-status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             paperId: paper.dataconnect_id,
-            arxivId: paper.metadata.arxiv_id
-          })
+            arxivId: paper.metadata.doc_id,
+          }),
         });
-        
+
         if (res.ok) {
           const statusData = await res.json();
           if (statusData.updated) {
-            // Refresh the list to show updated status
             fetchItems();
-            break; // Only refresh once
+            break;
           }
         }
       } catch (e) {
-        console.error(`Failed to check status for ${paper.metadata.arxiv_id}:`, e);
+        console.error(
+          `Failed to check status for ${paper.metadata.doc_id}:`,
+          e
+        );
       }
     }
   };
 
   const handleDelete = async (dataconnectId: string) => {
-    if (!confirm("Are you sure you want to delete this paper from your library?")) return;
-    
+    if (
+      !confirm("Are you sure you want to delete this paper from your library?")
+    )
+      return;
+
     try {
       await deletePaper({ paperId: dataconnectId });
-      setItems(items.filter(p => p.dataconnect_id !== dataconnectId));
+      setItems(items.filter((p) => p.dataconnect_id !== dataconnectId));
     } catch (e) {
       alert("Failed to delete paper: " + (e as Error).message);
     }
@@ -105,14 +118,15 @@ export default function LibraryPage() {
       return;
     }
 
-    setLoadingImages(prev => ({ ...prev, [docId]: true }));
+    setLoadingImages((prev) => ({ ...prev, [docId]: true }));
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
       const res = await fetch(`${backendUrl}/library/images/${docId}`);
       if (!res.ok) {
         if (res.status === 404) {
           // No images for this paper
-          setPaperImages(prev => ({ ...prev, [docId]: [] }));
+          setPaperImages((prev) => ({ ...prev, [docId]: [] }));
         } else {
           throw new Error("Failed to fetch images");
         }
@@ -120,14 +134,14 @@ export default function LibraryPage() {
         const data = await res.json();
         // Backend returns {doc_id, images}, extract images array
         const images = data.images || [];
-        setPaperImages(prev => ({ ...prev, [docId]: images }));
+        setPaperImages((prev) => ({ ...prev, [docId]: images }));
       }
       setExpandedPaperId(docId);
     } catch (e) {
       console.error("Error fetching images:", e);
       alert("Failed to load images: " + (e as Error).message);
     } finally {
-      setLoadingImages(prev => ({ ...prev, [docId]: false }));
+      setLoadingImages((prev) => ({ ...prev, [docId]: false }));
     }
   };
 
@@ -147,15 +161,17 @@ export default function LibraryPage() {
 
   // Auto-refresh when there are processing papers
   useEffect(() => {
-    const hasProcessing = items.some(item => item.metadata.ingestion_status === 'processing');
-    
+    const hasProcessing = items.some(
+      (item) => item.metadata.ingestion_status === "processing"
+    );
+
     if (!hasProcessing) return;
-    
+
     const interval = setInterval(() => {
       console.log("Auto-checking processing papers...");
       fetchItems();
     }, 10000); // Check every 10 seconds
-    
+
     return () => clearInterval(interval);
   }, [items, dataConnectUserId]);
 
@@ -171,7 +187,9 @@ export default function LibraryPage() {
     return (
       <div className="bg-gray-50 min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600 mb-4">Please sign in to view your library</p>
+          <p className="text-gray-600 mb-4">
+            Please sign in to view your library
+          </p>
         </div>
       </div>
     );
@@ -228,58 +246,65 @@ export default function LibraryPage() {
         )}
         {!loading && (
           <div className="space-y-4">
-          {items.map((item) => {
-            const docId = item.id;
-            const isExpanded = expandedPaperId === docId;
-            const images = paperImages[docId] || [];
-            const isLoadingImages = loadingImages[docId] || false;
-            
-            return (
-              <div key={item.dataconnect_id} className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      {item.metadata.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-2">
-                      {Array.isArray(item.metadata.authors) 
-                        ? item.metadata.authors.join(", ")
-                        : item.metadata.authors}
-                    </p>
-                    {item.metadata.abstract && (
-                      <p className="text-gray-700 text-sm line-clamp-3 mb-3">
-                        {item.metadata.abstract}
+            {items.map((item) => {
+              const docId = item.id;
+              const isExpanded = expandedPaperId === docId;
+              const images = paperImages[docId] || [];
+              const isLoadingImages = loadingImages[docId] || false;
+
+              return (
+                <div
+                  key={item.dataconnect_id}
+                  className="bg-white rounded-lg shadow p-6"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        {item.metadata.title}
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-2">
+                        {Array.isArray(item.metadata.authors)
+                          ? item.metadata.authors.join(", ")
+                          : item.metadata.authors}
                       </p>
-                    )}
-                    <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-3 items-center">
-                      {item.metadata.arxiv_id && (
-                        <span>🆔 {item.metadata.arxiv_id}</span>
+                      {item.metadata.abstract && (
+                        <p className="text-gray-700 text-sm line-clamp-3 mb-3">
+                          {item.metadata.abstract}
+                        </p>
                       )}
-                      {item.metadata.year && (
-                        <span>📅 {item.metadata.year}</span>
-                      )}
-                      <span className={`px-2 py-1 rounded ${
-                        item.metadata.ingestion_status === 'completed' 
-                          ? 'bg-green-100 text-green-800' 
-                          : item.metadata.ingestion_status === 'processing'
-                          ? 'bg-blue-100 text-blue-800'
-                          : item.metadata.ingestion_status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : item.metadata.ingestion_status === 'failed'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {item.metadata.ingestion_status === 'processing' ? '⏳ Processing...' : item.metadata.ingestion_status}
-                      </span>
-                      {item.in_chromadb && (
-                        <span className="px-2 py-1 rounded bg-blue-100 text-blue-800">
-                          ✓ In Vector DB
+                      <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-3 items-center">
+                        {item.metadata.doc_id && (
+                          <span>🆔 {item.metadata.doc_id}</span>
+                        )}
+                        {item.metadata.year && (
+                          <span>📅 {item.metadata.year}</span>
+                        )}
+                        <span
+                          className={`px-2 py-1 rounded ${
+                            item.metadata.ingestion_status === "completed"
+                              ? "bg-green-100 text-green-800"
+                              : item.metadata.ingestion_status === "processing"
+                              ? "bg-blue-100 text-blue-800"
+                              : item.metadata.ingestion_status === "pending"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : item.metadata.ingestion_status === "failed"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {item.metadata.ingestion_status === "processing"
+                            ? "⏳ Processing..."
+                            : item.metadata.ingestion_status}
                         </span>
-                      )}
+                        {item.in_chromadb && (
+                          <span className="px-2 py-1 rounded bg-blue-100 text-blue-800">
+                            ✓ In Vector DB
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="shrink-0 flex gap-2">
-                    {/* <button
+                    <div className="shrink-0 flex gap-2">
+                      {/* <button
                       onClick={() => toggleImages(docId)}
                       className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded"
                       title="View images"
@@ -287,55 +312,63 @@ export default function LibraryPage() {
                     >
                       {isLoadingImages ? "Loading..." : isExpanded ? "Hide Images" : "View Images"}
                     </button> */}
-                    <button
-                      onClick={() => handleDelete(item.dataconnect_id)}
-                      className="px-3 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded"
-                      title="Delete paper"
-                    >
-                      Delete
-                    </button>
+                      <button
+                        onClick={() => handleDelete(item.dataconnect_id)}
+                        className="px-3 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded"
+                        title="Delete paper"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Image viewer dropdown */}
-                {isExpanded && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    {images.length === 0 ? (
-                      <p className="text-sm text-gray-500 italic">No images extracted from this paper.</p>
-                    ) : (
-                      <div className="space-y-3">
-                        <div className="text-sm font-semibold text-gray-700">
-                          Extracted Images ({images.length})
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                          {images.map((img, idx) => (
-                            <div key={idx} className="border rounded-lg overflow-hidden bg-gray-50 hover:shadow-md transition-shadow">
-                              <img
-                                src={`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}${img.url}`}
-                                alt={img.filename}
-                                className="w-full h-48 object-contain bg-white p-2"
-                                loading="lazy"
-                              />
-                              <div className="px-2 py-2 bg-gray-100">
-                                <div className="text-xs font-medium text-gray-700 truncate">
-                                  {img.filename}
-                                </div>
-                                {img.page !== undefined && (
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    Page {img.page}
+                  {/* Image viewer dropdown */}
+                  {isExpanded && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      {images.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">
+                          No images extracted from this paper.
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="text-sm font-semibold text-gray-700">
+                            Extracted Images ({images.length})
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {images.map((img, idx) => (
+                              <div
+                                key={idx}
+                                className="border rounded-lg overflow-hidden bg-gray-50 hover:shadow-md transition-shadow"
+                              >
+                                <img
+                                  src={`${
+                                    process.env.NEXT_PUBLIC_BACKEND_URL ||
+                                    "http://localhost:8000"
+                                  }${img.url}`}
+                                  alt={img.filename}
+                                  className="w-full h-48 object-contain bg-white p-2"
+                                  loading="lazy"
+                                />
+                                <div className="px-2 py-2 bg-gray-100">
+                                  <div className="text-xs font-medium text-gray-700 truncate">
+                                    {img.filename}
                                   </div>
-                                )}
+                                  {img.page !== undefined && (
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      Page {img.page}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
