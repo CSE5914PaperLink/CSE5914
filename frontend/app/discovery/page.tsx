@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useUser } from "@/contexts/UserContext";
 
 interface ArxivResult {
@@ -20,8 +20,16 @@ interface SearchFilters {
   has_fulltext?: boolean;
 }
 
+interface LibraryItem {
+  metadata?: { doc_id?: string; title?: string };
+}
+
+interface SearchHistoryEntry {
+  query?: string;
+}
+
 export default function DiscoveryPage() {
-  const { dataConnectUserId, firebaseUser } = useUser();
+  const { dataConnectUserId } = useUser();
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<SearchFilters>({});
   const [showFilters, setShowFilters] = useState(false);
@@ -48,11 +56,11 @@ export default function DiscoveryPage() {
         );
         if (res.ok) {
           const data = await res.json();
-          const items = data.results || [];
+          const items = (data.results || []) as LibraryItem[];
           const paperIds = new Set(
             items
-              .map((item: any) => item.metadata?.doc_id)
-              .filter((id: string | null) => id != null)
+              .map((item) => item.metadata?.doc_id)
+              .filter((id): id is string => id != null)
           );
           setLibraryPaperIds(paperIds);
         }
@@ -76,28 +84,29 @@ export default function DiscoveryPage() {
             dataConnectUserId
           )}`
         );
-        const historyData = (await historyRes.ok)
+        const historyData = historyRes.ok
           ? await historyRes.json()
           : { history: [] };
-        const searchHistory = historyData.history || [];
+        const searchHistory = (historyData.history ||
+          []) as SearchHistoryEntry[];
 
         // Fetch library papers to compute top topics
         const libraryRes = await fetch(
           `/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`
         );
-        const libraryData = (await libraryRes.ok)
+        const libraryData = libraryRes.ok
           ? await libraryRes.json()
           : { results: [] };
-        const items = libraryData.results || [];
+        const items = (libraryData.results || []) as LibraryItem[];
 
         // Extract search terms from history
         const historyTerms = searchHistory
-          .map((entry: any) => entry.query)
-          .filter((q: string) => q && q.trim().length > 0);
+          .map((entry) => entry.query)
+          .filter((q): q is string => Boolean(q && q.trim().length > 0));
 
         // Compute top topics from library paper titles
         const tagCounts: Record<string, number> = {};
-        items.forEach((item: any) => {
+        items.forEach((item) => {
           const titleWords = (item?.metadata?.title || "")
             .toLowerCase()
             .split(/[\s:,-]+/);
@@ -171,7 +180,7 @@ export default function DiscoveryPage() {
     }
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
+  const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
 
@@ -213,8 +222,12 @@ export default function DiscoveryPage() {
       return;
     }
 
-    // Add to processing set
-    setProcessingPapers((prev) => new Set(prev).add(arxivId));
+    // Add to processing set (create new Set)
+    setProcessingPapers((prev) => {
+      const s = new Set(prev);
+      s.add(arxivId);
+      return s;
+    });
 
     try {
       const res = await fetch(
@@ -227,8 +240,12 @@ export default function DiscoveryPage() {
         const data = await res.json();
         throw new Error(data.error || "Failed to add paper");
       }
-      // Add to library set
-      setLibraryPaperIds((prev) => new Set(prev).add(arxivId));
+      // Add to library set (create new Set)
+      setLibraryPaperIds((prev) => {
+        const s = new Set(prev);
+        s.add(arxivId);
+        return s;
+      });
     } catch (e) {
       alert((e as Error).message);
     } finally {
@@ -268,9 +285,9 @@ export default function DiscoveryPage() {
   const showEmptyState = papers.length === 0 && !loading && !error;
 
   return (
-    <main className="relative min-h-screen bg-gradient-to-b from-white via-slate-50 to-slate-100 text-slate-900">
+    <main className="relative min-h-screen bg-linear-to-b from-white via-slate-50 to-slate-100 text-slate-900">
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-blue-50/80 via-transparent to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-linear-to-b from-blue-50/80 via-transparent to-transparent"
         aria-hidden="true"
       />
       <div className="relative max-w-6xl mx-auto px-6 py-12">
@@ -331,7 +348,7 @@ export default function DiscoveryPage() {
                       />
                     </svg>
                   </div>
-                  <div className="flex flex-shrink-0 gap-3">
+                  <div className="flex shrink-0 gap-3">
                     <button
                       type="button"
                       onClick={handleUpload}
@@ -376,7 +393,7 @@ export default function DiscoveryPage() {
                         ></path>
                       </svg>
                       {appliedFilterCount > 0 && (
-                        <span className="absolute -top-1 -right-1 flex min-w-[20px] items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-xs font-semibold text-white">
+                        <span className="absolute -top-1 -right-1 flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-xs font-semibold text-white">
                           {appliedFilterCount}
                         </span>
                       )}
@@ -384,7 +401,7 @@ export default function DiscoveryPage() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="inline-flex flex-1 cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-300/50 transition hover:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex flex-1 cursor-pointer items-center justify-center rounded-2xl bg-linear-to-r from-blue-500 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-300/50 transition hover:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {loading ? "Searching..." : "Search"}
                     </button>
@@ -627,7 +644,7 @@ export default function DiscoveryPage() {
                         className={`inline-flex cursor-pointer items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition ${
                           isInLibrary
                             ? "border border-green-200 bg-green-50 text-green-700"
-                            : "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-200 hover:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                            : "bg-linear-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-200 hover:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                         }`}
                         title={
                           isInLibrary

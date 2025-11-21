@@ -130,21 +130,28 @@ const SourceList = ({
       <ul className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
         {sources.map((source, idx) => {
           const citationLabel = source.citation_number ?? idx + 1;
+          const rawTitle = source.title || source.doc_id || source.filename;
+          const isGithubSource = [
+            source.title,
+            source.doc_id,
+            source.filename,
+          ].some((value) => typeof value === "string" && /github/i.test(value));
+          const isReadme =
+            typeof source.filename === "string" &&
+            /readme\.md/i.test(source.filename);
+          const showGithub =
+            isGithubSource ||
+            (isReadme && (!source.heading || /unknown/i.test(source.heading)));
           const fullTitle =
-            source.heading || source.title || `Source ${citationLabel}`;
-          const isGithubSource = [source.title, source.doc_id].some(
-            (value) => typeof value === "string" && /github/i.test(value)
-          );
-          const displayTitle =
-            source.title || source.doc_id || `Source ${citationLabel}`;
+            showGithub && (!source.heading || /unknown/i.test(source.heading))
+              ? source.filename
+              : source.heading || rawTitle || `Source ${citationLabel}`;
+          const displayTitle = rawTitle || `Source ${citationLabel}`;
           const paperTitle = truncateTitle(
-            isGithubSource ? "GitHub" : displayTitle,
+            showGithub ? "GitHub" : displayTitle,
             32
           );
-          const sectionTitle = truncateTitle(
-            isGithubSource ? "GitHub" : fullTitle,
-            45
-          );
+          const sectionTitle = truncateTitle(fullTitle, 45);
           const metadata = [
             source.page ? `p.${source.page}` : undefined,
             source.chunk_index !== undefined
@@ -154,7 +161,7 @@ const SourceList = ({
             .filter(Boolean)
             .join(" • ");
           const isImage = source.type === "image";
-          const icon = isGithubSource ? (
+          const icon = showGithub ? (
             <svg
               className="h-4 w-4 text-slate-900"
               viewBox="0 0 24 24"
@@ -277,7 +284,9 @@ function MessageWithCitations({
     if (prevChar && !/\s/.test(prevChar)) {
       const lastSegment = segments[segments.length - 1];
       if (lastSegment && lastSegment.type === "text") {
-        lastSegment.content = `${lastSegment.content as string}${NON_BREAKING_SPACE}`;
+        lastSegment.content = `${
+          lastSegment.content as string
+        }${NON_BREAKING_SPACE}`;
       } else {
         segments.push({ type: "text", content: NON_BREAKING_SPACE });
       }

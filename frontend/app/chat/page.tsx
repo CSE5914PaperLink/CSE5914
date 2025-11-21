@@ -570,14 +570,14 @@ export default function ChatPage() {
   }, []);
   const navbarHeight = navHeight; // used below in styles
   const handleWidthPx = 6;
-  const contextHandleWidth = 32;
   const expandedContextWidth = 360;
   const collapsedContextWidth = 0;
   const contextColumnWidth = contextCollapsed
     ? collapsedContextWidth
     : expandedContextWidth;
-  // 5-column grid: context stack | collapse handle | chat | drag handle | pdf
-  const gridTemplate = `${contextColumnWidth}px ${contextHandleWidth}px ${split}fr ${handleWidthPx}px ${
+  const contextGapWidth = contextCollapsed ? 48 : 12;
+  // 5-column grid: context stack | spacer | chat | drag handle | pdf
+  const gridTemplate = `${contextColumnWidth}px ${contextGapWidth}px ${split}fr ${handleWidthPx}px ${
     1 - split
   }fr`;
 
@@ -595,7 +595,7 @@ export default function ChatPage() {
           style={{ gridTemplateColumns: gridTemplate }}
         >
           <div
-            className={`flex h-full flex-col bg-gradient-to-b from-white via-slate-50 to-slate-100 ${
+            className={`relative flex h-full flex-col bg-gradient-to-b from-white via-slate-50 to-slate-100 ${
               contextCollapsed ? "" : "border-r border-slate-200"
             }`}
           >
@@ -673,16 +673,26 @@ export default function ChatPage() {
                 </div>
               </div>
             )}
+            {!contextCollapsed && (
+              <button
+                className="absolute top-1/2 right-[-22px] z-10 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:border-blue-200 hover:text-slate-900"
+                title="Collapse context"
+                onClick={() => setContextCollapsed(true)}
+              >
+                <ChevronLeft />
+              </button>
+            )}
           </div>
-
-          <div className="flex h-full items-center justify-center">
-            <button
-              className="flex cursor-pointer items-center justify-center p-2 text-slate-600 hover:text-slate-900"
-              title={contextCollapsed ? "Expand context" : "Collapse context"}
-              onClick={() => setContextCollapsed((prev) => !prev)}
-            >
-              {contextCollapsed ? <ChevronRight /> : <ChevronLeft />}
-            </button>
+          <div className="relative flex items-center justify-center bg-white">
+            {contextCollapsed && (
+              <button
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:border-blue-200 hover:text-slate-900"
+                title="Expand context"
+                onClick={() => setContextCollapsed(false)}
+              >
+                <ChevronRight />
+              </button>
+            )}
           </div>
 
           <div className="flex-1 flex flex-col min-w-0 min-h-0">

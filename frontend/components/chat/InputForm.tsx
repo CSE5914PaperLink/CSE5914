@@ -13,7 +13,11 @@ export function InputForm({
 }) {
   return (
     <div className="sticky bottom-0 left-0 z-10 border-t border-slate-100 bg-white/95 px-4 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur">
-      <form id="chatForm" onSubmit={onSubmit} className="mx-auto w-full max-w-4xl">
+      <form
+        id="chatForm"
+        onSubmit={onSubmit}
+        className="mx-auto w-full max-w-4xl"
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <label className="sr-only" htmlFor="messageInput">
             Ask a question
