@@ -56,7 +56,13 @@ class NomicEmbeddingService:
         return self.embedder.embed_documents(texts)
 
     def embed_query(self, text: str) -> List[float]:
-        return self.embedder.embed_query(text)
+        """
+        Embed a single text query.
+        Queries should be prefixed with 'search_query:' for optimal retrieval.
+        """
+        # Add search_query prefix if not already present
+        normalized = text if text.strip().startswith("search_query:") else f"search_query: {text}"
+        return self.embedder.embed_query(normalized)
 
     # (Vision embedding disabled for simplicity — can re-enable easily)
     def embed_images(

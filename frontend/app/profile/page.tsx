@@ -15,6 +15,9 @@ export default function ProfilePage() {
 
   const [topTags, setTopTags] = useState<{ name: string; count: number }[]>([]);
   const [tagLoading, setTagLoading] = useState(false);
+  const [savedPapersCount, setSavedPapersCount] = useState(0);
+  const [favoritesCount, setFavoritesCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!loading && !firebaseUser) {
@@ -31,11 +34,18 @@ export default function ProfilePage() {
       try {
         setTagLoading(true);
         const res = await fetch(
-          `/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`
+          `/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}&t=${Date.now()}`
         );
         if (!res.ok) return;
         const data = await res.json();
         const items = data.results || [];
+
+        // Update saved papers count
+        setSavedPapersCount(items.length);
+
+        // Count favorites
+        const favorites = items.filter((item: any) => item?.metadata?.is_favorite === true);
+        setFavoritesCount(favorites.length);
 
         // Compute tag frequency based on title keywords (simple split by space)
         const tagCounts: Record<string, number> = {};
@@ -64,7 +74,30 @@ export default function ProfilePage() {
       }
     };
     fetchAndComputeTags();
-  }, [dataConnectUserId]);
+  }, [dataConnectUserId, refreshKey]);
+
+  // Listen for storage events to refresh when favorites change from library page
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'library_updated') {
+        setRefreshKey(prev => prev + 1);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom event on same page
+    const handleCustomEvent = () => {
+      setRefreshKey(prev => prev + 1);
+    };
+    
+    window.addEventListener('libraryUpdated', handleCustomEvent);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('libraryUpdated', handleCustomEvent);
+    };
+  }, []);
 
   const handleSaveName = async () => {
     if (!firebaseUser) return;
@@ -220,7 +253,7 @@ export default function ProfilePage() {
           <div className="bg-white rounded-2xl shadow-md p-6 text-center hover:shadow-lg transition-all duration-300">
             <div className="text-3xl font-bold text-blue-600 mb-2">📚</div>
             <h3 className="font-semibold text-gray-900 mb-1">Saved Papers</h3>
-            <p className="text-2xl font-bold text-gray-800">0</p>
+            <p className="text-2xl font-bold text-gray-800">{savedPapersCount}</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow-md p-6 text-center hover:shadow-lg transition-all duration-300">
@@ -232,7 +265,7 @@ export default function ProfilePage() {
           <div className="bg-white rounded-2xl shadow-md p-6 text-center hover:shadow-lg transition-all duration-300">
             <div className="text-3xl font-bold text-green-600 mb-2">⭐</div>
             <h3 className="font-semibold text-gray-900 mb-1">Favorites</h3>
-            <p className="text-2xl font-bold text-gray-800">0</p>
+            <p className="text-2xl font-bold text-gray-800">{favoritesCount}</p>
           </div>
         </div>
 
@@ -263,44 +296,11 @@ export default function ProfilePage() {
         </div>
       </main>
 
-      {/* Quick Links */}
-      <div className="bg-gray-100 py-8 mt-12">
-        <div className="max-w-4xl mx-auto px-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Quick Links</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link
-              href="/chat"
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              → Chat
-            </Link>
-            <Link
-              href="/library"
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              → Library
-            </Link>
-            <Link
-              href="/discovery"
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              → Discovery
-            </Link>
-            <Link
-              href="/"
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              → Home
-            </Link>
-          </div>
-        </div>
-      </div>
-
       {/* Footer */}
       <footer className="text-center py-6 bg-blue-700 text-white mt-auto">
         <p className="text-sm">
           &copy; 2025 <span className="font-semibold">CS Paper Compare</span> |
-          Built with Next.js, FastAPI, and AWS
+          Built with Next.js, FastAPI, Chroma, and Firebase
         </p>
       </footer>
     </div>

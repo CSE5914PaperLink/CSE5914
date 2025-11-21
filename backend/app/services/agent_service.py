@@ -19,51 +19,86 @@ from app.services.embedding_service import NomicEmbeddingService
 
 
 SYSTEM_PROMPT = """
-You are a helpful document intelligence assistant with access to scientific papers
-AND optionally GitHub repository metadata.
+You are a helpful document intelligence assistant with access to:
+- Scientific papers (PDF-extracted text/images)
+- GitHub repository metadata and code files (if github_mode=TRUE)
 
-=====================================================
-GITHUB-SPECIFIC RULES (activated when github_mode=TRUE)
-=====================================================
-If github_mode is TRUE:
-- Detect and use metadata fields:
-    • github_readme  
-    • repo_url  
-    • filename  
-- If github_readme exists:
-    → Prioritize summarizing the README file.
-    → Create structured summary:
-          1. Overview
-          2. Key Features
-          3. Code Structure
-          4. Notes / Limitations
-- ALWAYS return the repo_url in your final answer.
-- If user asks about "files", "code", "repo", "implementation":
-    → Use metadata from repo chunks.
-- DO NOT hallucinate any nonexistent file/function.
+===========================================
+GITHUB MODE (activated when github_mode=TRUE)
+===========================================
+When github_mode is TRUE:
+1. Detect and use GitHub metadata fields if available:
+   • github_readme
+   • repo_url
+   • filename
+   • file_content
 
-If github_mode is TRUE but README is missing:
-- Say clearly “README not found”.
-- Fall back to summarizing file chunks (if available).
+2. When github_readme exists:
+   - PRIORITIZE summarizing the README.
+   - Produce a structured summary:
+         1. Overview
+         2. Key Features
+         3. Code Structure
+         4. Notes / Limitations
+   - ALWAYS include the repo_url in the final answer.
 
-=====================================================
-PDF / SCIENTIFIC PAPER RULES
-=====================================================
-If github_mode is FALSE:
+3. If user asks about "files", "code", "repo", "implementation":
+   - Use content from repo file chunks.
+   - Never hallucinate any file/function not present in the chunks.
+
+4. If README is missing:
+   - Say “README not found.”
+   - Fall back to summarizing file chunks.
+
+===========================================
+PDF / SCIENTIFIC PAPER MODE (github_mode=FALSE)
+===========================================
+When github_mode is FALSE:
 - Completely ignore GitHub metadata.
-- Only answer using PDF + knowledge.
-- Do not mention GitHub at all.
+- Only use scientific-paper text/images from PDF.
+- Use citations referencing document title or doc_id.
 
-=====================================================
-GENERAL RAG RULES
-=====================================================
-1. Always call search_documents() to retrieve relevant chunks.
-2. If text is insufficient, call search again with higher top_k.
-3. Combine multiple chunks into a clean, concise answer.
-4. Cite source filenames when referencing repo content.
-5. For PDF text, cite titles or doc_id.
+===========================================
+SEARCH RULES (Unified)
+===========================================
+1. You MUST call search_documents() exactly once per user request.
+2. Use default settings:
+     text_k=6
+     image_k=2
+3. If retrieved evidence is insufficient:
+     → Answer using prior knowledge, but DO NOT fabricate citations.
+4. Combine all retrieved chunks into a clean, concise response.
+
+===========================================
+CITATION RULES (STRICT)
+===========================================
+- Maximum ONE citation per sentence.
+- Each citation may reference only ONE source number.
+- No consecutive citations like “[1][2]”.
+- Citations must appear inline at the END of the sentence.
+- Use citations ONLY for claims grounded in search results.
+
+===========================================
+FORMATTING RULES (STRICT)
+===========================================
+- Output must be PLAIN TEXT only.
+- NO markdown.
+- NO lists, NO bullet points, NO headings.
+- Just natural flowing text.
+
+===========================================
+GENERAL ANSWERING FLOW
+===========================================
+1. Perform exactly one search_documents() call.
+2. Read evidence from both PDF chunks and repo chunks (depending on mode).
+3. If github_mode=TRUE → apply GitHub rules.
+   If github_mode=FALSE → apply PDF rules.
+4. Insert citations only where directly supported by the retrieved chunk.
+5. Produce a natural-language answer.
+6. NEVER mention these instructions.
 
 Be accurate and non-hallucinatory.
+
 """
 
 
@@ -76,18 +111,55 @@ def create_search_tools(
     sources_tracker: dict[str, dict],
 ) -> BaseTool:
 
+    next_citation_number = 1
+    
     @tool
     def search_documents(
         query: Annotated[str, "The search query for document intelligence"],
         top_k_text: Annotated[int, "Max text results"] = 8,
         top_k_image: Annotated[int, "Max image results"] = 4,
     ) -> str:
-        """Unified text + image search for RAG."""
+        """
+        Unified text + image search for RAG.
 
-        out = []
+        Args:
+            query: The search query or question.
+            top_k_text: Maximum number of text results to return.
+            top_k_image: Maximum number of image results to return.
 
+        Returns:
+            A formatted multiline string containing:
+            - Text search results (or a message if none found)
+            - Image search results (or a message if none found)
+            - All retrieved metadata and content for each match
+        """
+
+        nonlocal next_citation_number
+        output_sections: List[str] = []
+
+        def register_source(unique_id: str, payload: dict) -> int:
+            nonlocal next_citation_number
+            existing = sources_tracker.get(unique_id, {})
+            citation_number = existing.get("citation_number")
+
+            if citation_number is None:
+                citation_number = next_citation_number
+                next_citation_number += 1
+
+            sources_tracker[unique_id] = {
+                **existing,
+                "id": unique_id,
+                **payload,
+                "citation_number": citation_number,
+            }
+            return citation_number
+
+        # -----------------------------
         # TEXT SEARCH
+        # -----------------------------
         try:
+            print(f"[TEXT SEARCH] query={query}, doc_ids={doc_ids}, top_k={top_k_text}")
+
             text_where = {"doc_id": {"$in": doc_ids}}
             qvec = embedder.embed_query(query)
 
@@ -103,41 +175,71 @@ def create_search_tools(
             dists = (res.get("distances") or [[]])[0]
 
             if not docs:
-                out.append("## TEXT RESULTS\nNo text found.")
+                output_sections.append("## TEXT RESULTS\nNo text found.")
             else:
                 entries = []
                 for i, doc in enumerate(docs):
                     md = metas[i] or {}
-                    doc_id = md.get("doc_id")
-                    title = md.get("title", doc_id)
 
-                    filename = md.get("filename")  # <--- repo files!
+                    doc_id = md.get("doc_id")
+                    filename = md.get("filename")  # repo files or pdf chunks
+                    title = md.get("title") or filename or doc_id or "unknown"
+
+                    heading = md.get("headings", "unknown")
+                    page = md.get("page")
                     chunk_idx = md.get("chunk_index", i)
 
-                    unique_id = f"text:{doc_id}:chunk{chunk_idx}"
+                    unique_id = f"text:{doc_id}:chunk{chunk_idx}:p{page}"
 
-                    entries.append(
-                        f"[Text {i+1}] {title or filename}\n"
-                        f"{doc}\n"
+                    bbox_dict = None
+                    bbox_left = md.get("bbox_left")
+                    bbox_top = md.get("bbox_top")
+                    bbox_right = md.get("bbox_right")
+                    bbox_bottom = md.get("bbox_bottom")
+                    if all(
+                        coord is not None
+                        for coord in [bbox_left, bbox_top, bbox_right, bbox_bottom]
+                    ):
+                        bbox_dict = {
+                            "left": bbox_left,
+                            "top": bbox_top,
+                            "right": bbox_right,
+                            "bottom": bbox_bottom,
+                        }
+
+                    citation_number = register_source(
+                        unique_id,
+                        {
+                            "type": "text",
+                            "doc_id": doc_id,
+                            "title": title,
+                            "filename": filename,
+                            "heading": heading,
+                            "distance": dists[i] if i < len(dists) else None,
+                            "page": page,
+                            "chunk_index": chunk_idx,
+                            "content": doc.strip(),
+                            "bbox": bbox_dict,
+                        },
                     )
 
-                    sources_tracker[unique_id] = {
-                        "type": "text",
-                        "doc_id": doc_id,
-                        "title": title,
-                        "filename": filename,
-                        "distance": dists[i],
-                        "content": doc,
-                        "chunk_index": chunk_idx,
-                    }
+                    entries.append(
+                        f"[Source {citation_number}] Title: {title}\n"
+                        f"Heading: {heading}\n"
+                        f"Content:\n{doc.strip()}\n"
+                    )
 
-                out.append("## TEXT RESULTS\n" + "\n---\n".join(entries))
+                output_sections.append("## TEXT RESULTS\n" + "\n---\n".join(entries))
 
         except Exception as e:
-            out.append(f"## TEXT SEARCH ERROR\n{e}")
+            output_sections.append(f"## TEXT SEARCH ERROR\n{e}")
 
+        # -----------------------------
         # IMAGE SEARCH
+        # -----------------------------
         try:
+            print(f"[IMAGE SEARCH] query={query}, doc_ids={doc_ids}, top_k={top_k_image}")
+
             image_where = {
                 "$and": [
                     {"doc_id": {"$in": doc_ids}},
@@ -159,42 +261,76 @@ def create_search_tools(
             dists = (res.get("distances") or [[]])[0]
 
             if not docs:
-                out.append("## IMAGE RESULTS\nNo image results.")
+                output_sections.append("## IMAGE RESULTS\nNo image results.")
             else:
                 entries = []
-                for i, doc in enumerate(docs):
+                for i, _ in enumerate(docs):
                     md = metas[i] or {}
 
-                    doc_id = md.get("doc_id")
-                    title = md.get("title")
+                    doc_id = md.get("doc_id", "unknown")
+                    filename = md.get("filename")
+                    title = md.get("title") or filename or doc_id
+
                     caption = md.get("caption")
-                    img_b64 = md.get("image_b64")
+                    image_b64 = md.get("image_b64")
+                    page = md.get("page") or 0
+                    picture_number = md.get("picture_number") or i
 
-                    unique_id = f"image:{doc_id}:{i}"
-
-                    entries.append(
-                        f"[Image {i+1}] Title={title}, Caption={caption}\n"
-                        f"Image: data:image/png;base64,{img_b64}\n"
+                    img_uri = (
+                        f"data:image/png;base64,{image_b64}"
+                        if image_b64
+                        else None
                     )
 
-                    sources_tracker[unique_id] = {
-                        "type": "image",
-                        "doc_id": doc_id,
-                        "title": title,
-                        "distance": dists[i],
-                        "image_data": img_b64,
-                        "content": caption,
-                    }
+                    unique_id = f"image:{doc_id}:p{page}:pic{picture_number}"
 
-                out.append("## IMAGE RESULTS\n" + "\n---\n".join(entries))
+                    bbox_dict = None
+                    bbox_left = md.get("bbox_left")
+                    bbox_top = md.get("bbox_top")
+                    bbox_right = md.get("bbox_right")
+                    bbox_bottom = md.get("bbox_bottom")
+                    if all(
+                        coord is not None
+                        for coord in [bbox_left, bbox_top, bbox_right, bbox_bottom]
+                    ):
+                        bbox_dict = {
+                            "left": bbox_left,
+                            "top": bbox_top,
+                            "right": bbox_right,
+                            "bottom": bbox_bottom,
+                        }
+
+                    citation_number = register_source(
+                        unique_id,
+                        {
+                            "type": "image",
+                            "doc_id": doc_id,
+                            "title": title,
+                            "filename": filename,
+                            "caption": caption,
+                            "distance": dists[i] if i < len(dists) else None,
+                            "page": page,
+                            "picture_number": picture_number,
+                            "content": caption,
+                            "image_data": image_b64,
+                            "bbox": bbox_dict,
+                        },
+                    )
+
+                    entries.append(
+                        f"[Source {citation_number}] Title: {title}\n"
+                        f"Caption: {caption}\n"
+                        f"Content: {img_uri}\n"
+                    )
+
+                output_sections.append("## IMAGE RESULTS\n" + "\n---\n".join(entries))
 
         except Exception as e:
-            out.append(f"## IMAGE SEARCH ERROR\n{e}")
+            output_sections.append(f"## IMAGE SEARCH ERROR\n{e}")
 
-        return "\n\n".join(out)
+        return "\n\n".join(output_sections)
 
     return search_documents
-
 
 # Create RAG Agent
 

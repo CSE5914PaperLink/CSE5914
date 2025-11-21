@@ -1,7 +1,219 @@
 "use client";
+import { annotateWithCitations, parseCitationGroup } from "./citations";
+import { truncateTitle } from "./sourceUtils";
 import { ChatMessage, SourceChunk } from "./types";
 import { RefObject } from "react";
 import ReactMarkdown from "react-markdown";
+
+const NON_BREAKING_SPACE = "\u00A0";
+
+type RemarkNode = {
+  type: string;
+  value?: string;
+  children?: RemarkNode[];
+};
+
+const BREAKABLE_PARENTS = new Set([
+  "paragraph",
+  "heading",
+  "emphasis",
+  "strong",
+  "blockquote",
+  "link",
+  "delete",
+]);
+
+// Custom remark plugin that turns soft line breaks into <br> nodes while
+// keeping Markdown features intact.
+const remarkHardBreaks = () => {
+  const transformNode = (node?: RemarkNode) => {
+    if (!node?.children?.length) return;
+    node.children = node.children.flatMap((child) => {
+      if (
+        BREAKABLE_PARENTS.has(node.type) &&
+        child.type === "text" &&
+        typeof child.value === "string" &&
+        child.value.includes("\n")
+      ) {
+        const fragments = child.value.split(/\r?\n/);
+        const nextNodes: RemarkNode[] = [];
+        fragments.forEach((fragment, idx) => {
+          if (fragment.length > 0) {
+            nextNodes.push({ type: "text", value: fragment });
+          }
+          if (idx < fragments.length - 1) {
+            nextNodes.push({ type: "break" });
+          }
+        });
+        return nextNodes;
+      }
+
+      transformNode(child);
+      return [child];
+    });
+  };
+
+  return (tree: RemarkNode) => {
+    transformNode(tree);
+  };
+};
+
+const InlineCitation = ({
+  numbers,
+  sourceMap,
+  onSourceClick,
+}: {
+  numbers: number[];
+  sourceMap: Map<number, SourceChunk>;
+  onSourceClick?: (source: SourceChunk) => void;
+}) => {
+  const resolvedSources = numbers
+    .map((num) => sourceMap.get(num))
+    .filter((source): source is SourceChunk => Boolean(source));
+  const primarySource = resolvedSources[0];
+  const firstNumber = numbers[0];
+
+  if (!primarySource) {
+    return (
+      <span className="ml-1 align-super text-[0.7rem] text-neutral-500">
+        [{firstNumber}]
+      </span>
+    );
+  }
+
+  const handleClick = () => {
+    if (!primarySource) return;
+    handleSourceInteraction(primarySource, onSourceClick);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="ml-1 inline-flex cursor-pointer items-center rounded-full border border-blue-200/80 bg-white/90 px-1.5 py-0.5 text-[0.7rem] font-mono text-blue-700 align-super shadow-sm hover:border-blue-400 hover:bg-blue-50 transition-colors"
+      aria-label={`View source details for citation ${firstNumber}`}
+    >
+      [{firstNumber}]
+    </button>
+  );
+};
+
+const handleSourceInteraction = (
+  source: SourceChunk,
+  callback?: (source: SourceChunk) => void
+) => {
+  if (source.type === "text" && source.content) {
+    console.log("Source content:", source.content);
+  }
+  callback?.(source);
+};
+
+const SourceList = ({
+  sources,
+  onSourceClick,
+}: {
+  sources: SourceChunk[];
+  onSourceClick?: (source: SourceChunk) => void;
+}) => {
+  if (!sources.length) return null;
+
+  return (
+    <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-700 open:shadow-inner open:shadow-slate-200/70">
+      <summary className="flex cursor-pointer items-center justify-between gap-3 text-left">
+        <span className="text-[0.65rem] uppercase tracking-[0.35em] text-blue-500">
+          Sources Used
+        </span>
+        <span className="text-xs text-slate-500">
+          {sources.length} referenced
+        </span>
+      </summary>
+      <ul className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+        {sources.map((source, idx) => {
+          const citationLabel = source.citation_number ?? idx + 1;
+          const fullTitle =
+            source.heading || source.title || `Source ${citationLabel}`;
+          const sectionTitle = truncateTitle(fullTitle, 45);
+          const paperTitle = truncateTitle(
+            source.title || source.doc_id || "Document",
+            32
+          );
+          const metadata = [
+            source.page ? `p.${source.page}` : undefined,
+            source.chunk_index !== undefined
+              ? `chunk ${source.chunk_index}`
+              : undefined,
+          ]
+            .filter(Boolean)
+            .join(" • ");
+          const isImage = source.type === "image";
+          const icon = isImage ? (
+            <svg
+              className="h-4 w-4 text-purple-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+          ) : (
+            <svg
+              className="h-4 w-4 text-blue-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+          );
+
+          return (
+            <li key={source.id || `${source.doc_id}-${idx}`}>
+              <button
+                type="button"
+                onClick={() => handleSourceInteraction(source, onSourceClick)}
+                className="flex h-full w-full cursor-pointer flex-col rounded-xl border border-slate-200 bg-white/95 px-2 py-1.5 text-left shadow-sm shadow-slate-200/60 transition hover:border-blue-300 hover:shadow-md"
+                title={fullTitle}
+              >
+                <div className="flex items-center justify-between text-[0.55rem] uppercase tracking-[0.35em] text-slate-500">
+                  <span>Source {citationLabel}</span>
+                  <span>{isImage ? "Image" : "Text"}</span>
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 self-center">
+                    {icon}
+                  </span>
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <p className="text-[0.8rem] font-semibold text-slate-900 truncate">
+                      {paperTitle}
+                    </p>
+                    <p className="text-[0.6rem] text-blue-500 truncate">
+                      {sectionTitle}
+                    </p>
+                    {metadata && (
+                      <p className="text-[0.65rem] text-slate-500">
+                        {metadata}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
+};
 
 function MessageWithCitations({
   text,
@@ -12,73 +224,87 @@ function MessageWithCitations({
   sources?: SourceChunk[];
   onSourceClick?: (source: SourceChunk) => void;
 }) {
-  if (!sources || sources.length === 0) {
-    return (
-      <div className="prose prose-sm max-w-none">
-        <ReactMarkdown>{text}</ReactMarkdown>
-      </div>
-    );
-  }
+  const resolvedText =
+    sources && sources.length > 0 ? annotateWithCitations(text, sources) : text;
 
-  // Split text into segments and citations
-  const segments: Array<{
-    type: "text" | "citation";
-    content: string | number;
-  }> = [];
+  const sourceMap = new Map<number, SourceChunk>();
+  sources?.forEach((source, idx) => {
+    const citationNumber = source.citation_number ?? idx + 1;
+    if (!sourceMap.has(citationNumber)) {
+      sourceMap.set(citationNumber, source);
+    }
+  });
+
+  type Segment =
+    | { type: "text"; content: string }
+    | { type: "citation"; content: number[] };
+
+  const segments: Segment[] = [];
+  const citationGroupRegex = /\[(\s*\d+(?:\s*,\s*\d+)*)\]/g;
   let lastIndex = 0;
-  const citationRegex = /\[(\d+)\]/g;
-  let match;
-
-  while ((match = citationRegex.exec(text)) !== null) {
+  let match: RegExpExecArray | null;
+  while ((match = citationGroupRegex.exec(resolvedText)) !== null) {
     if (match.index > lastIndex) {
+      const textChunk = resolvedText
+        .slice(lastIndex, match.index)
+        .replace(/\n+$/, " ");
       segments.push({
         type: "text",
-        content: text.substring(lastIndex, match.index),
+        content: textChunk,
       });
     }
-    segments.push({ type: "citation", content: parseInt(match[1], 10) });
+
+    const prevChar =
+      match.index > 0 ? resolvedText.charAt(match.index - 1) : "";
+    if (prevChar && !/\s/.test(prevChar)) {
+      const lastSegment = segments[segments.length - 1];
+      if (lastSegment && lastSegment.type === "text") {
+        lastSegment.content = `${lastSegment.content as string}${NON_BREAKING_SPACE}`;
+      } else {
+        segments.push({ type: "text", content: NON_BREAKING_SPACE });
+      }
+    }
+
+    const citationNumbers = parseCitationGroup(match[1]);
+    if (citationNumbers.length > 0) {
+      segments.push({ type: "citation", content: citationNumbers });
+    }
+
     lastIndex = match.index + match[0].length;
   }
 
-  if (lastIndex < text.length) {
-    segments.push({ type: "text", content: text.substring(lastIndex) });
+  if (lastIndex < resolvedText.length) {
+    const tailText = resolvedText.slice(lastIndex).replace(/^\n+/, "");
+    segments.push({ type: "text", content: tailText });
   }
 
   return (
-    <div className="prose prose-sm max-w-none">
+    <div className="prose prose-sm max-w-none text-slate-900 leading-relaxed">
       {segments.map((segment, idx) => {
         if (segment.type === "text") {
+          const content = segment.content as string;
           return (
             <span key={idx}>
               <ReactMarkdown
+                remarkPlugins={[remarkHardBreaks]}
                 components={{
                   p: ({ children }) => <span>{children}</span>,
                 }}
               >
-                {segment.content as string}
+                {content}
               </ReactMarkdown>
             </span>
           );
-        } else {
-          const citationNum = segment.content as number;
-          const source = sources[citationNum - 1];
-          if (!source) return <span key={idx}>[{citationNum}]</span>;
-          return (
-            <button
-              key={idx}
-              onClick={() => onSourceClick?.(source)}
-              className="inline-flex items-center justify-center w-5 h-5 mx-0.5 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-full cursor-pointer transition-colors"
-              style={{ verticalAlign: "super", fontSize: "0.65em" }}
-              title={`Source ${citationNum}: ${
-                source.type === "image"
-                  ? source.filename || "Image"
-                  : `Chunk ${source.chunk_index ?? citationNum}`
-              }`}
-            >
-              {citationNum}
-            </button>
-          );
         }
+        const citationNumbers = segment.content as number[];
+        return (
+          <InlineCitation
+            key={`citation-${idx}-${citationNumbers.join("-")}`}
+            numbers={citationNumbers}
+            sourceMap={sourceMap}
+            onSourceClick={onSourceClick}
+          />
+        );
       })}
     </div>
   );
@@ -117,15 +343,14 @@ export function Messages({
               <div
                 className={
                   m.sender === "user"
-                    ? "bg-blue-600 text-white rounded-2xl px-4 py-2 max-w-prose"
+                    ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-3xl px-5 py-3 max-w-[80%] shadow-lg shadow-blue-500/30"
                     : m.sender === "system"
-                    ? "bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-2xl px-4 py-2 max-w-prose text-center text-sm mx-auto"
-                    : "bg-neutral-100 text-neutral-900 rounded-2xl px-4 py-2 max-w-prose"
+                    ? "bg-amber-50 text-amber-800 border border-amber-200 rounded-2xl px-4 py-2 max-w-prose text-center text-sm mx-auto"
+                    : "bg-white/95 text-slate-900 rounded-3xl px-6 py-5 max-w-3xl border border-slate-200 shadow-2xl shadow-slate-200/70"
                 }
               >
                 {m.sender === "ai" ? (
-                  <div>
-                    {/* Show status indicator if status is present */}
+                  <div className="space-y-4">
                     {m.status && (
                       <div className="mb-3 flex items-center gap-2 text-sm text-neutral-600">
                         <div className="flex space-x-1">
@@ -151,87 +376,11 @@ export function Messages({
                       onSourceClick={onSourceClick}
                     />
 
-                    {/* Note: Images are embedded in the LLM response text, 
-                        so no need for a separate "Referenced Images" section */}
-
-                    {/* Compact horizontal sources section */}
                     {m.sources && m.sources.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-neutral-300">
-                        <div className="text-xs font-semibold text-neutral-600 mb-3">
-                          Sources Used ({m.sources.length}):
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {m.sources.map((source, idx) => {
-                            const isImage = source.type === "image";
-                            const displayTitle =
-                              source.title ||
-                              source.doc_id ||
-                              `Source ${idx + 1}`;
-                            const pageInfo = source.page
-                              ? ` • p.${source.page}`
-                              : "";
-
-                            return (
-                              <button
-                                key={source.id}
-                                onClick={() => onSourceClick?.(source)}
-                                className="inline-flex items-center gap-2 text-xs bg-white border-2 border-neutral-300 rounded-lg px-3 py-2 hover:bg-neutral-50 hover:border-blue-400 transition-all shadow-sm"
-                                title={`Click to view ${
-                                  isImage ? "image" : "text"
-                                } from ${displayTitle}`}
-                              >
-                                {/* Icon */}
-                                {isImage ? (
-                                  <svg
-                                    className="w-4 h-4 text-purple-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth="2"
-                                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                    ></path>
-                                  </svg>
-                                ) : (
-                                  <svg
-                                    className="w-4 h-4 text-blue-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth="2"
-                                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                    ></path>
-                                  </svg>
-                                )}
-
-                                {/* Content */}
-                                <div className="flex flex-col items-start text-left">
-                                  <span className="font-semibold text-neutral-800 max-w-[200px] truncate">
-                                    {displayTitle}
-                                  </span>
-                                  <span className="text-[10px] text-neutral-500">
-                                    {isImage
-                                      ? source.filename || "Image"
-                                      : `Chunk ${
-                                          source.chunk_index ?? idx + 1
-                                        }`}
-                                    {pageInfo}
-                                    {source.distance !== undefined &&
-                                      ` • ${source.distance.toFixed(3)}`}
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                      <SourceList
+                        sources={m.sources}
+                        onSourceClick={onSourceClick}
+                      />
                     )}
                   </div>
                 ) : (

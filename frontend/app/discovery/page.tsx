@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUser } from "@/contexts/UserContext";
 
 interface ArxivResult {
@@ -31,9 +31,134 @@ export default function DiscoveryPage() {
   const [processingPapers, setProcessingPapers] = useState<Set<string>>(
     new Set()
   );
+  const [recommendedSearches, setRecommendedSearches] = useState<string[]>([]);
+  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [libraryPaperIds, setLibraryPaperIds] = useState<Set<string>>(new Set());
+
+  // Fetch library papers to check which ones user already has
+  useEffect(() => {
+    if (!dataConnectUserId) return;
+
+    const fetchLibraryPapers = async () => {
+      try {
+        const res = await fetch(
+          `/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const items = data.results || [];
+          const paperIds = new Set(
+            items
+              .map((item: any) => item.metadata?.doc_id)
+              .filter((id: string | null) => id != null)
+          );
+          setLibraryPaperIds(paperIds);
+        }
+      } catch (err) {
+        console.error("Failed to fetch library papers:", err);
+      }
+    };
+
+    fetchLibraryPapers();
+  }, [dataConnectUserId]);
+
+  // Fetch search history and top topics to generate recommendations
+  useEffect(() => {
+    if (!dataConnectUserId) return;
+
+    const fetchRecommendations = async () => {
+      try {
+        // Fetch search history
+        const historyRes = await fetch(
+          `/api/discovery/search-history?userId=${encodeURIComponent(dataConnectUserId)}`
+        );
+        const historyData = await historyRes.ok ? await historyRes.json() : { history: [] };
+        const searchHistory = historyData.history || [];
+
+        // Fetch library papers to compute top topics
+        const libraryRes = await fetch(
+          `/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`
+        );
+        const libraryData = await libraryRes.ok ? await libraryRes.json() : { results: [] };
+        const items = libraryData.results || [];
+
+        // Extract search terms from history
+        const historyTerms = searchHistory
+          .map((entry: any) => entry.query)
+          .filter((q: string) => q && q.trim().length > 0);
+
+        // Compute top topics from library paper titles
+        const tagCounts: Record<string, number> = {};
+        items.forEach((item: any) => {
+          const titleWords = (item?.metadata?.title || "")
+            .toLowerCase()
+            .split(/[\s:,-]+/);
+          titleWords.forEach((word: string) => {
+            // Filter out short words and common stop words
+            if (word.length > 4 && !["using", "based", "paper", "study", "analysis"].includes(word)) {
+              tagCounts[word] = (tagCounts[word] || 0) + 1;
+            }
+          });
+        });
+
+        // Get top topics
+        const topTopics = Object.entries(tagCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([name]) => name);
+
+        // Combine and deduplicate recommendations
+        const combined = [...new Set([...historyTerms, ...topTopics])];
+        
+        // Take top 6 recommendations
+        setRecommendedSearches(combined.slice(0, 6));
+      } catch (err) {
+        console.error("Failed to fetch recommendations:", err);
+      }
+    };
+
+    fetchRecommendations();
+  }, [dataConnectUserId]);
 
   const truncate = (text: string, n = 300) =>
     text.length > n ? text.slice(0, n) + "..." : text;
+
+  const handleRecommendedSearch = async (searchTerm: string) => {
+    setQuery(searchTerm);
+    setShowRecommendations(false);
+    
+    // Perform the search with the recommended term
+    setLoading(true);
+    setError(null);
+
+    try {
+      const params = new URLSearchParams({ q: searchTerm, max_results: "10" });
+      const res = await fetch(`/api/discovery/search?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`Search failed: ${res.statusText}`);
+      }
+      const data = await res.json();
+      const results = data.results || [];
+      setPapers(results);
+
+      // Save search to history if user is logged in
+      if (dataConnectUserId) {
+        fetch("/api/discovery/save-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: dataConnectUserId,
+            query: searchTerm.trim(),
+            resultsCount: results.length,
+          }),
+        }).catch((err) => console.error("Failed to save search history:", err));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to search papers");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +174,21 @@ export default function DiscoveryPage() {
         throw new Error(`Search failed: ${res.statusText}`);
       }
       const data = await res.json();
-      setPapers(data.results || []);
+      const results = data.results || [];
+      setPapers(results);
+
+      // Save search to history if user is logged in
+      if (dataConnectUserId) {
+        fetch("/api/discovery/save-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: dataConnectUserId,
+            query: query.trim(),
+            resultsCount: results.length,
+          }),
+        }).catch((err) => console.error("Failed to save search history:", err));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to search papers");
     } finally {
@@ -78,6 +217,8 @@ export default function DiscoveryPage() {
         throw new Error(data.error || "Failed to add paper");
       }
       alert("Paper added to library successfully!");
+      // Add to library set
+      setLibraryPaperIds((prev) => new Set(prev).add(arxivId));
     } catch (e) {
       alert((e as Error).message);
     } finally {
@@ -110,6 +251,29 @@ export default function DiscoveryPage() {
         <form onSubmit={handleSearch} className="mb-6">
           <div className="bg-white rounded-lg shadow-md p-4">
             <div className="flex items-center gap-2 mb-3">
+              {/* Light Bulb Icon for Recommendations */}
+              {dataConnectUserId && recommendedSearches.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowRecommendations(!showRecommendations)}
+                  className={`p-3 rounded-lg transition-colors ${
+                    showRecommendations
+                      ? "bg-yellow-100 text-yellow-600 hover:bg-yellow-200"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                  title="Show recommended searches"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"
+                    />
+                  </svg>
+                </button>
+              )}
               <input
                 type="text"
                 value={query}
@@ -139,6 +303,35 @@ export default function DiscoveryPage() {
                 Upload
               </button>
               <button
+                type="button"
+                onClick={() => setShowFilters(!showFilters)}
+                className={`relative px-3 py-3 rounded-lg transition-colors flex items-center justify-center ${
+                  showFilters
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+                title="Toggle filters"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                  ></path>
+                </svg>
+                {(filters.from_date || filters.to_date || filters.min_citations || filters.is_oa || filters.has_fulltext) && (
+                  <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full min-w-[20px] text-center">
+                    {(filters.from_date ? 1 : 0) + (filters.to_date ? 1 : 0) + (filters.min_citations ? 1 : 0) + (filters.is_oa ? 1 : 0) + (filters.has_fulltext ? 1 : 0)}
+                  </span>
+                )}
+              </button>
+              <button
                 type="submit"
                 disabled={loading}
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -147,27 +340,26 @@ export default function DiscoveryPage() {
               </button>
             </div>
 
-            {/* Filter Toggle */}
-            <button
-              type="button"
-              onClick={() => setShowFilters(!showFilters)}
-              className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                ></path>
-              </svg>
-              {showFilters ? "Hide Filters" : "Show Filters"}
-            </button>
+            {/* Recommended Searches */}
+            {showRecommendations && dataConnectUserId && recommendedSearches.length > 0 && (
+              <div className="mb-3 pb-3 border-b border-gray-200">
+                <p className="text-xs text-gray-600 mb-2">
+                  💡 Recommended searches based on your history and topics:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {recommendedSearches.map((term, index) => (
+                    <button
+                      type="button"
+                      key={index}
+                      onClick={() => handleRecommendedSearch(term)}
+                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full text-sm font-medium transition-colors border border-blue-200 hover:border-blue-300"
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Filters Panel */}
             {showFilters && (
@@ -282,11 +474,32 @@ export default function DiscoveryPage() {
             </div>
           )}
 
-          {papers.map((paper) => (
+          {papers.map((paper) => {
+            const isInLibrary = libraryPaperIds.has(paper.doc_id);
+            
+            return (
             <div
               key={paper.doc_id}
-              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+              className={`bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow ${
+                isInLibrary ? "border-2 border-green-500" : ""
+              }`}
             >
+              {isInLibrary && (
+                <div className="mb-3 flex items-center gap-2 text-green-700 text-sm font-medium">
+                  <svg
+                    className="w-5 h-5"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Already in your library
+                </div>
+              )}
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -318,9 +531,13 @@ export default function DiscoveryPage() {
                 </div>
                 <button
                   onClick={() => handleAddPaper(paper.doc_id)}
-                  disabled={processingPapers.has(paper.doc_id)}
-                  className="shrink-0 w-10 h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  title="Add to collection"
+                  disabled={processingPapers.has(paper.doc_id) || isInLibrary}
+                  className={`shrink-0 w-10 h-10 flex items-center justify-center rounded-full transition-colors ${
+                    isInLibrary
+                      ? "bg-green-100 text-green-700 cursor-default"
+                      : "bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  }`}
+                  title={isInLibrary ? "Already in library" : "Add to collection"}
                 >
                   {processingPapers.has(paper.doc_id) ? (
                     <svg
@@ -342,6 +559,18 @@ export default function DiscoveryPage() {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       ></path>
                     </svg>
+                  ) : isInLibrary ? (
+                    <svg
+                      className="w-5 h-5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
                   ) : (
                     <svg
                       className="w-5 h-5"
@@ -360,7 +589,8 @@ export default function DiscoveryPage() {
                 </button>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       </div>
     </div>

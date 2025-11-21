@@ -25,6 +25,7 @@ type Paper @table {
   pdfUrl: String
   ingestionStatus: String! @default(value: "pending")
   citationCount: Int
+  isFavorite: Boolean! @default(value: false)
   createdAt: Timestamp! @default(expr: "request.time")
 }
 
@@ -48,5 +49,13 @@ type CodeLink @table {
   paper: Paper!
   url: String!
   repositoryName: String
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type SearchHistory @table {
+  id: UUID! @default(expr: "uuidV4()")
+  user: User!
+  query: String!
+  resultsCount: Int
   createdAt: Timestamp! @default(expr: "request.time")
 }

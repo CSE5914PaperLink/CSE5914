@@ -37,6 +37,10 @@ mutation DeletePaper($paperId: UUID!) @auth(level: PUBLIC) {
   paper_delete(id: $paperId)
 }
 
+mutation TogglePaperFavorite($paperId: UUID!, $isFavorite: Boolean!) @auth(level: PUBLIC) {
+  paper_update(id: $paperId, data: { isFavorite: $isFavorite })
+}
+
 # Chat Session Mutations
 mutation CreateChatSession($userId: UUID!, $title: String!) @auth(level: PUBLIC) {
   chatSession_insert(data: { user: { id: $userId }, title: $title })
@@ -80,3 +84,11 @@ mutation AddCodeLink($paperId: UUID!, $url: String!, $repositoryName: String) @a
 mutation DeleteCodeLink($linkId: UUID!) @auth(level: PUBLIC) {
   codeLink_delete(id: $linkId)
 }
+
+# Search History Mutations
+mutation AddSearchHistory($userId: UUID!, $query: String!, $resultsCount: Int) @auth(level: PUBLIC) {
+  searchHistory_insert(
+    data: { user: { id: $userId }, query: $query, resultsCount: $resultsCount }
+  )
+}
+

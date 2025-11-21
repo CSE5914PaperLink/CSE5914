@@ -12,6 +12,7 @@ export type LibraryItem = {
   id: string;
   metadata: PaperMetadata;
   document?: string | null;
+  in_chromadb?: boolean;
 };
 
 export type ImageAsset = {
@@ -27,6 +28,8 @@ export type SourceChunk = {
   type: "text" | "image";
   doc_id?: string;
   title?: string; // Paper title
+  heading?: string;
+  caption?: string;
   distance?: number;
   content?: string;
   chunk_index?: number;
@@ -34,6 +37,7 @@ export type SourceChunk = {
   filename?: string;
   url?: string;
   image_data?: string; // base64 encoded image data
+  citation_number?: number;
   bbox?: {
     left: number;
     top: number;
