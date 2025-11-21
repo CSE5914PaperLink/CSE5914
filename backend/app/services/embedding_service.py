@@ -9,6 +9,7 @@ import shutil
 import re
 
 from langchain_nomic import NomicEmbeddings
+from langchain_community.vectorstores.utils import filter_complex_metadata
 from langchain_core.documents import Document
 
 from app.services.docling_service import DoclingService
@@ -61,7 +62,36 @@ class NomicEmbeddingService:
     def embed_images(
         self, images: List[Union[Image.Image, bytes, str]]
     ) -> List[List[float]]:
-        return [[] for _ in images]
+        """
+        Embed images using nomic-embed-vision-v1.5.
+
+        Args:
+            images: List of PIL Images, raw bytes, or base64 strings
+
+        Returns:
+            List of embedding vectors
+        """
+        # Convert all images to PIL Images for Nomic vision model
+        # The nomic.embed.image() function accepts PIL Images and converts them internally
+        pil_images = []
+        for img in images:
+            if isinstance(img, Image.Image):
+                pil_images.append(img)
+            elif isinstance(img, bytes):
+                pil_images.append(Image.open(BytesIO(img)))
+            elif isinstance(img, str):
+                # Assume base64 encoded string
+                img_bytes = base64.b64decode(img)
+                pil_images.append(Image.open(BytesIO(img_bytes)))
+            else:
+                raise ValueError(f"Unsupported image type: {type(img)}")
+
+        embeddings = self.embedder.embed_image(pil_images)
+        dim = len(embeddings[0]) if embeddings else 0
+        print(f"DEBUG: Nomic returned {len(embeddings)} image embeddings, dim={dim}")
+        if embeddings:
+            print(f"DEBUG: First 5 dims of first image embedding: {embeddings[0][:5]}")
+        return embeddings
 
 
 # Utility: extract GitHub URL from PDF text
