@@ -227,7 +227,6 @@ export default function DiscoveryPage() {
         const data = await res.json();
         throw new Error(data.error || "Failed to add paper");
       }
-      alert("Paper added to library successfully!");
       // Add to library set
       setLibraryPaperIds((prev) => new Set(prev).add(arxivId));
     } catch (e) {

@@ -132,10 +132,18 @@ const SourceList = ({
           const citationLabel = source.citation_number ?? idx + 1;
           const fullTitle =
             source.heading || source.title || `Source ${citationLabel}`;
-          const sectionTitle = truncateTitle(fullTitle, 45);
+          const isGithubSource = [source.title, source.doc_id].some(
+            (value) => typeof value === "string" && /github/i.test(value)
+          );
+          const displayTitle =
+            source.title || source.doc_id || `Source ${citationLabel}`;
           const paperTitle = truncateTitle(
-            source.title || source.doc_id || "Document",
+            isGithubSource ? "GitHub" : displayTitle,
             32
+          );
+          const sectionTitle = truncateTitle(
+            isGithubSource ? "GitHub" : fullTitle,
+            45
           );
           const metadata = [
             source.page ? `p.${source.page}` : undefined,
@@ -146,7 +154,15 @@ const SourceList = ({
             .filter(Boolean)
             .join(" • ");
           const isImage = source.type === "image";
-          const icon = isImage ? (
+          const icon = isGithubSource ? (
+            <svg
+              className="h-4 w-4 text-slate-900"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M12 .5C5.648.5.5 5.787.5 12.266c0 5.194 3.438 9.607 8.205 11.168.6.115.82-.27.82-.6 0-.297-.012-1.28-.017-2.322-3.338.744-4.042-1.665-4.042-1.665-.546-1.424-1.334-1.805-1.334-1.805-1.09-.769.083-.754.083-.754 1.205.086 1.839 1.28 1.839 1.28 1.07 1.903 2.809 1.353 3.495 1.035.108-.807.418-1.353.762-1.664-2.665-.315-5.466-1.383-5.466-6.156 0-1.36.465-2.47 1.235-3.34-.124-.317-.535-1.592.115-3.32 0 0 1.005-.33 3.3 1.27a11.006 11.006 0 0 1 6 0c2.292-1.6 3.296-1.27 3.296-1.27.652 1.728.241 3.003.118 3.32.77.87 1.232 1.98 1.232 3.34 0 4.784-2.806 5.836-5.48 6.146.43.385.823 1.138.823 2.295 0 1.657-.015 2.994-.015 3.404 0 .333.216.722.825.598C20.065 21.87 23.5 17.457 23.5 12.266 23.5 5.787 18.352.5 12 .5Z" />
+            </svg>
+          ) : isImage ? (
             <svg
               className="h-4 w-4 text-purple-500"
               fill="none"
@@ -186,7 +202,9 @@ const SourceList = ({
               >
                 <div className="flex items-center justify-between text-[0.55rem] uppercase tracking-[0.35em] text-slate-500">
                   <span>Source {citationLabel}</span>
-                  <span>{isImage ? "Image" : "Text"}</span>
+                  <span>
+                    {isGithubSource ? "GitHub" : isImage ? "Image" : "Text"}
+                  </span>
                 </div>
                 <div className="mt-1 flex items-center gap-2">
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 self-center">
@@ -332,7 +350,7 @@ export function Messages({
           <h2 className="text-lg font-medium">AI Research Assistant</h2>
           <p className="text-xs">Ask anything about research papers.</p>
         </div>
-        <div id="messagesContainer" className="space-y-5 mt-6">
+        <div id="messagesContainer" className="space-y-5 mt-6 pb-32">
           {messages.map((m) => (
             <div
               key={m.id}

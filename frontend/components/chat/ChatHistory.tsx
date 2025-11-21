@@ -14,18 +14,21 @@ interface ChatHistoryProps {
   onSessionSelect: (sessionId: string) => void;
   onNewChat: () => void;
   refreshTrigger?: number;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
 // Simple SVG icons
-const ChevronLeft = () => (
+
+const ChevronUp = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
   </svg>
 );
 
-const ChevronRight = () => (
+const ChevronDown = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
   </svg>
 );
 
@@ -65,9 +68,10 @@ export function ChatHistory({
   onSessionSelect,
   onNewChat,
   refreshTrigger,
+  collapsed,
+  onToggleCollapse,
 }: ChatHistoryProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [loading, setLoading] = useState(false);
@@ -150,8 +154,6 @@ export function ChatHistory({
   };
 
   const handleDelete = async (sessionId: string) => {
-    if (!confirm("Are you sure you want to delete this conversation?")) return;
-
     try {
       const response = await fetch(`/api/chat/sessions/${sessionId}`, {
         method: "DELETE",
@@ -191,132 +193,137 @@ export function ChatHistory({
     return date.toLocaleDateString();
   };
 
-  if (isCollapsed) {
-    return (
-      <div className="h-full bg-neutral-50 border-r border-neutral-200 flex items-start p-2">
-        <button
-          onClick={() => setIsCollapsed(false)}
-          className="p-2 hover:bg-neutral-200 rounded transition-colors"
-          title="Expand chat history"
-        >
-          <ChevronRight />
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="h-full bg-neutral-50 border-r border-neutral-200 flex flex-col w-64">
-      {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-neutral-200">
-        <h2 className="font-semibold text-sm text-neutral-700">Chat History</h2>
-        <div className="flex items-center gap-2">
+    <section className="flex h-full flex-col">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.4em] text-blue-500">
+            Chat
+          </p>
+          <h2 className="text-lg font-semibold text-slate-900">History</h2>
+        </div>
+        <div className="flex gap-2">
           <button
             onClick={onNewChat}
-            className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+            className="cursor-pointer rounded-2xl border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
             title="New Chat"
           >
-            <Plus />
+            <div className="flex items-center gap-1">
+              <Plus /> New
+            </div>
           </button>
           <button
-            onClick={() => setIsCollapsed(true)}
-            className="p-1 hover:bg-neutral-200 rounded transition-colors"
-            title="Collapse"
+            onClick={onToggleCollapse}
+            className="cursor-pointer rounded-full border border-slate-200 p-2 text-slate-600 hover:border-slate-300"
+            title={collapsed ? "Expand section" : "Collapse section"}
           >
-            <ChevronLeft />
+            {collapsed ? <ChevronUp /> : <ChevronDown />}
           </button>
         </div>
       </div>
-
-      {/* Sessions List */}
-      <div className="flex-1 overflow-y-auto">
-        {loading && sessions.length === 0 ? (
-          <div className="p-4 text-sm text-neutral-500">Loading...</div>
-        ) : sessions.length === 0 ? (
-          <div className="p-4 text-sm text-neutral-500">
-            No chat history yet. Start a new conversation!
-          </div>
-        ) : (
-          <div className="divide-y divide-neutral-200">
-            {sessions.map((session) => (
-              <div
-                key={session.id}
-                className={`p-3 cursor-pointer transition-colors group relative ${
-                  currentSessionId === session.id
-                    ? "bg-blue-50 border-l-4 border-blue-500"
-                    : "hover:bg-neutral-100"
-                }`}
-              >
-                {editingId === session.id ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      className="flex-1 px-2 py-1 text-sm border border-neutral-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSaveEdit(session.id);
-                        if (e.key === "Escape") handleCancelEdit();
-                      }}
-                    />
-                    <button
-                      onClick={() => handleSaveEdit(session.id)}
-                      className="p-1 hover:bg-green-100 rounded transition-colors"
-                      title="Save"
-                    >
-                      <Check />
-                    </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="p-1 hover:bg-red-100 rounded transition-colors"
-                      title="Cancel"
-                    >
-                      <X />
-                    </button>
-                  </div>
-                ) : (
+      {!collapsed && (
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {loading && sessions.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-6 text-center text-xs text-slate-500">
+              Loading conversations…
+            </div>
+          ) : sessions.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-6 text-center text-xs text-slate-500">
+              No chats yet. Start a conversation to see it here.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sessions.map((session) => {
+                const isActive = currentSessionId === session.id;
+                return (
                   <div
-                    onClick={() => onSessionSelect(session.id)}
-                    className="flex flex-col gap-1"
+                    key={session.id}
+                    className={`rounded-xl border p-2.5 text-sm shadow-sm transition hover:border-blue-200 ${
+                      isActive
+                        ? "border-blue-400 bg-blue-50"
+                        : "border-slate-200 bg-white"
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-sm font-medium text-neutral-800 line-clamp-2 flex-1">
-                        {session.title}
-                      </span>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEdit(session);
+                    {editingId === session.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          className="flex-1 rounded-xl border border-slate-200 px-2 py-1 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveEdit(session.id);
+                            if (e.key === "Escape") handleCancelEdit();
                           }}
-                          className="p-1 hover:bg-blue-100 rounded transition-colors text-blue-600"
-                          title="Edit title"
+                        />
+                        <button
+                          onClick={() => handleSaveEdit(session.id)}
+                          className="cursor-pointer rounded-full border border-green-200 bg-green-50 p-1 text-green-600 hover:bg-green-100"
+                          title="Save"
                         >
-                          <Edit2 />
+                          <Check />
                         </button>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(session.id);
-                          }}
-                          className="p-1 hover:bg-red-100 rounded transition-colors text-red-600"
-                          title="Delete"
+                          onClick={handleCancelEdit}
+                          className="cursor-pointer rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100"
+                          title="Cancel"
                         >
-                          <Trash2 />
+                          <X />
                         </button>
                       </div>
-                    </div>
-                    <span className="text-xs text-neutral-500">
-                      {formatTimestamp(session.updatedAt)}
-                    </span>
+                    ) : (
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => onSessionSelect(session.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onSessionSelect(session.id);
+                          }
+                        }}
+                        className="flex w-full flex-col text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 rounded-xl cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="flex-1 text-sm font-semibold text-slate-900 line-clamp-2">
+                            {session.title}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(session);
+                              }}
+                              className="cursor-pointer rounded-full border border-blue-200 bg-blue-50 p-1 text-blue-600 hover:bg-blue-100"
+                              title="Rename"
+                            >
+                              <Edit2 />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(session.id);
+                              }}
+                              className="cursor-pointer rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100"
+                              title="Delete"
+                            >
+                              <Trash2 />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {formatTimestamp(session.updatedAt)}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

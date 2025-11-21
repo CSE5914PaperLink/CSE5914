@@ -304,46 +304,9 @@ export default function ProfilePage() {
               <p className="text-sm font-semibold text-slate-700">Email</p>
               <p className="text-xs text-slate-500">{firebaseUser.email}</p>
             </div>
-          )}
-        </div>
-
-        {/* Account Stats */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-2xl shadow-md p-6 text-center hover:shadow-lg transition-all duration-300">
-            <div className="text-3xl font-bold text-blue-600 mb-2">📚</div>
-            <h3 className="font-semibold text-gray-900 mb-1">Saved Papers</h3>
-            <p className="text-2xl font-bold text-gray-800">{savedPapersCount}</p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-md p-6 text-center hover:shadow-lg transition-all duration-300">
-            <div className="text-3xl font-bold text-purple-600 mb-2">💬</div>
-            <h3 className="font-semibold text-gray-900 mb-1">Chat Sessions</h3>
-            <p className="text-2xl font-bold text-gray-800">{chatSessionsCount}</p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-md p-6 text-center hover:shadow-lg transition-all duration-300">
-            <div className="text-3xl font-bold text-green-600 mb-2">⭐</div>
-            <h3 className="font-semibold text-gray-900 mb-1">Favorites</h3>
-            <p className="text-2xl font-bold text-gray-800">{favoritesCount}</p>
-          </div>
-        </div>
-
-        {/* Account Settings */}
-        <div className="bg-white rounded-2xl shadow-md p-8 mb-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">
-            Account Settings
-          </h3>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between py-4 border-b border-gray-200">
-              <div>
-                <h4 className="font-semibold text-gray-900">Email</h4>
-                <p className="text-gray-600 text-sm">{firebaseUser.email}</p>
-              </div>
-              <span className="text-green-600 text-sm font-medium">
-                ✓ Verified
-              </span>
-            </div>
+            <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+              ✓ Verified
+            </span>
           </div>
         </section>
 

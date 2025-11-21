@@ -1,119 +1,55 @@
 "use client";
 
-export type Feature = "search" | "papers" | "analyze" | null;
+import type { FormEvent } from "react";
 
 export function InputForm({
-  active,
   input,
   setInput,
-  onFeature,
   onSubmit,
 }: {
-  active: Feature;
   input: string;
   setInput: (val: string) => void;
-  onFeature: (f: Exclude<Feature, null>, name: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
+  onSubmit: (e: FormEvent) => void;
 }) {
   return (
-    <div className="border-t border-neutral-200 p-4 bg-white">
-      <form id="chatForm" onSubmit={onSubmit}>
-        <div className="flex items-center gap-3 max-w-3xl mx-auto container">
-          <div className="flex space-x-3">
-            <button
-              type="button"
-              id="searchBtn"
-              className="p-2 rounded-md hover:bg-neutral-100 transition-colors"
-              title="Search Papers"
-              onClick={() => onFeature("search", "Search Papers")}
+    <div className="sticky bottom-0 left-0 z-10 border-t border-slate-100 bg-white/95 px-4 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur">
+      <form id="chatForm" onSubmit={onSubmit} className="mx-auto w-full max-w-4xl">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="sr-only" htmlFor="messageInput">
+            Ask a question
+          </label>
+          <div className="flex flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-2.5 shadow-inner shadow-white/80 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+            <svg
+              className="h-5 w-5 text-slate-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              <svg
-                className="w-5 h-5 text-neutral-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                ></path>
-              </svg>
-            </button>
-            <button
-              type="button"
-              id="papersBtn"
-              className="p-2 rounded-md hover:bg-neutral-100 transition-colors"
-              title="My Papers"
-              onClick={() => onFeature("papers", "My Papers")}
-            >
-              <svg
-                className="w-5 h-5 text-neutral-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                ></path>
-              </svg>
-            </button>
-            <button
-              type="button"
-              id="analyzeBtn"
-              className="p-2 rounded-md hover:bg-neutral-100 transition-colors"
-              title="Compare & Analyze"
-              onClick={() => onFeature("analyze", "Compare & Analyze")}
-            >
-              <svg
-                className="w-5 h-5 text-neutral-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                ></path>
-              </svg>
-            </button>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 105.2 5.2a7.5 7.5 0 0011.46 11.45z"
+              />
+            </svg>
+            <input
+              type="text"
+              id="messageInput"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask about your papers or research goals..."
+              className="w-full bg-transparent text-base text-slate-900 placeholder:text-slate-400 focus:outline-none"
+              required
+            />
           </div>
-          <input
-            type="text"
-            id="messageInput"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={
-              active
-                ? `Ask about ${
-                    active === "search"
-                      ? "Search Papers"
-                      : active === "papers"
-                      ? "My Papers"
-                      : "Compare & Analyze"
-                  }...`
-                : "Type your message here..."
-            }
-            className="flex-1 px-4 py-3 bg-white border border-neutral-300 rounded-xl focus:outline-none focus:border-neutral-500 text-neutral-900"
-            required
-          />
           <button
             type="submit"
-            className="bg-neutral-900 text-white px-6 py-3 rounded-xl hover:bg-black transition-colors font-semibold"
+            className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:from-blue-500 hover:to-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-200"
           >
             Send
           </button>
         </div>
       </form>
-      <p className="text-center text-[11px] text-neutral-400 mt-2">
-        Click feature icons to set context.
-      </p>
     </div>
   );
 }
