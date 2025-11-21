@@ -23,13 +23,13 @@ const nextConfig: NextConfig = {
     },
   },
   // Ensure native modules are included in standalone output
-  experimental: {
-    outputFileTracingIncludes: {
-      "*": [
-        "./node_modules/lightningcss/**/*",
-        "./node_modules/lightningcss-linux-x64-gnu/**/*",
-      ],
-    },
+  outputFileTracingIncludes: {
+    "*": [
+      "./node_modules/lightningcss/**/*",
+      "./node_modules/lightningcss-linux-x64-gnu/**/*",
+      "./node_modules/@tailwindcss/oxide/**/*",
+      "./node_modules/@tailwindcss/oxide-linux-x64-gnu/**/*",
+    ],
   },
 };
 
