@@ -3,6 +3,7 @@ import json
 
 from google import genai
 from google.genai import types
+from google.api_core.exceptions import ResourceExhausted
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 from typing import Optional, Any, cast
@@ -103,6 +104,9 @@ async def chat_agent(
 
     config: Any = {"configurable": {"thread_id": thread_id}}
 
+    doc_titles = body.get("doc_titles")
+    prompt_context = build_prompt_with_titles(prompt, doc_titles)
+
     async def event_generator():
         """
         - Sends status changes (thinking/searching/answer)
@@ -118,7 +122,7 @@ async def chat_agent(
         try:
             # Stream LangGraph messages
             async for msg, metadata in agent.astream(
-                {"messages": [("user", prompt)]},
+                {"messages": [("user", prompt_context)]},
                 config=config,
                 stream_mode="messages",
             ):
@@ -158,6 +162,9 @@ async def chat_agent(
             # Done
             yield json.dumps({"type": "done"}) + "\n"
 
+        except ResourceExhausted:
+            message = "The Gemini API rate limit was hit. Please wait a few seconds and try again."
+            yield json.dumps({"type": "error", "value": message}) + "\n"
         except Exception as e:
             # In case of error, yield an error event and stop
             yield json.dumps({"type": "error", "value": str(e)}) + "\n"
@@ -167,3 +174,22 @@ async def chat_agent(
         event_generator(),
         media_type="application/json",
     )
+
+
+def build_prompt_with_titles(prompt: str, doc_titles: Any) -> str:
+    if not isinstance(doc_titles, list) or not doc_titles:
+        return prompt
+
+    lines: list[str] = []
+    for idx, entry in enumerate(doc_titles, start=1):
+        if not isinstance(entry, dict):
+            continue
+        doc_id = entry.get("doc_id") or "unknown document"
+        title = entry.get("title") or doc_id
+        lines.append(f"{idx}. {title} (ID: {doc_id})")
+
+    if not lines:
+        return prompt
+
+    joined = "\n".join(lines)
+    return f"{prompt}\n\nContext documents in scope:\n{joined}"

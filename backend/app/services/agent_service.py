@@ -18,17 +18,26 @@ You are a helpful document intelligence assistant with access to scientific pape
 
 GUIDELINES:
 - Use search_documents to retrieve relevant text and image content.
-- Search again with larger top_k values or different query if the first results are clearly incomplete
-- Provide clear, accurate answers based on the document contents
-- Use the information to supplement your answers. The information will not contain everything needed to give a strong response.
-- Use your own knowledge to fill in any gaps.
-- Always cite your sources using file names
-- Be thorough
+- Only call search_documents ONCE per user message.
+- Never ask the user to clarify or be more specific or what to query. Always answer directly using available evidence.
+- Use search_documents with text_k=6 and image_k=2 by default. Only increase these values if absolutely necessary.
+- Ground your answers in the search results, and fill gaps with your own knowledge when needed.
 
-When answering:
-1. Search the text and images with a focused query using search_documents
-2. Synthesize a clear answer from the results
-3. Only search again if you need more information to answer the question thoroughly.
+CITATION RULES (STRICT):
+- Never place more than one citation in a row. One "[1]" per sentence maximum.
+- Each citation may only contain ONE source number.
+- Ensure citations are always in line with no newline after the citation.
+- If multiple sources support a sentence, choose the best one.
+
+FORMATTING RULES:
+- Do NOT use markdown, lists, bullet points, or headings.
+- Write in plain text only.
+
+ANSWERING PROCEDURE:
+1. Perform exactly one search_documents call.
+2. Synthesize a natural-language answer combining retrieved evidence and prior knowledge.
+3. Insert citations only where required by evidence, following the strict citation rules above.
+4. Keep citations sparse, relevant, and clean.
 """
 
 
@@ -48,11 +57,13 @@ def create_search_tools(
         search_documents tool
     """
 
+    next_citation_number = 1
+
     @tool
     def search_documents(
         query: Annotated[str, "The search query or question for document intelligence"],
-        top_k_text: Annotated[int, "Text results to retrieve (default: 8)"] = 8,
-        top_k_image: Annotated[int, "Image results to retrieve (default: 4)"] = 4,
+        top_k_text: Annotated[int, "Text results to retrieve (default: 6)"] = 6,
+        top_k_image: Annotated[int, "Image results to retrieve (default: 2)"] = 2,
     ) -> str:
         """
         Run both text and image retrieval over the uploaded scientific documents.
@@ -69,10 +80,28 @@ def create_search_tools(
             - All retrieved metadata and content for each match
         """
 
+        nonlocal next_citation_number
+
         output_sections = []
 
+        def register_source(unique_id: str, payload: dict) -> int:
+            nonlocal next_citation_number
+            existing = sources_tracker.get(unique_id, {})
+            citation_number = existing.get("citation_number")
+            if citation_number is None:
+                citation_number = next_citation_number
+                next_citation_number += 1
+            updated = {
+                **existing,
+                "id": unique_id,
+                **payload,
+                "citation_number": citation_number,
+            }
+            sources_tracker[unique_id] = updated
+            return citation_number
+
         try:
-            print(f"[TEXT SEARCH] query={query}, doc_ids={doc_ids}")
+            print(f"[TEXT SEARCH] query={query}, doc_ids={doc_ids}, top_k={top_k_text}")
 
             text_where = {"doc_id": {"$in": doc_ids}}
             query_vec = embedder.embed_query(query)
@@ -105,7 +134,7 @@ def create_search_tools(
                     bbox_top = md.get("bbox_top")
                     bbox_right = md.get("bbox_right")
                     bbox_bottom = md.get("bbox_bottom")
-
+                    print(f"ID: {unique_id} \n heading: {heading}\n content: {doc}\n ")
                     bbox_dict = None
                     if all(
                         coord is not None
@@ -118,20 +147,26 @@ def create_search_tools(
                             "bottom": bbox_bottom,
                         }
 
+                    citation_number = register_source(
+                        unique_id,
+                        {
+                            "type": "text",
+                            "doc_id": doc_id,
+                            "title": title,
+                            "heading": heading,
+                            "distance": dists[i] if i < len(dists) else None,
+                            "page": page,
+                            "chunk_index": chunk_idx,
+                            "content": doc.strip(),
+                            "bbox": bbox_dict,
+                        },
+                    )
+
                     parts.append(
-                        f"[Source {i+1}] Title: {title}\n"
+                        f"[Source {citation_number}] Title: {title}\n"
                         f"Heading: {heading}\n"
                         f"Content:\n{doc.strip()}\n"
                     )
-
-                    # Track source for UI - duplicates are automatically handled by dict keys
-                    sources_tracker[unique_id] = {
-                        "type": "text",
-                        "doc_id": doc_id,
-                        "distance": dists[i] if i < len(dists) else None,
-                        "page": page,
-                        "bbox": bbox_dict,
-                    }
 
                 output_sections.append("## TEXT RESULTS\n" + "\n---\n".join(parts))
 
@@ -146,7 +181,9 @@ def create_search_tools(
         # IMAGE SEARCH (original logic)
         # ---------------------------------------------------------
         try:
-            print(f"[IMAGE SEARCH] query={query}, doc_ids={doc_ids}")
+            print(
+                f"[IMAGE SEARCH] query={query}, doc_ids={doc_ids}, top_k={top_k_image}"
+            )
 
             image_where = {
                 "$and": [
@@ -177,6 +214,7 @@ def create_search_tools(
                     title = md.get("title", md.get("doc_id", "Unknown"))
                     caption = md.get("caption")
                     image_b64 = md.get("image_b64")
+                    filename = md.get("filename")
                     page = md.get("page")
                     picture_number = md.get("picture_number")
                     img = f"data:image/png;base64,{image_b64}"
@@ -191,10 +229,6 @@ def create_search_tools(
                     pic_num = picture_number or i
                     unique_id = f"image:{doc_id}:p{page_num}:pic{pic_num}"
 
-                    parts.append(
-                        f"[Image Source {i+1}: Title {title}] | Caption: {caption}\nContent: {img}\n"
-                    )
-
                     bbox_dict = None
                     if all(
                         coord is not None
@@ -207,14 +241,24 @@ def create_search_tools(
                             "bottom": bbox_bottom,
                         }
 
-                    sources_tracker[unique_id] = {
-                        "type": "image",
-                        "doc_id": doc_id,
-                        "title": title,
-                        "distance": dists[i] if i < len(dists) else None,
-                        "page": page_num,
-                        "bbox": bbox_dict,
-                    }
+                    citation_number = register_source(
+                        unique_id,
+                        {
+                            "type": "image",
+                            "doc_id": doc_id,
+                            "title": title,
+                            "caption": caption,
+                            "filename": filename,
+                            "distance": dists[i] if i < len(dists) else None,
+                            "page": page_num,
+                            "content": caption,
+                            "bbox": bbox_dict,
+                        },
+                    )
+
+                    parts.append(
+                        f"[Source {citation_number}] Title: {title}\nCaption: {caption}\nContent: {img}\n"
+                    )
 
                 output_sections.append("## IMAGE RESULTS\n" + "\n---\n".join(parts))
 

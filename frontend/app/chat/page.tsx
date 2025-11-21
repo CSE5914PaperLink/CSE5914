@@ -4,6 +4,8 @@ import { Sidebar } from "@/components/chat/Sidebar";
 import { Messages } from "@/components/chat/Messages";
 import { InputForm, type Feature } from "@/components/chat/InputForm";
 import { PdfViewer } from "@/components/chat/PdfViewer";
+import { annotateWithCitations } from "@/components/chat/citations";
+import { dedupeSources } from "@/components/chat/sourceUtils";
 import type {
   ChatMessage,
   LibraryItem,
@@ -53,7 +55,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "intro",
-      text: "Hello! I'm your AI research assistant powered by Gemini. How can I help you today?",
+      text: "Hello! I'm your AI research assistant. Select papers on the left side and ask me any question!",
       sender: "ai",
     },
   ]);
@@ -133,6 +135,13 @@ export default function ChatPage() {
 
       // include selected doc ids for RAG
       const docs = Array.from(selectedDocs.values());
+      const docTitleMap = new Map(
+        library.map((item) => [item.metadata.doc_id, item.metadata.title])
+      );
+      const docDetails = docs.map((docId) => ({
+        doc_id: docId,
+        title: docTitleMap.get(docId) || docId,
+      }));
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
@@ -142,6 +151,7 @@ export default function ChatPage() {
           prompt: trimmed,
           system: systemInstruction,
           doc_ids: docs,
+          doc_titles: docDetails,
           thread_id: threadId, // Pass thread ID for conversation memory
         }),
       });
@@ -217,12 +227,15 @@ export default function ChatPage() {
                   type: "text" | "image";
                   doc_id?: string;
                   title?: string;
+                  heading?: string;
+                  caption?: string;
                   distance?: number;
                   content?: string;
                   chunk_index?: number;
                   page?: number;
                   filename?: string;
                   image_data?: string;
+                  citation_number?: number;
                   bbox?: {
                     left: number;
                     top: number;
@@ -236,25 +249,48 @@ export default function ChatPage() {
                   string,
                   SourceData
                 >;
-                const sources: SourceChunk[] = Object.entries(sourcesDict).map(
-                  ([id, src]) => ({
-                    id: id,
-                    type: src.type,
-                    doc_id: src.doc_id,
-                    title: src.title,
-                    distance: src.distance,
-                    content: src.content,
-                    chunk_index: src.chunk_index,
-                    page: src.page,
-                    filename: src.filename,
-                    image_data: src.image_data,
-                    bbox: src.bbox,
+                const sourcesWithOrder = Object.entries(sourcesDict).map(
+                  ([id, src], index) => ({
+                    source: {
+                      id: id,
+                      type: src.type,
+                      doc_id: src.doc_id,
+                      title: src.title,
+                      heading: src.heading,
+                      caption: src.caption,
+                      distance: src.distance,
+                      content: src.content,
+                      chunk_index: src.chunk_index,
+                      page: src.page,
+                      filename: src.filename,
+                      image_data: src.image_data,
+                      citation_number: src.citation_number,
+                      bbox: src.bbox,
+                    } satisfies SourceChunk,
+                    order: index,
                   })
                 );
 
+                const orderedSources = sourcesWithOrder
+                  .sort((a, b) => {
+                    const aNum = a.source.citation_number ?? a.order + 1;
+                    const bNum = b.source.citation_number ?? b.order + 1;
+                    return aNum - bNum;
+                  })
+                  .map((entry) => entry.source);
+
+                const dedupedSources = dedupeSources(orderedSources);
+                const annotatedText = annotateWithCitations(
+                  fullContent,
+                  dedupedSources
+                );
+                fullContent = annotatedText;
+
                 setMessages((m) =>
                   m.map((msg) =>
-                    msg.id === aiMessageId ? { ...msg, sources } : msg
+                    msg.id === aiMessageId
+                      ? { ...msg, sources: dedupedSources, text: annotatedText }
+                      : msg
                   )
                 );
               } else if (event.type === "error") {
@@ -263,7 +299,10 @@ export default function ChatPage() {
             } catch (e) {
               // Skip invalid JSON lines
               if (e instanceof Error && !e.message.includes("Unexpected")) {
+                console.warn("Failed to parse streamed event line:", line, e);
                 throw e;
+              } else {
+                console.warn("Non-error JSON parse failure for line:", line, e);
               }
             }
           }
@@ -285,27 +324,33 @@ export default function ChatPage() {
         const imageChunks = data.images || [];
 
         // Combine text and image chunks into sources
-        const sources: SourceChunk[] = [
-          ...chunks.map(
-            (chunk: {
+        const textSources: SourceChunk[] = chunks.map(
+          (
+            chunk: {
               id: string;
               doc_id?: string;
               distance?: number;
               content?: string;
               chunk_index?: number;
               page?: number;
-            }) => ({
-              id: chunk.id,
-              type: "text" as const,
-              doc_id: chunk.doc_id,
-              distance: chunk.distance,
-              content: chunk.content,
-              chunk_index: chunk.chunk_index,
-              page: chunk.page,
-            })
-          ),
-          ...imageChunks.map(
-            (img: {
+              heading?: string;
+            },
+            index: number
+          ) => ({
+            id: chunk.id,
+            type: "text" as const,
+            doc_id: chunk.doc_id,
+            distance: chunk.distance,
+            content: chunk.content,
+            chunk_index: chunk.chunk_index,
+            page: chunk.page,
+            heading: chunk.heading,
+            citation_number: index + 1,
+          })
+        );
+        const imageSources: SourceChunk[] = imageChunks.map(
+          (
+            img: {
               id: string;
               doc_id?: string;
               distance?: number;
@@ -314,36 +359,48 @@ export default function ChatPage() {
               page?: number;
               url?: string;
               image_data?: string;
+              caption?: string;
               bbox?: {
                 left?: number;
                 right?: number;
                 top?: number;
                 bottom?: number;
               };
-            }) => ({
-              id: img.id,
-              type: "image" as const,
-              doc_id: img.doc_id,
-              distance: img.distance,
-              content: img.content,
-              filename: img.filename,
-              page: img.page,
-              url: img.url,
-              image_data: img.image_data,
-              bbox: img.bbox
-                ? {
-                    left: img.bbox.left ?? 0,
-                    right: img.bbox.right ?? 1,
-                    top: img.bbox.top ?? 0,
-                    bottom: img.bbox.bottom ?? 1,
-                  }
-                : undefined,
-            })
-          ),
-        ];
+            },
+            index: number
+          ) => ({
+            id: img.id,
+            type: "image" as const,
+            doc_id: img.doc_id,
+            distance: img.distance,
+            content: img.content,
+            filename: img.filename,
+            page: img.page,
+            url: img.url,
+            image_data: img.image_data,
+            caption: img.caption,
+            citation_number: textSources.length + index + 1,
+            bbox: img.bbox
+              ? {
+                  left: img.bbox.left ?? 0,
+                  right: img.bbox.right ?? 1,
+                  top: img.bbox.top ?? 0,
+                  bottom: img.bbox.bottom ?? 1,
+                }
+              : undefined,
+          })
+        );
+        const sources: SourceChunk[] = dedupeSources([
+          ...textSources,
+          ...imageSources,
+        ]);
 
         setTyping(false);
-        addMessage(aiResponse, "ai");
+        const annotatedResponse =
+          sources.length > 0
+            ? annotateWithCitations(aiResponse, sources)
+            : aiResponse;
+        addMessage(annotatedResponse, "ai");
 
         // Add images and sources to the last message
         setMessages((m) => {
@@ -353,6 +410,7 @@ export default function ChatPage() {
               updated[updated.length - 1].images = images;
             }
             if (sources.length > 0) {
+              updated[updated.length - 1].text = annotatedResponse;
               updated[updated.length - 1].sources = sources;
             }
           }
