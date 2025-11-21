@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
         port: "8000",
         pathname: "/library/images/**",
       },
+      {
+        protocol: "https",
+        hostname: "paperlinkbackend-745486781817.us-east5.run.app",
+        pathname: "/library/images/**",
+      },
     ],
   },
   turbopack: {

@@ -1,36 +1,36 @@
-import { initializeApp, getApps } from "firebase/app";
+import { initializeApp, getApps, type FirebaseApp, type FirebaseOptions } from "firebase/app";
 import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
   onAuthStateChanged,
-  User,
+  type User,
 } from "firebase/auth";
 import { getDataConnect } from "firebase/data-connect";
 
 import { connectorConfig } from "@/lib/dataconnect";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+const firebaseConfig: FirebaseOptions = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-function initFirebaseApp() {
-  // Prevent re-initializing in dev/hot-reload
-  if (!getApps().length) {
-    return initializeApp(firebaseConfig as any);
+function initFirebaseApp(): FirebaseApp {
+  const apps = getApps();
+  if (!apps.length) {
+    return initializeApp(firebaseConfig);
   }
-  return getApps()[0];
+  return apps[0]!; // non-null assertion: we *know* there’s at least one app here
 }
 
 const app = initFirebaseApp();
 
-const auth = getAuth(app);
+export const auth = getAuth(app);
 export const dataConnect = getDataConnect(app, connectorConfig);
 
 export async function signInWithGoogle(): Promise<"success" | "error"> {
@@ -57,5 +57,3 @@ export function onAuthStateChangedListener(
 ) {
   return onAuthStateChanged(auth, callback);
 }
-
-export { auth };
