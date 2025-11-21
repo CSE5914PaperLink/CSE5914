@@ -70,10 +70,10 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="text-center py-6 bg-blue-700 text-white mt-auto">
+      <footer className="text-center py-6 bg-blue-700 text-white">
         <p className="text-sm">
-          &copy; 2025 <span className="font-semibold">PaperLink</span> |
-          Built with Next.js, FastAPI, and AWS
+          &copy; 2025 <span className="font-semibold">CS Paper Compare</span> |
+          Built with Next.js, FastAPI, Chroma, and Firebase
         </p>
       </footer>
     </div>

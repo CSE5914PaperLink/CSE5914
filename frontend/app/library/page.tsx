@@ -41,6 +41,13 @@ export default function LibraryPage() {
   const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>(
     {}
   );
+  
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterFavorites, setFilterFavorites] = useState(false);
+  const [sortBy, setSortBy] = useState<"title" | "year" | "added">("added");
+  const [showFilters, setShowFilters] = useState(false);
 
   const fetchItems = async () => {
     if (!dataConnectUserId) return;
@@ -215,6 +222,48 @@ export default function LibraryPage() {
     return () => clearInterval(interval);
   }, [items, dataConnectUserId]);
 
+  // Filter and sort items
+  const filteredAndSortedItems = items
+    .filter((item) => {
+      // Search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const titleMatch = item.metadata.title.toLowerCase().includes(query);
+        const authors = item.metadata.authors;
+        const authorsMatch = Array.isArray(authors)
+          ? authors.some((author) => author.toLowerCase().includes(query))
+          : (authors as string)?.toLowerCase().includes(query) || false;
+        const docIdMatch = item.metadata.doc_id?.toLowerCase().includes(query);
+        
+        if (!titleMatch && !authorsMatch && !docIdMatch) {
+          return false;
+        }
+      }
+      
+      // Status filter
+      if (filterStatus !== "all" && item.metadata.ingestion_status !== filterStatus) {
+        return false;
+      }
+      
+      // Favorites filter
+      if (filterFavorites && !item.metadata.is_favorite) {
+        return false;
+      }
+      
+      return true;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "title":
+          return a.metadata.title.localeCompare(b.metadata.title);
+        case "year":
+          return (b.metadata.year || 0) - (a.metadata.year || 0);
+        case "added":
+        default:
+          return 0; // Keep original order (most recent first from API)
+      }
+    });
+
   if (userLoading) {
     return (
       <div className="bg-gray-50 min-h-screen flex items-center justify-center">
@@ -251,6 +300,124 @@ export default function LibraryPage() {
             {loading ? "Refreshing..." : "Refresh"}
           </button>
         </div>
+
+        {/* Search and Filter Section */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          <div className="space-y-4">
+            {/* Search Bar with Filter Button */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by title, author, or arXiv ID..."
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              />
+              <button
+                type="button"
+                onClick={() => setShowFilters(!showFilters)}
+                className={`relative px-3 py-2 rounded-lg transition-colors flex items-center justify-center ${
+                  showFilters
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+                title="Toggle filters"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                  ></path>
+                </svg>
+                {(filterStatus !== "all" || filterFavorites) && (
+                  <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full min-w-[20px] text-center">
+                    {(filterStatus !== "all" ? 1 : 0) + (filterFavorites ? 1 : 0)}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Expandable Filters Panel */}
+            {showFilters && (
+              <div className="pt-4 border-t border-gray-200 space-y-4">
+                {/* Filters Row */}
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* Sort By */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                      Sort By:
+                    </label>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as "title" | "year" | "added")}
+                      className="px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
+                    >
+                      <option value="added">Recently Added</option>
+                      <option value="title">Title (A-Z)</option>
+                      <option value="year">Year (Newest)</option>
+                    </select>
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                      Status:
+                    </label>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
+                    >
+                      <option value="all">All</option>
+                      <option value="completed">Completed</option>
+                      <option value="processing">Processing</option>
+                      <option value="pending">Pending</option>
+                      <option value="failed">Failed</option>
+                    </select>
+                  </div>
+
+                  {/* Favorites Checkbox */}
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filterFavorites}
+                      onChange={(e) => setFilterFavorites(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-gray-700 font-medium">⭐ Favorites Only</span>
+                  </label>
+
+                  {/* Clear Filters Button */}
+                  {(filterStatus !== "all" || filterFavorites || sortBy !== "added") && (
+                    <button
+                      onClick={() => {
+                        setFilterStatus("all");
+                        setFilterFavorites(false);
+                        setSortBy("added");
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700 underline font-medium ml-auto"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Results Count */}
+            <div className="text-sm text-gray-600">
+              Showing {filteredAndSortedItems.length} of {items.length} papers
+            </div>
+          </div>
+        </div>
+
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
             {error}
@@ -284,13 +451,51 @@ export default function LibraryPage() {
             No papers added yet. Go to Discovery to add papers.
           </div>
         )}
-        {!loading && (
+        {items.length > 0 && filteredAndSortedItems.length === 0 && !loading && (
+          <div className="text-center py-12 text-gray-500">
+            <svg
+              className="w-16 h-16 mx-auto mb-4 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              ></path>
+            </svg>
+            <p className="text-lg">No papers match your filters</p>
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setFilterStatus("all");
+                setFilterFavorites(false);
+                setSortBy("added");
+              }}
+              className="mt-4 text-blue-600 hover:text-blue-700 underline"
+            >
+              Clear all filters
+            </button>
+          </div>
+        )}
+        {!loading && filteredAndSortedItems.length > 0 && (
           <div className="space-y-4">
-            {items.map((item) => {
+            {filteredAndSortedItems.map((item) => {
               const docId = item.id;
               const isExpanded = expandedPaperId === docId;
               const images = paperImages[docId] || [];
               const isLoadingImages = loadingImages[docId] || false;
+
+              // Format authors with character limit
+              const authorsString = Array.isArray(item.metadata.authors)
+                ? item.metadata.authors.join(", ")
+                : item.metadata.authors;
+              const maxAuthorsLength = 150;
+              const truncatedAuthors = authorsString.length > maxAuthorsLength
+                ? authorsString.slice(0, maxAuthorsLength) + "..."
+                : authorsString;
 
               return (
                 <div
@@ -303,9 +508,7 @@ export default function LibraryPage() {
                         {item.metadata.title}
                       </h3>
                       <p className="text-sm text-gray-600 mb-2">
-                        {Array.isArray(item.metadata.authors)
-                          ? item.metadata.authors.join(", ")
-                          : item.metadata.authors}
+                        {truncatedAuthors}
                       </p>
                       {item.metadata.abstract && (
                         <p className="text-gray-700 text-sm line-clamp-3 mb-3">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUser } from "@/contexts/UserContext";
 
 interface ArxivResult {
@@ -31,9 +31,106 @@ export default function DiscoveryPage() {
   const [processingPapers, setProcessingPapers] = useState<Set<string>>(
     new Set()
   );
+  const [recommendedSearches, setRecommendedSearches] = useState<string[]>([]);
+  const [showRecommendations, setShowRecommendations] = useState(false);
+
+  // Fetch search history and top topics to generate recommendations
+  useEffect(() => {
+    if (!dataConnectUserId) return;
+
+    const fetchRecommendations = async () => {
+      try {
+        // Fetch search history
+        const historyRes = await fetch(
+          `/api/discovery/search-history?userId=${encodeURIComponent(dataConnectUserId)}`
+        );
+        const historyData = await historyRes.ok ? await historyRes.json() : { history: [] };
+        const searchHistory = historyData.history || [];
+
+        // Fetch library papers to compute top topics
+        const libraryRes = await fetch(
+          `/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`
+        );
+        const libraryData = await libraryRes.ok ? await libraryRes.json() : { results: [] };
+        const items = libraryData.results || [];
+
+        // Extract search terms from history
+        const historyTerms = searchHistory
+          .map((entry: any) => entry.query)
+          .filter((q: string) => q && q.trim().length > 0);
+
+        // Compute top topics from library paper titles
+        const tagCounts: Record<string, number> = {};
+        items.forEach((item: any) => {
+          const titleWords = (item?.metadata?.title || "")
+            .toLowerCase()
+            .split(/[\s:,-]+/);
+          titleWords.forEach((word: string) => {
+            // Filter out short words and common stop words
+            if (word.length > 4 && !["using", "based", "paper", "study", "analysis"].includes(word)) {
+              tagCounts[word] = (tagCounts[word] || 0) + 1;
+            }
+          });
+        });
+
+        // Get top topics
+        const topTopics = Object.entries(tagCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([name]) => name);
+
+        // Combine and deduplicate recommendations
+        const combined = [...new Set([...historyTerms, ...topTopics])];
+        
+        // Take top 6 recommendations
+        setRecommendedSearches(combined.slice(0, 6));
+      } catch (err) {
+        console.error("Failed to fetch recommendations:", err);
+      }
+    };
+
+    fetchRecommendations();
+  }, [dataConnectUserId]);
 
   const truncate = (text: string, n = 300) =>
     text.length > n ? text.slice(0, n) + "..." : text;
+
+  const handleRecommendedSearch = async (searchTerm: string) => {
+    setQuery(searchTerm);
+    setShowRecommendations(false);
+    
+    // Perform the search with the recommended term
+    setLoading(true);
+    setError(null);
+
+    try {
+      const params = new URLSearchParams({ q: searchTerm, max_results: "10" });
+      const res = await fetch(`/api/discovery/search?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`Search failed: ${res.statusText}`);
+      }
+      const data = await res.json();
+      const results = data.results || [];
+      setPapers(results);
+
+      // Save search to history if user is logged in
+      if (dataConnectUserId) {
+        fetch("/api/discovery/save-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: dataConnectUserId,
+            query: searchTerm.trim(),
+            resultsCount: results.length,
+          }),
+        }).catch((err) => console.error("Failed to save search history:", err));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to search papers");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,6 +221,29 @@ export default function DiscoveryPage() {
         <form onSubmit={handleSearch} className="mb-6">
           <div className="bg-white rounded-lg shadow-md p-4">
             <div className="flex items-center gap-2 mb-3">
+              {/* Light Bulb Icon for Recommendations */}
+              {dataConnectUserId && recommendedSearches.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowRecommendations(!showRecommendations)}
+                  className={`p-3 rounded-lg transition-colors ${
+                    showRecommendations
+                      ? "bg-yellow-100 text-yellow-600 hover:bg-yellow-200"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                  title="Show recommended searches"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"
+                    />
+                  </svg>
+                </button>
+              )}
               <input
                 type="text"
                 value={query}
@@ -160,6 +280,27 @@ export default function DiscoveryPage() {
                 {loading ? "Searching..." : "Search"}
               </button>
             </div>
+
+            {/* Recommended Searches */}
+            {showRecommendations && dataConnectUserId && recommendedSearches.length > 0 && (
+              <div className="mb-3 pb-3 border-b border-gray-200">
+                <p className="text-xs text-gray-600 mb-2">
+                  💡 Recommended searches based on your history and topics:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {recommendedSearches.map((term, index) => (
+                    <button
+                      type="button"
+                      key={index}
+                      onClick={() => handleRecommendedSearch(term)}
+                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full text-sm font-medium transition-colors border border-blue-200 hover:border-blue-300"
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Filter Toggle */}
             <button
