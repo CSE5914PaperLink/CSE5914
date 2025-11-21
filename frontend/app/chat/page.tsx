@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/chat/Sidebar";
 import { Messages } from "@/components/chat/Messages";
 import { InputForm, type Feature } from "@/components/chat/InputForm";
+import { ChatHistory } from "@/components/chat/ChatHistory";
 import dynamic from "next/dynamic";
 
 const PdfViewer = dynamic(
@@ -22,6 +23,16 @@ import { useUser } from "@/contexts/UserContext";
 
 export default function ChatPage() {
   const { dataConnectUserId } = useUser();
+
+  // Chat session management
+  const [sessionId, setSessionId] = useState<string | null>(() => {
+    // Try to restore session ID from sessionStorage
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("chat_session_id");
+    }
+    return null;
+  });
+  const [refreshHistory, setRefreshHistory] = useState(0);
 
   // Thread ID for agent conversation memory
   const [threadId] = useState(() => {
@@ -73,6 +84,102 @@ export default function ChatPage() {
   const [highlightSource, setHighlightSource] = useState<SourceChunk | null>(
     null
   );
+
+  // Create a new chat session
+  const createNewSession = async () => {
+    if (!dataConnectUserId) return;
+
+    try {
+      const response = await fetch("/api/chat/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: dataConnectUserId,
+          title: "New Chat",
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to create session");
+
+      const data = await response.json();
+      const newSessionId = data.chatSession_insert.id;
+      
+      setSessionId(newSessionId);
+      // Persist session ID to sessionStorage
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("chat_session_id", newSessionId);
+      }
+      setMessages([
+        {
+          id: "intro",
+          text: "Hello! I'm your AI research assistant. Select papers on the left side and ask me any question!",
+          sender: "ai",
+        },
+      ]);
+      setRefreshHistory((prev) => prev + 1);
+      
+      // Notify profile page to update chat sessions count
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event('chatSessionsUpdated'));
+        localStorage.setItem('chat_sessions_updated', Date.now().toString());
+      }
+    } catch (error) {
+      console.error("Error creating session:", error);
+    }
+  };
+
+  // Load an existing chat session
+  const loadSession = async (loadSessionId: string) => {
+    try {
+      const response = await fetch(`/api/chat/sessions/${loadSessionId}`);
+      if (!response.ok) throw new Error("Failed to load session");
+
+      const data = await response.json();
+      const chats = data.chats || [];
+
+      setSessionId(loadSessionId);
+      // Persist session ID to sessionStorage
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("chat_session_id", loadSessionId);
+      }
+
+      // Convert chats to messages format
+      const loadedMessages: ChatMessage[] = [
+        {
+          id: "intro",
+          text: "Hello! I'm your AI research assistant. Select papers on the left side and ask me any question!",
+          sender: "ai",
+        },
+      ];
+
+      chats.forEach((chat: { content: string; response: string | null }) => {
+        loadedMessages.push({
+          id: crypto.randomUUID(),
+          text: chat.content,
+          sender: "user",
+        });
+        if (chat.response) {
+          loadedMessages.push({
+            id: crypto.randomUUID(),
+            text: chat.response,
+            sender: "ai",
+          });
+        }
+      });
+
+      setMessages(loadedMessages);
+    } catch (error) {
+      console.error("Error loading session:", error);
+    }
+  };
+
+  // Create initial session when component mounts (only if no existing session)
+  useEffect(() => {
+    if (dataConnectUserId && !sessionId) {
+      createNewSession();
+    }
+  }, [dataConnectUserId, sessionId]);
+
 
   useEffect(() => {
     // fetch user's library from API that merges DataConnect + ChromaDB
@@ -160,6 +267,7 @@ export default function ChatPage() {
           doc_ids: docs,
           doc_titles: docDetails,
           thread_id: threadId, // Pass thread ID for conversation memory
+          session_id: sessionId, // Pass session ID for database persistence
         }),
       });
 
@@ -326,6 +434,7 @@ export default function ChatPage() {
         const data = await response.json();
         const aiResponse =
           data.content || "Sorry, I couldn't generate a response.";
+        
         const images = data.images || [];
         const chunks = data.chunks || [];
         const imageChunks = data.images || [];
@@ -460,9 +569,9 @@ export default function ChatPage() {
   }, []);
   const navbarHeight = navHeight; // used below in styles
   const handleWidthPx = 6;
-  // 4-column grid: sidebar | chat | handle | pdf
+  // 5-column grid: ChatHistory | sidebar | chat | handle | pdf
   // use fr units for chat/pdf so they split the remaining space after sidebar correctly
-  const gridTemplate = `auto ${split}fr ${handleWidthPx}px ${1 - split}fr`;
+  const gridTemplate = `auto auto ${split}fr ${handleWidthPx}px ${1 - split}fr`;
 
   return (
     <div className="w-screen flex flex-col bg-white overflow-hidden">
@@ -477,6 +586,14 @@ export default function ChatPage() {
           className="h-full grid gap-0"
           style={{ gridTemplateColumns: gridTemplate }}
         >
+          <ChatHistory
+            userId={dataConnectUserId}
+            currentSessionId={sessionId}
+            onSessionSelect={loadSession}
+            onNewChat={createNewSession}
+            refreshTrigger={refreshHistory}
+          />
+          
           <Sidebar
             library={library}
             selectedDocs={selectedDocs}

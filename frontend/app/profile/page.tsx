@@ -17,6 +17,7 @@ export default function ProfilePage() {
   const [tagLoading, setTagLoading] = useState(false);
   const [savedPapersCount, setSavedPapersCount] = useState(0);
   const [favoritesCount, setFavoritesCount] = useState(0);
+  const [chatSessionsCount, setChatSessionsCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -73,13 +74,28 @@ export default function ProfilePage() {
         setTagLoading(false);
       }
     };
+
+    const fetchChatSessions = async () => {
+      try {
+        const res = await fetch(
+          `/api/chat/sessions?userId=${encodeURIComponent(dataConnectUserId)}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        setChatSessionsCount(data.chatSessions?.length || 0);
+      } catch (err) {
+        console.error("Failed to load chat sessions:", err);
+      }
+    };
+
     fetchAndComputeTags();
+    fetchChatSessions();
   }, [dataConnectUserId, refreshKey]);
 
   // Listen for storage events to refresh when favorites change from library page
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'library_updated') {
+      if (e.key === 'library_updated' || e.key === 'chat_sessions_updated') {
         setRefreshKey(prev => prev + 1);
       }
     };
@@ -92,10 +108,12 @@ export default function ProfilePage() {
     };
     
     window.addEventListener('libraryUpdated', handleCustomEvent);
+    window.addEventListener('chatSessionsUpdated', handleCustomEvent);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('libraryUpdated', handleCustomEvent);
+      window.removeEventListener('chatSessionsUpdated', handleCustomEvent);
     };
   }, []);
 
@@ -259,7 +277,7 @@ export default function ProfilePage() {
           <div className="bg-white rounded-2xl shadow-md p-6 text-center hover:shadow-lg transition-all duration-300">
             <div className="text-3xl font-bold text-purple-600 mb-2">💬</div>
             <h3 className="font-semibold text-gray-900 mb-1">Chat Sessions</h3>
-            <p className="text-2xl font-bold text-gray-800">0</p>
+            <p className="text-2xl font-bold text-gray-800">{chatSessionsCount}</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow-md p-6 text-center hover:shadow-lg transition-all duration-300">
