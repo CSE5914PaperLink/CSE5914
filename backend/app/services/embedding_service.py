@@ -6,15 +6,17 @@ import base64
 from io import BytesIO
 from PIL import Image
 import shutil
+import re
 
 from langchain_nomic import NomicEmbeddings
 from langchain_community.vectorstores.utils import filter_complex_metadata
 from langchain_core.documents import Document
 
-
 from app.services.docling_service import DoclingService
 from app.services.chroma_service import ChromaService
 from app.core.config import settings
+
+# Metadata classes
 
 @dataclass
 class PdfMetadata:
@@ -27,23 +29,30 @@ class PdfMetadata:
     published: str
     authors: List[str]
 
+    github_url: Optional[str] = None
+    github_readme: Optional[str] = None
 
+@dataclass
+class RepoMetadata:
+    """Metadata for GitHub repositories."""
+    repo_url: str
+    readme: str
+    arxiv_id: str
+    filename: str
+
+
+# Embedding Service Wrapper
 class NomicEmbeddingService:
     """Service for local Nomic embeddings with multimodal support."""
 
     def __init__(self):
         self.embedder = NomicEmbeddings(  # type: ignore[call-arg]
             model="nomic-embed-text-v1.5",
-            inference_mode="remote",
-            nomic_api_key=settings.nomic_api_key,
+            inference_mode="local",
             vision_model="nomic-embed-vision-v1.5",
         )
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """
-        Embed text documents.
-        Documents are automatically prefixed with 'search_document:' by the model.
-        """
         return self.embedder.embed_documents(texts)
 
     def embed_query(self, text: str) -> List[float]:
@@ -55,6 +64,7 @@ class NomicEmbeddingService:
         normalized = text if text.strip().startswith("search_query:") else f"search_query: {text}"
         return self.embedder.embed_query(normalized)
 
+    # (Vision embedding disabled for simplicity — can re-enable easily)
     def embed_images(
         self, images: List[Union[Image.Image, bytes, str]]
     ) -> List[List[float]]:
@@ -90,7 +100,25 @@ class NomicEmbeddingService:
         return embeddings
 
 
+# Utility: extract GitHub URL from PDF text
+
+def extract_github_url(text: str) -> Optional[str]:
+    """
+    Extract a GitHub repository URL from text.
+    Example matches:
+        https://github.com/owner/repo
+    """
+    pattern = r"https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+"
+    match = re.search(pattern, text)
+    return match.group(0) if match else None
+
+
 def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
+    """
+    Extract text & images using Docling, embed them using Nomic,
+    store into Chroma vector DB.
+    """
+
     docling = DoclingService()
     docs = docling.extract_from_bytes(pdf_bytes)
 
@@ -101,24 +129,36 @@ def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
     chroma = ChromaService(embedding_fn=embedder.embedder)
 
     chroma_text_docs = []
-    # Text metadata: doc_id, title, type, page, bbox_*, headings
+    detected_repo_url = None
+
     for chunk in chunk_info:
+        text = chunk["text"]
+
+        # Try detecting GitHub repo URL once
+        if detected_repo_url is None:
+            detected_repo_url = extract_github_url(text)
+
         merged_meta = {
-            **chunk["metadata"],  # docling chunk metadata
+            **chunk["metadata"],
             "doc_id": extra_metadata.doc_id,
             "title": extra_metadata.title,
             "type": "text",
         }
+
         chroma_text_docs.append(
             Document(
-                page_content=chunk["text"],
+                page_content=text,
                 metadata=merged_meta,
             )
         )
-        print("\n\n\n\nChunk:", chunk["text"])
+
+    # Save GitHub URL into PdfMetadata
+    if detected_repo_url:
+        extra_metadata.github_url = detected_repo_url
+
+    # Store text chunks
     chroma.vectorstore.add_documents(chroma_text_docs, embedding_fn=embedder.embedder)
 
-    # Image metadata: doc_id, title, type, picture_number, page, caption, bbox_*
     for meta in image_info["metadatas"]:
         meta.update(
             {
@@ -128,13 +168,6 @@ def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
             }
         )
 
-    chroma.vectorstore.add_images(
-        image_info["uris"],
-        metadatas=image_info["metadatas"],
-        ids=image_info["ids"],
-    )
-
-    # Cleanup
     if image_info["tmp_dir"]:
         shutil.rmtree(image_info["tmp_dir"], ignore_errors=True)
 
@@ -146,3 +179,66 @@ def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
         "text_chunks": len(chunk_info),
         "image_chunks": len(image_info["uris"]),
     }
+
+def ingest_repo_files_into_chroma(
+    repo_url: str,
+    arxiv_id: str,
+    repo_files: List[Any],
+    base_metadata: Dict[str, Any],
+) -> int:
+
+    embedder = NomicEmbeddingService()
+    chroma = ChromaService(embedding_fn=embedder.embedder)
+
+    documents = []
+    readme_text = ""
+
+    # Detect README
+    for f in repo_files:
+        if hasattr(f, "path"):   # RepoFile object
+            path = f.path.lower()
+            content = f.content
+        else:                    
+            path = f.get("path", "").lower()
+            content = f.get("content", "")
+
+        if "readme" in path:
+            readme_text = content or ""
+
+    # Attach README to metadata
+    base_metadata["github_readme"] = readme_text
+
+    # Build documents
+    for f in repo_files:
+        if hasattr(f, "path"):
+            path = f.path
+            content = f.content
+        else:
+            path = f.get("path", "")
+            content = f.get("content", "")
+
+        if not content:
+            continue
+
+        merged_meta = {
+            **base_metadata,
+            "doc_id": arxiv_id, 
+            "repo_url": repo_url,
+            "root_id": arxiv_id,
+            "type": "repo",
+            "filename": path,
+            "github_readme": readme_text,
+            "kind": "chunk",  
+        }
+
+        documents.append(
+            Document(
+                page_content=content,
+                metadata=merged_meta,
+            )
+        )
+
+    if documents:
+        chroma.vectorstore.add_documents(documents, embedding_fn=embedder.embedder)
+
+    return len(documents)

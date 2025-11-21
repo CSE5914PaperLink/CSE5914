@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     gemini_default_model: str = "gemini-2.0-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
 
+    github_api_token: str | None = None
+    github_raw_url: str = "https://raw.githubusercontent.com"
+
     nomic_api_key: str | None = None
     # ChromaDB configuration
     chroma_persist_path: str = "./chroma"  # relative to backend working dir
