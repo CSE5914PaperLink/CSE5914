@@ -15,6 +15,7 @@ interface LibraryItem {
     abstract: string | null;
     ingestion_status: string;
     pdf_url: string | null;
+    is_favorite?: boolean;
   };
   document?: string | null;
   in_chromadb: boolean;
@@ -108,6 +109,45 @@ export default function LibraryPage() {
       setItems(items.filter((p) => p.dataconnect_id !== dataconnectId));
     } catch (e) {
       alert("Failed to delete paper: " + (e as Error).message);
+    }
+  };
+
+  const toggleFavorite = async (
+    dataconnectId: string,
+    currentFavorite: boolean
+  ) => {
+    try {
+      const res = await fetch("/api/library/favorite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paperId: dataconnectId,
+          isFavorite: !currentFavorite,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to toggle favorite");
+
+      // Update local state
+      setItems(
+        items.map((item) =>
+          item.dataconnect_id === dataconnectId
+            ? {
+                ...item,
+                metadata: {
+                  ...item.metadata,
+                  is_favorite: !currentFavorite,
+                },
+              }
+            : item
+        )
+      );
+
+      // Trigger profile page refresh
+      window.dispatchEvent(new Event('libraryUpdated'));
+      localStorage.setItem('library_updated', Date.now().toString());
+    } catch (e) {
+      alert("Failed to update favorite: " + (e as Error).message);
     }
   };
 
@@ -304,6 +344,26 @@ export default function LibraryPage() {
                       </div>
                     </div>
                     <div className="shrink-0 flex gap-2">
+                      <button
+                        onClick={() =>
+                          toggleFavorite(
+                            item.dataconnect_id,
+                            item.metadata.is_favorite || false
+                          )
+                        }
+                        className={`px-3 py-2 text-sm rounded transition-colors ${
+                          item.metadata.is_favorite
+                            ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
+                            : "bg-gray-100 hover:bg-gray-200 text-gray-600"
+                        }`}
+                        title={
+                          item.metadata.is_favorite
+                            ? "Remove from favorites"
+                            : "Add to favorites"
+                        }
+                      >
+                        {item.metadata.is_favorite ? "⭐" : "☆"}
+                      </button>
                       {/* <button
                       onClick={() => toggleImages(docId)}
                       className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded"

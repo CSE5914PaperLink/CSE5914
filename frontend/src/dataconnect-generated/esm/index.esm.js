@@ -6,127 +6,6 @@ export const connectorConfig = {
   location: 'us-east4'
 };
 
-export const createUserRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'CreateUser', inputVars);
-}
-createUserRef.operationName = 'CreateUser';
-
-export function createUser(dcOrVars, vars) {
-  return executeMutation(createUserRef(dcOrVars, vars));
-}
-
-export const addPaperRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'AddPaper', inputVars);
-}
-addPaperRef.operationName = 'AddPaper';
-
-export function addPaper(dcOrVars, vars) {
-  return executeMutation(addPaperRef(dcOrVars, vars));
-}
-
-export const updatePaperIngestionStatusRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'UpdatePaperIngestionStatus', inputVars);
-}
-updatePaperIngestionStatusRef.operationName = 'UpdatePaperIngestionStatus';
-
-export function updatePaperIngestionStatus(dcOrVars, vars) {
-  return executeMutation(updatePaperIngestionStatusRef(dcOrVars, vars));
-}
-
-export const deletePaperRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'DeletePaper', inputVars);
-}
-deletePaperRef.operationName = 'DeletePaper';
-
-export function deletePaper(dcOrVars, vars) {
-  return executeMutation(deletePaperRef(dcOrVars, vars));
-}
-
-export const createChatSessionRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'CreateChatSession', inputVars);
-}
-createChatSessionRef.operationName = 'CreateChatSession';
-
-export function createChatSession(dcOrVars, vars) {
-  return executeMutation(createChatSessionRef(dcOrVars, vars));
-}
-
-export const updateChatSessionRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'UpdateChatSession', inputVars);
-}
-updateChatSessionRef.operationName = 'UpdateChatSession';
-
-export function updateChatSession(dcOrVars, vars) {
-  return executeMutation(updateChatSessionRef(dcOrVars, vars));
-}
-
-export const deleteChatSessionRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'DeleteChatSession', inputVars);
-}
-deleteChatSessionRef.operationName = 'DeleteChatSession';
-
-export function deleteChatSession(dcOrVars, vars) {
-  return executeMutation(deleteChatSessionRef(dcOrVars, vars));
-}
-
-export const addChatRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'AddChat', inputVars);
-}
-addChatRef.operationName = 'AddChat';
-
-export function addChat(dcOrVars, vars) {
-  return executeMutation(addChatRef(dcOrVars, vars));
-}
-
-export const linkPaperToChatRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'LinkPaperToChat', inputVars);
-}
-linkPaperToChatRef.operationName = 'LinkPaperToChat';
-
-export function linkPaperToChat(dcOrVars, vars) {
-  return executeMutation(linkPaperToChatRef(dcOrVars, vars));
-}
-
-export const addCodeLinkRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'AddCodeLink', inputVars);
-}
-addCodeLinkRef.operationName = 'AddCodeLink';
-
-export function addCodeLink(dcOrVars, vars) {
-  return executeMutation(addCodeLinkRef(dcOrVars, vars));
-}
-
-export const deleteCodeLinkRef = (dcOrVars, vars) => {
-  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
-  dcInstance._useGeneratedSdk();
-  return mutationRef(dcInstance, 'DeleteCodeLink', inputVars);
-}
-deleteCodeLinkRef.operationName = 'DeleteCodeLink';
-
-export function deleteCodeLink(dcOrVars, vars) {
-  return executeMutation(deleteCodeLinkRef(dcOrVars, vars));
-}
-
 export const getUserByEmailRef = (dcOrVars, vars) => {
   const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
   dcInstance._useGeneratedSdk();
@@ -235,5 +114,159 @@ getCodeLinksForPaperRef.operationName = 'GetCodeLinksForPaper';
 
 export function getCodeLinksForPaper(dcOrVars, vars) {
   return executeQuery(getCodeLinksForPaperRef(dcOrVars, vars));
+}
+
+export const listSearchHistoryRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return queryRef(dcInstance, 'ListSearchHistory', inputVars);
+}
+listSearchHistoryRef.operationName = 'ListSearchHistory';
+
+export function listSearchHistory(dcOrVars, vars) {
+  return executeQuery(listSearchHistoryRef(dcOrVars, vars));
+}
+
+export const createUserRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'CreateUser', inputVars);
+}
+createUserRef.operationName = 'CreateUser';
+
+export function createUser(dcOrVars, vars) {
+  return executeMutation(createUserRef(dcOrVars, vars));
+}
+
+export const addPaperRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'AddPaper', inputVars);
+}
+addPaperRef.operationName = 'AddPaper';
+
+export function addPaper(dcOrVars, vars) {
+  return executeMutation(addPaperRef(dcOrVars, vars));
+}
+
+export const updatePaperIngestionStatusRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'UpdatePaperIngestionStatus', inputVars);
+}
+updatePaperIngestionStatusRef.operationName = 'UpdatePaperIngestionStatus';
+
+export function updatePaperIngestionStatus(dcOrVars, vars) {
+  return executeMutation(updatePaperIngestionStatusRef(dcOrVars, vars));
+}
+
+export const deletePaperRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'DeletePaper', inputVars);
+}
+deletePaperRef.operationName = 'DeletePaper';
+
+export function deletePaper(dcOrVars, vars) {
+  return executeMutation(deletePaperRef(dcOrVars, vars));
+}
+
+export const togglePaperFavoriteRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'TogglePaperFavorite', inputVars);
+}
+togglePaperFavoriteRef.operationName = 'TogglePaperFavorite';
+
+export function togglePaperFavorite(dcOrVars, vars) {
+  return executeMutation(togglePaperFavoriteRef(dcOrVars, vars));
+}
+
+export const createChatSessionRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'CreateChatSession', inputVars);
+}
+createChatSessionRef.operationName = 'CreateChatSession';
+
+export function createChatSession(dcOrVars, vars) {
+  return executeMutation(createChatSessionRef(dcOrVars, vars));
+}
+
+export const updateChatSessionRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'UpdateChatSession', inputVars);
+}
+updateChatSessionRef.operationName = 'UpdateChatSession';
+
+export function updateChatSession(dcOrVars, vars) {
+  return executeMutation(updateChatSessionRef(dcOrVars, vars));
+}
+
+export const deleteChatSessionRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'DeleteChatSession', inputVars);
+}
+deleteChatSessionRef.operationName = 'DeleteChatSession';
+
+export function deleteChatSession(dcOrVars, vars) {
+  return executeMutation(deleteChatSessionRef(dcOrVars, vars));
+}
+
+export const addChatRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'AddChat', inputVars);
+}
+addChatRef.operationName = 'AddChat';
+
+export function addChat(dcOrVars, vars) {
+  return executeMutation(addChatRef(dcOrVars, vars));
+}
+
+export const linkPaperToChatRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'LinkPaperToChat', inputVars);
+}
+linkPaperToChatRef.operationName = 'LinkPaperToChat';
+
+export function linkPaperToChat(dcOrVars, vars) {
+  return executeMutation(linkPaperToChatRef(dcOrVars, vars));
+}
+
+export const addCodeLinkRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'AddCodeLink', inputVars);
+}
+addCodeLinkRef.operationName = 'AddCodeLink';
+
+export function addCodeLink(dcOrVars, vars) {
+  return executeMutation(addCodeLinkRef(dcOrVars, vars));
+}
+
+export const deleteCodeLinkRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'DeleteCodeLink', inputVars);
+}
+deleteCodeLinkRef.operationName = 'DeleteCodeLink';
+
+export function deleteCodeLink(dcOrVars, vars) {
+  return executeMutation(deleteCodeLinkRef(dcOrVars, vars));
+}
+
+export const addSearchHistoryRef = (dcOrVars, vars) => {
+  const { dc: dcInstance, vars: inputVars} = validateArgs(connectorConfig, dcOrVars, vars, true);
+  dcInstance._useGeneratedSdk();
+  return mutationRef(dcInstance, 'AddSearchHistory', inputVars);
+}
+addSearchHistoryRef.operationName = 'AddSearchHistory';
+
+export function addSearchHistory(dcOrVars, vars) {
+  return executeMutation(addSearchHistoryRef(dcOrVars, vars));
 }
 

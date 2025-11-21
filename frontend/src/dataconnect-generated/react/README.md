@@ -27,11 +27,13 @@ You can also follow the instructions from the [Data Connect documentation](https
   - [*GetChatsForSession*](#getchatsforsession)
   - [*GetChatPapersForChat*](#getchatpapersforchat)
   - [*GetCodeLinksForPaper*](#getcodelinksforpaper)
+  - [*ListSearchHistory*](#listsearchhistory)
 - [**Mutations**](#mutations)
   - [*CreateUser*](#createuser)
   - [*AddPaper*](#addpaper)
   - [*UpdatePaperIngestionStatus*](#updatepaperingestionstatus)
   - [*DeletePaper*](#deletepaper)
+  - [*TogglePaperFavorite*](#togglepaperfavorite)
   - [*CreateChatSession*](#createchatsession)
   - [*UpdateChatSession*](#updatechatsession)
   - [*DeleteChatSession*](#deletechatsession)
@@ -39,6 +41,7 @@ You can also follow the instructions from the [Data Connect documentation](https
   - [*LinkPaperToChat*](#linkpapertochat)
   - [*AddCodeLink*](#addcodelink)
   - [*DeleteCodeLink*](#deletecodelink)
+  - [*AddSearchHistory*](#addsearchhistory)
 
 # TanStack Query Firebase & TanStack React Query
 This SDK provides [React](https://react.dev/) hooks generated specific to your application, for the operations found in the connector `example`. These hooks are generated using [TanStack Query Firebase](https://react-query-firebase.invertase.dev/) by our partners at Invertase, a library built on top of [TanStack React Query v5](https://tanstack.com/query/v5/docs/framework/react/overview).
@@ -344,6 +347,7 @@ export interface ListPapersData {
       arxivId?: string | null;
       ingestionStatus: string;
       citationCount?: number | null;
+      isFavorite: boolean;
       createdAt: TimestampString;
       pdfUrl?: string | null;
   } & Paper_Key)[];
@@ -1040,6 +1044,93 @@ export default function GetCodeLinksForPaperComponent() {
 }
 ```
 
+## ListSearchHistory
+You can execute the `ListSearchHistory` Query using the following Query hook function, which is defined in [dataconnect-generated/react/index.d.ts](./index.d.ts):
+
+```javascript
+useListSearchHistory(dc: DataConnect, vars: ListSearchHistoryVariables, options?: useDataConnectQueryOptions<ListSearchHistoryData>): UseDataConnectQueryResult<ListSearchHistoryData, ListSearchHistoryVariables>;
+```
+You can also pass in a `DataConnect` instance to the Query hook function.
+```javascript
+useListSearchHistory(vars: ListSearchHistoryVariables, options?: useDataConnectQueryOptions<ListSearchHistoryData>): UseDataConnectQueryResult<ListSearchHistoryData, ListSearchHistoryVariables>;
+```
+
+### Variables
+The `ListSearchHistory` Query requires an argument of type `ListSearchHistoryVariables`, which is defined in [dataconnect-generated/index.d.ts](../index.d.ts). It has the following fields:
+
+```javascript
+export interface ListSearchHistoryVariables {
+  userId: UUIDString;
+}
+```
+### Return Type
+Recall that calling the `ListSearchHistory` Query hook function returns a `UseQueryResult` object. This object holds the state of your Query, including whether the Query is loading, has completed, or has succeeded/failed, and any data returned by the Query, among other things.
+
+To check the status of a Query, use the `UseQueryResult.status` field. You can also check for pending / success / error status using the `UseQueryResult.isPending`, `UseQueryResult.isSuccess`, and `UseQueryResult.isError` fields.
+
+To access the data returned by a Query, use the `UseQueryResult.data` field. The data for the `ListSearchHistory` Query is of type `ListSearchHistoryData`, which is defined in [dataconnect-generated/index.d.ts](../index.d.ts). It has the following fields:
+```javascript
+export interface ListSearchHistoryData {
+  searchHistories: ({
+    id: UUIDString;
+    query: string;
+    resultsCount?: number | null;
+    createdAt: TimestampString;
+  } & SearchHistory_Key)[];
+}
+```
+
+To learn more about the `UseQueryResult` object, see the [TanStack React Query documentation](https://tanstack.com/query/v5/docs/framework/react/reference/useQuery).
+
+### Using `ListSearchHistory`'s Query hook function
+
+```javascript
+import { getDataConnect } from 'firebase/data-connect';
+import { connectorConfig, ListSearchHistoryVariables } from '@dataconnect/generated';
+import { useListSearchHistory } from '@dataconnect/generated/react'
+
+export default function ListSearchHistoryComponent() {
+  // The `useListSearchHistory` Query hook requires an argument of type `ListSearchHistoryVariables`:
+  const listSearchHistoryVars: ListSearchHistoryVariables = {
+    userId: ..., 
+  };
+
+  // You don't have to do anything to "execute" the Query.
+  // Call the Query hook function to get a `UseQueryResult` object which holds the state of your Query.
+  const query = useListSearchHistory(listSearchHistoryVars);
+  // Variables can be defined inline as well.
+  const query = useListSearchHistory({ userId: ..., });
+
+  // You can also pass in a `DataConnect` instance to the Query hook function.
+  const dataConnect = getDataConnect(connectorConfig);
+  const query = useListSearchHistory(dataConnect, listSearchHistoryVars);
+
+  // You can also pass in a `useDataConnectQueryOptions` object to the Query hook function.
+  const options = { staleTime: 5 * 1000 };
+  const query = useListSearchHistory(listSearchHistoryVars, options);
+
+  // You can also pass both a `DataConnect` instance and a `useDataConnectQueryOptions` object.
+  const dataConnect = getDataConnect(connectorConfig);
+  const options = { staleTime: 5 * 1000 };
+  const query = useListSearchHistory(dataConnect, listSearchHistoryVars, options);
+
+  // Then, you can render your component dynamically based on the status of the Query.
+  if (query.isPending) {
+    return <div>Loading...</div>;
+  }
+
+  if (query.isError) {
+    return <div>Error: {query.error.message}</div>;
+  }
+
+  // If the Query is successful, you can access the data returned using the `UseQueryResult.data` field.
+  if (query.isSuccess) {
+    console.log(query.data.searchHistories);
+  }
+  return <div>Query execution {query.isSuccess ? 'successful' : 'failed'}!</div>;
+}
+```
+
 # Mutations
 
 The React generated SDK provides Mutations hook functions that call and return [`useDataConnectMutation`](https://react-query-firebase.invertase.dev/react/data-connect/mutations) hooks from TanStack Query Firebase.
@@ -1454,6 +1545,102 @@ export default function DeletePaperComponent() {
   // If the Mutation is successful, you can access the data returned using the `UseMutationResult.data` field.
   if (mutation.isSuccess) {
     console.log(mutation.data.paper_delete);
+  }
+  return <div>Mutation execution {mutation.isSuccess ? 'successful' : 'failed'}!</div>;
+}
+```
+
+## TogglePaperFavorite
+You can execute the `TogglePaperFavorite` Mutation using the `UseMutationResult` object returned by the following Mutation hook function (which is defined in [dataconnect-generated/react/index.d.ts](./index.d.ts)):
+```javascript
+useTogglePaperFavorite(options?: useDataConnectMutationOptions<TogglePaperFavoriteData, FirebaseError, TogglePaperFavoriteVariables>): UseDataConnectMutationResult<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+```
+You can also pass in a `DataConnect` instance to the Mutation hook function.
+```javascript
+useTogglePaperFavorite(dc: DataConnect, options?: useDataConnectMutationOptions<TogglePaperFavoriteData, FirebaseError, TogglePaperFavoriteVariables>): UseDataConnectMutationResult<TogglePaperFavoriteData, TogglePaperFavoriteVariables>;
+```
+
+### Variables
+The `TogglePaperFavorite` Mutation requires an argument of type `TogglePaperFavoriteVariables`, which is defined in [dataconnect-generated/index.d.ts](../index.d.ts). It has the following fields:
+
+```javascript
+export interface TogglePaperFavoriteVariables {
+  paperId: UUIDString;
+  isFavorite: boolean;
+}
+```
+### Return Type
+Recall that calling the `TogglePaperFavorite` Mutation hook function returns a `UseMutationResult` object. This object holds the state of your Mutation, including whether the Mutation is loading, has completed, or has succeeded/failed, among other things.
+
+To check the status of a Mutation, use the `UseMutationResult.status` field. You can also check for pending / success / error status using the `UseMutationResult.isPending`, `UseMutationResult.isSuccess`, and `UseMutationResult.isError` fields.
+
+To execute the Mutation, call `UseMutationResult.mutate()`. This function executes the Mutation, but does not return the data from the Mutation.
+
+To access the data returned by a Mutation, use the `UseMutationResult.data` field. The data for the `TogglePaperFavorite` Mutation is of type `TogglePaperFavoriteData`, which is defined in [dataconnect-generated/index.d.ts](../index.d.ts). It has the following fields:
+```javascript
+export interface TogglePaperFavoriteData {
+  paper_update?: Paper_Key | null;
+}
+```
+
+To learn more about the `UseMutationResult` object, see the [TanStack React Query documentation](https://tanstack.com/query/v5/docs/framework/react/reference/useMutation).
+
+### Using `TogglePaperFavorite`'s Mutation hook function
+
+```javascript
+import { getDataConnect } from 'firebase/data-connect';
+import { connectorConfig, TogglePaperFavoriteVariables } from '@dataconnect/generated';
+import { useTogglePaperFavorite } from '@dataconnect/generated/react'
+
+export default function TogglePaperFavoriteComponent() {
+  // Call the Mutation hook function to get a `UseMutationResult` object which holds the state of your Mutation.
+  const mutation = useTogglePaperFavorite();
+
+  // You can also pass in a `DataConnect` instance to the Mutation hook function.
+  const dataConnect = getDataConnect(connectorConfig);
+  const mutation = useTogglePaperFavorite(dataConnect);
+
+  // You can also pass in a `useDataConnectMutationOptions` object to the Mutation hook function.
+  const options = {
+    onSuccess: () => { console.log('Mutation succeeded!'); }
+  };
+  const mutation = useTogglePaperFavorite(options);
+
+  // You can also pass both a `DataConnect` instance and a `useDataConnectMutationOptions` object.
+  const dataConnect = getDataConnect(connectorConfig);
+  const options = {
+    onSuccess: () => { console.log('Mutation succeeded!'); }
+  };
+  const mutation = useTogglePaperFavorite(dataConnect, options);
+
+  // After calling the Mutation hook function, you must call `UseMutationResult.mutate()` to execute the Mutation.
+  // The `useTogglePaperFavorite` Mutation requires an argument of type `TogglePaperFavoriteVariables`:
+  const togglePaperFavoriteVars: TogglePaperFavoriteVariables = {
+    paperId: ..., 
+    isFavorite: ..., 
+  };
+  mutation.mutate(togglePaperFavoriteVars);
+  // Variables can be defined inline as well.
+  mutation.mutate({ paperId: ..., isFavorite: ..., });
+
+  // You can also pass in a `useDataConnectMutationOptions` object to `UseMutationResult.mutate()`.
+  const options = {
+    onSuccess: () => { console.log('Mutation succeeded!'); }
+  };
+  mutation.mutate(togglePaperFavoriteVars, options);
+
+  // Then, you can render your component dynamically based on the status of the Mutation.
+  if (mutation.isPending) {
+    return <div>Loading...</div>;
+  }
+
+  if (mutation.isError) {
+    return <div>Error: {mutation.error.message}</div>;
+  }
+
+  // If the Mutation is successful, you can access the data returned using the `UseMutationResult.data` field.
+  if (mutation.isSuccess) {
+    console.log(mutation.data.paper_update);
   }
   return <div>Mutation execution {mutation.isSuccess ? 'successful' : 'failed'}!</div>;
 }
@@ -2128,6 +2315,104 @@ export default function DeleteCodeLinkComponent() {
   // If the Mutation is successful, you can access the data returned using the `UseMutationResult.data` field.
   if (mutation.isSuccess) {
     console.log(mutation.data.codeLink_delete);
+  }
+  return <div>Mutation execution {mutation.isSuccess ? 'successful' : 'failed'}!</div>;
+}
+```
+
+## AddSearchHistory
+You can execute the `AddSearchHistory` Mutation using the `UseMutationResult` object returned by the following Mutation hook function (which is defined in [dataconnect-generated/react/index.d.ts](./index.d.ts)):
+```javascript
+useAddSearchHistory(options?: useDataConnectMutationOptions<AddSearchHistoryData, FirebaseError, AddSearchHistoryVariables>): UseDataConnectMutationResult<AddSearchHistoryData, AddSearchHistoryVariables>;
+```
+You can also pass in a `DataConnect` instance to the Mutation hook function.
+```javascript
+useAddSearchHistory(dc: DataConnect, options?: useDataConnectMutationOptions<AddSearchHistoryData, FirebaseError, AddSearchHistoryVariables>): UseDataConnectMutationResult<AddSearchHistoryData, AddSearchHistoryVariables>;
+```
+
+### Variables
+The `AddSearchHistory` Mutation requires an argument of type `AddSearchHistoryVariables`, which is defined in [dataconnect-generated/index.d.ts](../index.d.ts). It has the following fields:
+
+```javascript
+export interface AddSearchHistoryVariables {
+  userId: UUIDString;
+  query: string;
+  resultsCount?: number | null;
+}
+```
+### Return Type
+Recall that calling the `AddSearchHistory` Mutation hook function returns a `UseMutationResult` object. This object holds the state of your Mutation, including whether the Mutation is loading, has completed, or has succeeded/failed, among other things.
+
+To check the status of a Mutation, use the `UseMutationResult.status` field. You can also check for pending / success / error status using the `UseMutationResult.isPending`, `UseMutationResult.isSuccess`, and `UseMutationResult.isError` fields.
+
+To execute the Mutation, call `UseMutationResult.mutate()`. This function executes the Mutation, but does not return the data from the Mutation.
+
+To access the data returned by a Mutation, use the `UseMutationResult.data` field. The data for the `AddSearchHistory` Mutation is of type `AddSearchHistoryData`, which is defined in [dataconnect-generated/index.d.ts](../index.d.ts). It has the following fields:
+```javascript
+export interface AddSearchHistoryData {
+  searchHistory_insert: SearchHistory_Key;
+}
+```
+
+To learn more about the `UseMutationResult` object, see the [TanStack React Query documentation](https://tanstack.com/query/v5/docs/framework/react/reference/useMutation).
+
+### Using `AddSearchHistory`'s Mutation hook function
+
+```javascript
+import { getDataConnect } from 'firebase/data-connect';
+import { connectorConfig, AddSearchHistoryVariables } from '@dataconnect/generated';
+import { useAddSearchHistory } from '@dataconnect/generated/react'
+
+export default function AddSearchHistoryComponent() {
+  // Call the Mutation hook function to get a `UseMutationResult` object which holds the state of your Mutation.
+  const mutation = useAddSearchHistory();
+
+  // You can also pass in a `DataConnect` instance to the Mutation hook function.
+  const dataConnect = getDataConnect(connectorConfig);
+  const mutation = useAddSearchHistory(dataConnect);
+
+  // You can also pass in a `useDataConnectMutationOptions` object to the Mutation hook function.
+  const options = {
+    onSuccess: () => { console.log('Mutation succeeded!'); }
+  };
+  const mutation = useAddSearchHistory(options);
+
+  // You can also pass both a `DataConnect` instance and a `useDataConnectMutationOptions` object.
+  const dataConnect = getDataConnect(connectorConfig);
+  const options = {
+    onSuccess: () => { console.log('Mutation succeeded!'); }
+  };
+  const mutation = useAddSearchHistory(dataConnect, options);
+
+  // After calling the Mutation hook function, you must call `UseMutationResult.mutate()` to execute the Mutation.
+  // The `useAddSearchHistory` Mutation requires an argument of type `AddSearchHistoryVariables`:
+  const addSearchHistoryVars: AddSearchHistoryVariables = {
+    userId: ..., 
+    query: ..., 
+    resultsCount: ..., // optional
+  };
+  mutation.mutate(addSearchHistoryVars);
+  // Variables can be defined inline as well.
+  mutation.mutate({ userId: ..., query: ..., resultsCount: ..., });
+
+  // You can also pass in a `useDataConnectMutationOptions` object to `UseMutationResult.mutate()`.
+  const options = {
+    onSuccess: () => { console.log('Mutation succeeded!'); }
+  };
+  mutation.mutate(addSearchHistoryVars, options);
+
+  // Then, you can render your component dynamically based on the status of the Mutation.
+  if (mutation.isPending) {
+    return <div>Loading...</div>;
+  }
+
+  if (mutation.isError) {
+    return <div>Error: {mutation.error.message}</div>;
+  }
+
+  // If the Mutation is successful, you can access the data returned using the `UseMutationResult.data` field.
+  if (mutation.isSuccess) {
+    console.log(mutation.data.searchHistory_insert);
   }
   return <div>Mutation execution {mutation.isSuccess ? 'successful' : 'failed'}!</div>;
 }

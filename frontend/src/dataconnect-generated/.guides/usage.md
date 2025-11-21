@@ -12,28 +12,28 @@ For each operation, there is a wrapper hook that can be used to call the operati
 
 Here are all of the hooks that get generated:
 ```ts
-import { useCreateUser, useAddPaper, useUpdatePaperIngestionStatus, useDeletePaper, useCreateChatSession, useUpdateChatSession, useDeleteChatSession, useAddChat, useLinkPaperToChat, useAddCodeLink } from '@dataconnect/generated/react';
+import { useGetUserByEmail, useGetUser, useListPapers, useGetPaper, useSearchPapers, useListChatSessions, useGetChatSession, useGetChatsForSession, useGetChatPapersForChat, useGetCodeLinksForPaper } from '@dataconnect/generated/react';
 // The types of these hooks are available in react/index.d.ts
 
-const { data, isPending, isSuccess, isError, error } = useCreateUser(createUserVars);
+const { data, isPending, isSuccess, isError, error } = useGetUserByEmail(getUserByEmailVars);
 
-const { data, isPending, isSuccess, isError, error } = useAddPaper(addPaperVars);
+const { data, isPending, isSuccess, isError, error } = useGetUser(getUserVars);
 
-const { data, isPending, isSuccess, isError, error } = useUpdatePaperIngestionStatus(updatePaperIngestionStatusVars);
+const { data, isPending, isSuccess, isError, error } = useListPapers(listPapersVars);
 
-const { data, isPending, isSuccess, isError, error } = useDeletePaper(deletePaperVars);
+const { data, isPending, isSuccess, isError, error } = useGetPaper(getPaperVars);
 
-const { data, isPending, isSuccess, isError, error } = useCreateChatSession(createChatSessionVars);
+const { data, isPending, isSuccess, isError, error } = useSearchPapers(searchPapersVars);
 
-const { data, isPending, isSuccess, isError, error } = useUpdateChatSession(updateChatSessionVars);
+const { data, isPending, isSuccess, isError, error } = useListChatSessions(listChatSessionsVars);
 
-const { data, isPending, isSuccess, isError, error } = useDeleteChatSession(deleteChatSessionVars);
+const { data, isPending, isSuccess, isError, error } = useGetChatSession(getChatSessionVars);
 
-const { data, isPending, isSuccess, isError, error } = useAddChat(addChatVars);
+const { data, isPending, isSuccess, isError, error } = useGetChatsForSession(getChatsForSessionVars);
 
-const { data, isPending, isSuccess, isError, error } = useLinkPaperToChat(linkPaperToChatVars);
+const { data, isPending, isSuccess, isError, error } = useGetChatPapersForChat(getChatPapersForChatVars);
 
-const { data, isPending, isSuccess, isError, error } = useAddCodeLink(addCodeLinkVars);
+const { data, isPending, isSuccess, isError, error } = useGetCodeLinksForPaper(getCodeLinksForPaperVars);
 
 ```
 
@@ -72,38 +72,38 @@ If a user is not using a supported framework, they can use the generated SDK dir
 Here's an example of how to use it with the first 5 operations:
 
 ```js
-import { createUser, addPaper, updatePaperIngestionStatus, deletePaper, createChatSession, updateChatSession, deleteChatSession, addChat, linkPaperToChat, addCodeLink } from '@dataconnect/generated';
+import { getUserByEmail, getUser, listPapers, getPaper, searchPapers, listChatSessions, getChatSession, getChatsForSession, getChatPapersForChat, getCodeLinksForPaper } from '@dataconnect/generated';
 
 
-// Operation CreateUser:  For variables, look at type CreateUserVars in ../index.d.ts
-const { data } = await CreateUser(dataConnect, createUserVars);
+// Operation GetUserByEmail:  For variables, look at type GetUserByEmailVars in ../index.d.ts
+const { data } = await GetUserByEmail(dataConnect, getUserByEmailVars);
 
-// Operation AddPaper:  For variables, look at type AddPaperVars in ../index.d.ts
-const { data } = await AddPaper(dataConnect, addPaperVars);
+// Operation GetUser:  For variables, look at type GetUserVars in ../index.d.ts
+const { data } = await GetUser(dataConnect, getUserVars);
 
-// Operation UpdatePaperIngestionStatus:  For variables, look at type UpdatePaperIngestionStatusVars in ../index.d.ts
-const { data } = await UpdatePaperIngestionStatus(dataConnect, updatePaperIngestionStatusVars);
+// Operation ListPapers:  For variables, look at type ListPapersVars in ../index.d.ts
+const { data } = await ListPapers(dataConnect, listPapersVars);
 
-// Operation DeletePaper:  For variables, look at type DeletePaperVars in ../index.d.ts
-const { data } = await DeletePaper(dataConnect, deletePaperVars);
+// Operation GetPaper:  For variables, look at type GetPaperVars in ../index.d.ts
+const { data } = await GetPaper(dataConnect, getPaperVars);
 
-// Operation CreateChatSession:  For variables, look at type CreateChatSessionVars in ../index.d.ts
-const { data } = await CreateChatSession(dataConnect, createChatSessionVars);
+// Operation SearchPapers:  For variables, look at type SearchPapersVars in ../index.d.ts
+const { data } = await SearchPapers(dataConnect, searchPapersVars);
 
-// Operation UpdateChatSession:  For variables, look at type UpdateChatSessionVars in ../index.d.ts
-const { data } = await UpdateChatSession(dataConnect, updateChatSessionVars);
+// Operation ListChatSessions:  For variables, look at type ListChatSessionsVars in ../index.d.ts
+const { data } = await ListChatSessions(dataConnect, listChatSessionsVars);
 
-// Operation DeleteChatSession:  For variables, look at type DeleteChatSessionVars in ../index.d.ts
-const { data } = await DeleteChatSession(dataConnect, deleteChatSessionVars);
+// Operation GetChatSession:  For variables, look at type GetChatSessionVars in ../index.d.ts
+const { data } = await GetChatSession(dataConnect, getChatSessionVars);
 
-// Operation AddChat:  For variables, look at type AddChatVars in ../index.d.ts
-const { data } = await AddChat(dataConnect, addChatVars);
+// Operation GetChatsForSession:  For variables, look at type GetChatsForSessionVars in ../index.d.ts
+const { data } = await GetChatsForSession(dataConnect, getChatsForSessionVars);
 
-// Operation LinkPaperToChat:  For variables, look at type LinkPaperToChatVars in ../index.d.ts
-const { data } = await LinkPaperToChat(dataConnect, linkPaperToChatVars);
+// Operation GetChatPapersForChat:  For variables, look at type GetChatPapersForChatVars in ../index.d.ts
+const { data } = await GetChatPapersForChat(dataConnect, getChatPapersForChatVars);
 
-// Operation AddCodeLink:  For variables, look at type AddCodeLinkVars in ../index.d.ts
-const { data } = await AddCodeLink(dataConnect, addCodeLinkVars);
+// Operation GetCodeLinksForPaper:  For variables, look at type GetCodeLinksForPaperVars in ../index.d.ts
+const { data } = await GetCodeLinksForPaper(dataConnect, getCodeLinksForPaperVars);
 
 
 ```
