@@ -3,7 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/chat/Sidebar";
 import { Messages } from "@/components/chat/Messages";
 import { InputForm, type Feature } from "@/components/chat/InputForm";
-import { PdfViewer } from "@/components/chat/PdfViewer";
+import dynamic from "next/dynamic";
+
+const PdfViewer = dynamic(
+  () =>
+    import("@/components/chat/PdfViewer").then((mod) => mod.PdfViewer),
+  { ssr: false }
+);
+
 import { annotateWithCitations } from "@/components/chat/citations";
 import { dedupeSources } from "@/components/chat/sourceUtils";
 import type {
