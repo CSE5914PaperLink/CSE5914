@@ -89,19 +89,13 @@ export default function ChatPage() {
   const createNewSession = async () => {
     if (!dataConnectUserId) return;
 
-    // Prompt user for chat name
-    const chatName = prompt("Enter a name for this chat:", "New Chat");
-    if (chatName === null) return; // User cancelled
-    
-    const title = chatName.trim() || "New Chat";
-
     try {
       const response = await fetch("/api/chat/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: dataConnectUserId,
-          title,
+          title: "New Chat",
         }),
       });
 

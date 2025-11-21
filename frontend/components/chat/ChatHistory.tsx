@@ -290,7 +290,7 @@ export function ChatHistory({
                             e.stopPropagation();
                             handleEdit(session);
                           }}
-                          className="p-1 hover:bg-neutral-200 rounded transition-colors"
+                          className="p-1 hover:bg-blue-100 rounded transition-colors text-blue-600"
                           title="Edit title"
                         >
                           <Edit2 />
@@ -300,7 +300,7 @@ export function ChatHistory({
                             e.stopPropagation();
                             handleDelete(session.id);
                           }}
-                          className="p-1 hover:bg-red-100 rounded transition-colors"
+                          className="p-1 hover:bg-red-100 rounded transition-colors text-red-600"
                           title="Delete"
                         >
                           <Trash2 />
