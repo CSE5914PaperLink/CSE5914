@@ -30,13 +30,25 @@ function initFirebaseApp() {
 
 const app = initFirebaseApp();
 
-const auth = getAuth(app);
 export const dataConnect = getDataConnect(app, connectorConfig);
+
+// Lazy initialization of auth - only on client side
+let authInstance: ReturnType<typeof getAuth> | null = null;
+
+function getAuthInstance(): ReturnType<typeof getAuth> {
+  if (typeof window === "undefined") {
+    throw new Error("Auth can only be used on the client side");
+  }
+  if (!authInstance) {
+    authInstance = getAuth(app);
+  }
+  return authInstance;
+}
 
 export async function signInWithGoogle(): Promise<"success" | "error"> {
   try {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    await signInWithPopup(getAuthInstance(), provider);
     return "success";
   } catch (e) {
     console.error("Firebase sign in error", e);
@@ -46,7 +58,7 @@ export async function signInWithGoogle(): Promise<"success" | "error"> {
 
 export async function signOutUser(): Promise<void> {
   try {
-    await signOut(auth);
+    await signOut(getAuthInstance());
   } catch (e) {
     console.error("Firebase sign out error", e);
   }
@@ -55,7 +67,12 @@ export async function signOutUser(): Promise<void> {
 export function onAuthStateChangedListener(
   callback: (user: User | null) => void
 ) {
-  return onAuthStateChanged(auth, callback);
+  return onAuthStateChanged(getAuthInstance(), callback);
 }
 
-export { auth };
+// Export auth as a getter to maintain compatibility
+export const auth = new Proxy({} as ReturnType<typeof getAuth>, {
+  get(_target, prop) {
+    return getAuthInstance()[prop as keyof ReturnType<typeof getAuth>];
+  },
+});
