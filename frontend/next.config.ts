@@ -22,6 +22,15 @@ const nextConfig: NextConfig = {
       canvas: "./empty-module.js",
     },
   },
+  // Ensure native modules are included in standalone output
+  experimental: {
+    outputFileTracingIncludes: {
+      "*": [
+        "./node_modules/lightningcss/**/*",
+        "./node_modules/lightningcss-linux-x64-gnu/**/*",
+      ],
+    },
+  },
 };
 
 export default nextConfig;
