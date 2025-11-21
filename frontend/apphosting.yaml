@@ -67,5 +67,3 @@ env:
     availability:
       - BUILD
       - RUNTIME
-  - variable: BACKEND_URL_SECRET
-    secret: backend-url-secret

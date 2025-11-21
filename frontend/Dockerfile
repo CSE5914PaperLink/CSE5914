@@ -1,5 +1,8 @@
 # Multi-stage build for Next.js
-FROM node:20-slim AS base
+FROM node:22.18.0-slim AS base
+
+# Install specific npm version
+RUN npm install -g npm@10.9.3
 
 # Install dependencies only when needed
 FROM base AS deps
