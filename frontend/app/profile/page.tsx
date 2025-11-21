@@ -296,44 +296,11 @@ export default function ProfilePage() {
         </div>
       </main>
 
-      {/* Quick Links */}
-      <div className="bg-gray-100 py-8 mt-12">
-        <div className="max-w-4xl mx-auto px-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Quick Links</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link
-              href="/chat"
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              → Chat
-            </Link>
-            <Link
-              href="/library"
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              → Library
-            </Link>
-            <Link
-              href="/discovery"
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              → Discovery
-            </Link>
-            <Link
-              href="/"
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              → Home
-            </Link>
-          </div>
-        </div>
-      </div>
-
       {/* Footer */}
       <footer className="text-center py-6 bg-blue-700 text-white mt-auto">
         <p className="text-sm">
           &copy; 2025 <span className="font-semibold">CS Paper Compare</span> |
-          Built with Next.js, FastAPI, and AWS
+          Built with Next.js, FastAPI, Chroma, and Firebase
         </p>
       </footer>
     </div>

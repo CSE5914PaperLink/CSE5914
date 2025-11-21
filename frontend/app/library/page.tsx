@@ -488,6 +488,15 @@ export default function LibraryPage() {
               const images = paperImages[docId] || [];
               const isLoadingImages = loadingImages[docId] || false;
 
+              // Format authors with character limit
+              const authorsString = Array.isArray(item.metadata.authors)
+                ? item.metadata.authors.join(", ")
+                : item.metadata.authors;
+              const maxAuthorsLength = 150;
+              const truncatedAuthors = authorsString.length > maxAuthorsLength
+                ? authorsString.slice(0, maxAuthorsLength) + "..."
+                : authorsString;
+
               return (
                 <div
                   key={item.dataconnect_id}
@@ -499,9 +508,7 @@ export default function LibraryPage() {
                         {item.metadata.title}
                       </h3>
                       <p className="text-sm text-gray-600 mb-2">
-                        {Array.isArray(item.metadata.authors)
-                          ? item.metadata.authors.join(", ")
-                          : item.metadata.authors}
+                        {truncatedAuthors}
                       </p>
                       {item.metadata.abstract && (
                         <p className="text-gray-700 text-sm line-clamp-3 mb-3">
