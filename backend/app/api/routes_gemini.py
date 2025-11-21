@@ -14,11 +14,8 @@ from app.services.agent_service import create_document_agent
 router = APIRouter(prefix="/gemini", tags=["gemini"])
 
 
-# -----------------------------
 # GitHub question classifier
-# -----------------------------
 def is_github_question(prompt: str) -> bool:
-    """Determine if user question relates to GitHub / repo / code."""
     keywords = [
         "github", "repo", "repository",
         "readme", "code", "source code",
@@ -28,18 +25,15 @@ def is_github_question(prompt: str) -> bool:
     return any(k in p for k in keywords)
 
 
-# -----------------------------
 # Basic Gemini proxy endpoint
-# -----------------------------
 @router.post("/chat")
 async def chat(
-    prompt: str = Query(..., min_length=1, description="User prompt"),
-    system: Optional[str] = Query(None, description="Optional system instruction"),
-    model: Optional[str] = Query(None, description="Gemini model name"),
-    temperature: float = Query(0.0, ge=0.0, le=2.0),
-    max_tokens: Optional[int] = Query(None, ge=1),
+    prompt: str = Query(...),
+    system: Optional[str] = Query(None),
+    model: Optional[str] = Query(None),
+    temperature: float = Query(0.0),
+    max_tokens: Optional[int] = Query(None),
 ):
-    """Simple synchronous Gemini wrapper."""
     if not settings.gemini_api_key:
         raise HTTPException(status_code=500, detail="Gemini API key not configured")
 
@@ -65,32 +59,12 @@ async def chat(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# -----------------------------
 # Chat agent endpoint (RAG)
-# -----------------------------
 @router.post("/chat_agent")
 async def chat_agent(
-    body: dict = Body(
-        ...,
-        description="JSON body with prompt, doc_ids, thread_id, temperature, model, top_k",
-    ),
+    body: dict = Body(...),
 ):
-    """
-    Request body example:
-    {
-        "prompt": str,
-        "doc_ids": [string],
-        "thread_id"?: str,
-        "temperature"?: float,
-        "model"?: str,
-        "top_k"?: int,
-    }
 
-    Returns streaming result:
-        {"type": "status", "value": "..."}
-        {"type": "token", "value": "..."}
-        {"type": "done"}
-    """
     prompt = body.get("prompt")
     if not prompt or not isinstance(prompt, str):
         raise HTTPException(status_code=400, detail="prompt is required")
@@ -102,15 +76,13 @@ async def chat_agent(
     chroma = ChromaService()
     embedder = NomicEmbeddingService()
 
-    # ------------------------------------
-    # Decide whether this is a GitHub request
-    # ------------------------------------
+    # Decide whether to activate GitHub mode
     github_mode = is_github_question(prompt)
 
-    # Track retrieved chunks
+    # Track retrieved chunks for UI
     sources_tracker: dict[str, dict] = {}
 
-    # Create RAG agent
+    # Create the RAG agent
     agent = create_document_agent(
         chroma_service=chroma,
         embedder=embedder,
@@ -120,16 +92,16 @@ async def chat_agent(
         temperature=temperature,
     )
 
-    # Add github_mode into runtime config
+    # Attach extra runtime configuration
     config: Any = {
         "configurable": {
             "thread_id": thread_id,
-            "github_mode": github_mode,
+            "github_mode": github_mode,  
         }
     }
 
     async def event_generator():
-        """Stream JSONL-like events."""
+
         yield json.dumps({"type": "status", "value": "thinking"}) + "\n"
 
         tool_call_detected = False
@@ -147,44 +119,29 @@ async def chat_agent(
                     else ""
                 )
 
-                # If tool used
                 if "tool" in langgraph_node.lower():
                     if not tool_call_detected:
                         tool_call_detected = True
-                        yield json.dumps(
-                            {"type": "status", "value": "searching"}
-                        ) + "\n"
+                        yield json.dumps({"type": "status", "value": "searching"}) + "\n"
                     continue
 
-                # Agent output
                 if "agent" in langgraph_node.lower() and hasattr(msg, "content"):
                     content = getattr(msg, "content", None)
                     if not content:
                         continue
 
-                    # first token => switch to answer mode
                     if first_content_token:
                         first_content_token = False
-                        yield json.dumps(
-                            {"type": "status", "value": "answer"}
-                        ) + "\n"
+                        yield json.dumps({"type": "status", "value": "answer"}) + "\n"
 
-                    yield json.dumps(
-                        {"type": "token", "value": content}
-                    ) + "\n"
+                    yield json.dumps({"type": "token", "value": content}) + "\n"
 
-            # after completion, return sources
             if sources_tracker:
-                yield json.dumps(
-                    {"type": "sources", "value": sources_tracker}
-                ) + "\n"
+                yield json.dumps({"type": "sources", "value": sources_tracker}) + "\n"
 
             yield json.dumps({"type": "done"}) + "\n"
 
         except Exception as e:
             yield json.dumps({"type": "error", "value": str(e)}) + "\n"
 
-    return StreamingResponse(
-        event_generator(),
-        media_type="application/json",
-    )
+    return StreamingResponse(event_generator(), media_type="application/json")

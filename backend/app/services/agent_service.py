@@ -1,5 +1,10 @@
 """
 LangGraph agent configuration and setup for document intelligence with Gemini.
+This version fully supports:
+- GitHub-aware RAG mode
+- README summarization
+- repo_url + filename metadata
+- Conditional behavior via github_mode from routes_gemini.py
 """
 
 from typing import List, Annotated, Any, Tuple, cast
@@ -14,48 +19,55 @@ from app.services.embedding_service import NomicEmbeddingService
 
 
 SYSTEM_PROMPT = """
-You are a helpful document intelligence assistant with access to scientific papers.
+You are a helpful document intelligence assistant with access to scientific papers
+AND optionally GitHub repository metadata.
 
-GUIDELINES:
-- Use search_documents to retrieve relevant text and image content.
-- Search again with larger top_k values or different query if the first results are clearly incomplete.
-- Provide clear, accurate answers based on the document contents.
-- Use the retrieved information to supplement your answers. The information will not contain everything needed to give a strong response.
-- Use your own knowledge to fill in any gaps.
-- Always cite your sources using file names.
-- Be thorough.
+=====================================================
+GITHUB-SPECIFIC RULES (activated when github_mode=TRUE)
+=====================================================
+If github_mode is TRUE:
+- Detect and use metadata fields:
+    • github_readme  
+    • repo_url  
+    • filename  
+- If github_readme exists:
+    → Prioritize summarizing the README file.
+    → Create structured summary:
+          1. Overview
+          2. Key Features
+          3. Code Structure
+          4. Notes / Limitations
+- ALWAYS return the repo_url in your final answer.
+- If user asks about "files", "code", "repo", "implementation":
+    → Use metadata from repo chunks.
+- DO NOT hallucinate any nonexistent file/function.
 
-When answering:
-1. Search the text and images with a focused query using search_documents.
-2. Synthesize a clear answer from the results.
-3. Only search again if you need more information to answer the question thoroughly.
+If github_mode is TRUE but README is missing:
+- Say clearly “README not found”.
+- Fall back to summarizing file chunks (if available).
 
------------------------------------------
-GITHUB-SPECIFIC RULES (conditional logic):
------------------------------------------
-
-If github_mode is TRUE (from the agent config):
-- Detect and utilize metadata fields "github_readme", "repo_url", and "filename".
-- Use github_readme as the primary source for summarizing the repository.
-- Include repo_url in the final answer.
-- Summarize README into clear sections (Overview, Key Features, Code Structure, Notes).
-- If the user asks about “files”, “code”, or “implementation”, rely on repo metadata.
-- Prefer the README summary over raw file chunks unless the question explicitly asks for file-level details.
-
+=====================================================
+PDF / SCIENTIFIC PAPER RULES
+=====================================================
 If github_mode is FALSE:
-- Ignore github_readme and repo_url completely.
-- Do NOT mention GitHub, repositories, or code structure.
-- Only answer based on the document or the question in context.
+- Completely ignore GitHub metadata.
+- Only answer using PDF + knowledge.
+- Do not mention GitHub at all.
 
------------------------------------------
-ADDITIONAL BEHAVIORAL RULES:
------------------------------------------
-- If both paper and repo metadata exist, only mix them when github_mode is TRUE or when the user explicitly requests integration.
-- Never hallucinate repository details that do not appear in the metadata.
-- If README is missing, say so politely and fall back to file analysis if available.
+=====================================================
+GENERAL RAG RULES
+=====================================================
+1. Always call search_documents() to retrieve relevant chunks.
+2. If text is insufficient, call search again with higher top_k.
+3. Combine multiple chunks into a clean, concise answer.
+4. Cite source filenames when referencing repo content.
+5. For PDF text, cite titles or doc_id.
 
+Be accurate and non-hallucinatory.
 """
 
+
+# Search Tool (RAG)
 
 def create_search_tools(
     chroma_service: ChromaService,
@@ -63,116 +75,69 @@ def create_search_tools(
     doc_ids: List[str],
     sources_tracker: dict[str, dict],
 ) -> BaseTool:
-    """
-    Create document search tool that retrieves text and images.
-
-    Args:
-        sources_tracker: Optional list to track retrieved sources for UI display
-
-    Returns:
-        search_documents tool
-    """
 
     @tool
     def search_documents(
-        query: Annotated[str, "The search query or question for document intelligence"],
-        top_k_text: Annotated[int, "Text results to retrieve (default: 8)"] = 8,
-        top_k_image: Annotated[int, "Image results to retrieve (default: 4)"] = 4,
+        query: Annotated[str, "The search query for document intelligence"],
+        top_k_text: Annotated[int, "Max text results"] = 8,
+        top_k_image: Annotated[int, "Max image results"] = 4,
     ) -> str:
-        """
-        Run both text and image retrieval over the uploaded scientific documents.
+        """Unified text + image search for RAG."""
 
-        Args:
-            query: The search query or question.
-            top_k_text: Maximum number of text results to return.
-            top_k_image: Maximum number of image results to return.
+        out = []
 
-        Returns:
-            A formatted multiline string containing:
-            - Text search results (or a message if none found)
-            - Image search results (or a message if none found)
-            - All retrieved metadata and content for each match
-        """
-
-        output_sections = []
-
+        # TEXT SEARCH
         try:
-            print(f"[TEXT SEARCH] query={query}, doc_ids={doc_ids}")
-
             text_where = {"doc_id": {"$in": doc_ids}}
-            query_vec = embedder.embed_query(query)
+            qvec = embedder.embed_query(query)
 
-            res_text = chroma_service.collection.query(
-                query_embeddings=[query_vec],
+            res = chroma_service.collection.query(
+                query_embeddings=[qvec],
                 n_results=top_k_text,
                 include=["documents", "metadatas", "distances"],
                 where=cast(Any, text_where),
             )
 
-            docs = (res_text.get("documents") or [[]])[0]
-            metas = (res_text.get("metadatas") or [[]])[0]
-            dists = (res_text.get("distances") or [[]])[0]
+            docs = (res.get("documents") or [[]])[0]
+            metas = (res.get("metadatas") or [[]])[0]
+            dists = (res.get("distances") or [[]])[0]
 
             if not docs:
-                output_sections.append("## TEXT RESULTS\nNo relevant text found.")
+                out.append("## TEXT RESULTS\nNo text found.")
             else:
-                parts = []
+                entries = []
                 for i, doc in enumerate(docs):
                     md = metas[i] or {}
-                    title = md.get("title", md.get("doc_id", "Unknown"))
-                    # Create a stable unique ID based on metadata
-                    doc_id = md.get("doc_id", "unknown")
+                    doc_id = md.get("doc_id")
+                    title = md.get("title", doc_id)
+
+                    filename = md.get("filename")  # <--- repo files!
                     chunk_idx = md.get("chunk_index", i)
-                    page = md.get("page")
-                    unique_id = f"text:{doc_id}:chunk{chunk_idx}:p{page}"
-                    heading = md.get("headings", "unknown")
-                    bbox_left = md.get("bbox_left")
-                    bbox_top = md.get("bbox_top")
-                    bbox_right = md.get("bbox_right")
-                    bbox_bottom = md.get("bbox_bottom")
 
-                    bbox_dict = None
-                    if all(
-                        coord is not None
-                        for coord in [bbox_left, bbox_top, bbox_right, bbox_bottom]
-                    ):
-                        bbox_dict = {
-                            "left": bbox_left,
-                            "top": bbox_top,
-                            "right": bbox_right,
-                            "bottom": bbox_bottom,
-                        }
+                    unique_id = f"text:{doc_id}:chunk{chunk_idx}"
 
-                    parts.append(
-                        f"[Source {i+1}] Title: {title}\n"
-                        f"Heading: {heading}\n"
-                        f"Content:\n{doc.strip()}\n"
+                    entries.append(
+                        f"[Text {i+1}] {title or filename}\n"
+                        f"{doc}\n"
                     )
 
-                    # Track source for UI - duplicates are automatically handled by dict keys
                     sources_tracker[unique_id] = {
                         "type": "text",
                         "doc_id": doc_id,
-                        "distance": dists[i] if i < len(dists) else None,
-                        "page": page,
-                        "bbox": bbox_dict,
+                        "title": title,
+                        "filename": filename,
+                        "distance": dists[i],
+                        "content": doc,
+                        "chunk_index": chunk_idx,
                     }
 
-                output_sections.append("## TEXT RESULTS\n" + "\n---\n".join(parts))
+                out.append("## TEXT RESULTS\n" + "\n---\n".join(entries))
 
         except Exception as e:
-            import traceback
+            out.append(f"## TEXT SEARCH ERROR\n{e}")
 
-            output_sections.append(
-                f"## TEXT RESULTS\nError searching text: {e}\n\n{traceback.format_exc()}"
-            )
-
-        # ---------------------------------------------------------
-        # IMAGE SEARCH (original logic)
-        # ---------------------------------------------------------
+        # IMAGE SEARCH
         try:
-            print(f"[IMAGE SEARCH] query={query}, doc_ids={doc_ids}")
-
             image_where = {
                 "$and": [
                     {"doc_id": {"$in": doc_ids}},
@@ -180,80 +145,58 @@ def create_search_tools(
                 ]
             }
 
-            query_vec = embedder.embed_query(query)
+            qvec = embedder.embed_query(query)
 
-            res_img = chroma_service.collection.query(
-                query_embeddings=[query_vec],
+            res = chroma_service.collection.query(
+                query_embeddings=[qvec],
                 n_results=top_k_image,
                 include=["documents", "metadatas", "distances"],
                 where=cast(Any, image_where),
             )
 
-            docs = (res_img.get("documents") or [[]])[0]
-            metas = (res_img.get("metadatas") or [[]])[0]
-            dists = (res_img.get("distances") or [[]])[0]
+            docs = (res.get("documents") or [[]])[0]
+            metas = (res.get("metadatas") or [[]])[0]
+            dists = (res.get("distances") or [[]])[0]
 
             if not docs:
-                output_sections.append("## IMAGE RESULTS\nNo relevant images found.")
+                out.append("## IMAGE RESULTS\nNo image results.")
             else:
-                parts = []
+                entries = []
                 for i, doc in enumerate(docs):
                     md = metas[i] or {}
-                    title = md.get("title", md.get("doc_id", "Unknown"))
+
+                    doc_id = md.get("doc_id")
+                    title = md.get("title")
                     caption = md.get("caption")
-                    image_b64 = md.get("image_b64")
-                    page = md.get("page")
-                    picture_number = md.get("picture_number")
-                    img = f"data:image/png;base64,{image_b64}"
-                    bbox_left = md.get("bbox_left")
-                    bbox_top = md.get("bbox_top")
-                    bbox_right = md.get("bbox_right")
-                    bbox_bottom = md.get("bbox_bottom")
+                    img_b64 = md.get("image_b64")
 
-                    # Create a stable unique ID based on metadata
-                    doc_id = md.get("doc_id", "unknown")
-                    page_num = page or 0
-                    pic_num = picture_number or i
-                    unique_id = f"image:{doc_id}:p{page_num}:pic{pic_num}"
+                    unique_id = f"image:{doc_id}:{i}"
 
-                    parts.append(
-                        f"[Image Source {i+1}: Title {title}] | Caption: {caption}\nContent: {img}\n"
+                    entries.append(
+                        f"[Image {i+1}] Title={title}, Caption={caption}\n"
+                        f"Image: data:image/png;base64,{img_b64}\n"
                     )
-
-                    bbox_dict = None
-                    if all(
-                        coord is not None
-                        for coord in [bbox_left, bbox_top, bbox_right, bbox_bottom]
-                    ):
-                        bbox_dict = {
-                            "left": bbox_left,
-                            "top": bbox_top,
-                            "right": bbox_right,
-                            "bottom": bbox_bottom,
-                        }
 
                     sources_tracker[unique_id] = {
                         "type": "image",
                         "doc_id": doc_id,
                         "title": title,
-                        "distance": dists[i] if i < len(dists) else None,
-                        "page": page_num,
-                        "bbox": bbox_dict,
+                        "distance": dists[i],
+                        "image_data": img_b64,
+                        "content": caption,
                     }
 
-                output_sections.append("## IMAGE RESULTS\n" + "\n---\n".join(parts))
+                out.append("## IMAGE RESULTS\n" + "\n---\n".join(entries))
 
         except Exception as e:
-            import traceback
+            out.append(f"## IMAGE SEARCH ERROR\n{e}")
 
-            output_sections.append(
-                f"## IMAGE RESULTS\nError searching images: {e}\n\n{traceback.format_exc()}"
-            )
-
-        return "\n\n".join(output_sections)
+        return "\n\n".join(out)
 
     return search_documents
 
+
+# Create RAG Agent
 
 def create_document_agent(
     chroma_service: ChromaService,
@@ -263,12 +206,7 @@ def create_document_agent(
     model_name: str | None = None,
     temperature: float = 0.0,
 ) -> Any:
-    """
-    Create a document intelligence agent with RAG capabilities.
 
-    Args:
-        sources_tracker: Optional list to track retrieved sources for UI display
-    """
     if model_name is None:
         model_name = settings.gemini_default_model
 
@@ -278,10 +216,7 @@ def create_document_agent(
         google_api_key=settings.gemini_api_key,
     )
 
-    # Create the search tool with sources tracking
-    search_tool = create_search_tools(
-        chroma_service, embedder, doc_ids, sources_tracker
-    )
+    search_tool = create_search_tools(chroma_service, embedder, doc_ids, sources_tracker)
 
     memory = MemorySaver()
 

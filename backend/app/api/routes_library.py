@@ -156,7 +156,7 @@ def check_batch_papers(doc_ids: List[str]):
 async def add_arxiv(doc_id: str, request: Optional[AddArxivRequest] = None):
     if request is None:
         request = AddArxivRequest()
-
+    github_service = GitHubService()
     pdf_url = f"https://arxiv.org/pdf/{doc_id}.pdf"
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(60.0, connect=10.0),
@@ -169,6 +169,9 @@ async def add_arxiv(doc_id: str, request: Optional[AddArxivRequest] = None):
         pdf_bytes = r.content
 
     meta = _fetch_arxiv_metadata(doc_id)
+    github_url = None
+    if request.github_repos:
+        github_url = normalize_github_url(request.github_repos[0])
 
     pdf_meta = PdfMetadata(
         doc_id=doc_id,
@@ -177,10 +180,24 @@ async def add_arxiv(doc_id: str, request: Optional[AddArxivRequest] = None):
         summary=meta.get("summary", ""),
         published=meta.get("published", ""),
         authors=meta.get("authors", []),
+        github_url=github_url, 
     )
 
     stats = ingest_pdf_bytes_into_chroma(pdf_bytes, extra_metadata=pdf_meta)
-
+    # If GitHub repo exists, fetch files & ingest to Chroma
+    repo_url = pdf_meta.github_url
+    if repo_url:
+        repo_files = await github_service.fetch_repo_files(repo_url)
+        if repo_files:
+            ingest_repo_files_into_chroma(
+                repo_url=repo_url,
+                arxiv_id=doc_id,
+                repo_files=repo_files,
+                base_metadata={
+                    "doc_id": doc_id,
+                    "source": "github",
+                },
+            )
     response_data = {
         "status": "ok",
         "doc_id": doc_id,
