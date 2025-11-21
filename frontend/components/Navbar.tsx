@@ -54,8 +54,21 @@ export default function Navbar() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link
           href="/"
-          className="cursor-pointer text-2xl font-semibold tracking-tight text-slate-900"
+          className="flex items-center gap-2 cursor-pointer text-2xl font-semibold tracking-tight text-slate-900"
         >
+          <svg
+            className="h-6 w-6 text-blue-500"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21.44 11.05l-8.49 8.49a5 5 0 01-7.07-7.07l8.49-8.49a3 3 0 014.24 4.24l-8.49 8.49a1 1 0 01-1.42-1.42l7.78-7.78"
+            />
+          </svg>
           PaperLink
         </Link>
         <div className="flex items-center gap-4">

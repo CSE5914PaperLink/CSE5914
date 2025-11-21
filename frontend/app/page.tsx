@@ -50,7 +50,21 @@ export default function Home() {
         <div className="absolute bottom-0 left-0 h-32 w-32 rounded-full bg-purple-200/40 blur-3xl" />
         <div className="mx-auto grid max-w-6xl gap-10 rounded-3xl border border-slate-100 bg-white/70 p-10 shadow-2xl shadow-blue-100 md:grid-cols-[1.1fr_0.9fr]">
           <div className="text-center md:text-left">
-            <p className="text-xs uppercase tracking-[0.4em] text-blue-500">
+            <p className="flex items-center justify-center md:justify-start gap-2 text-xs uppercase tracking-[0.4em] text-blue-500">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21.44 11.05l-8.49 8.49a5 5 0 01-7.07-7.07l8.49-8.49a3 3 0 014.24 4.24l-8.49 8.49a1 1 0 01-1.42-1.42l7.78-7.78"
+                />
+              </svg>
               Paperlink
             </p>
             <h1 className="mt-4 text-4xl font-bold leading-tight md:text-5xl">
