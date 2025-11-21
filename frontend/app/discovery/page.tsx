@@ -33,6 +33,34 @@ export default function DiscoveryPage() {
   );
   const [recommendedSearches, setRecommendedSearches] = useState<string[]>([]);
   const [showRecommendations, setShowRecommendations] = useState(false);
+  const [libraryPaperIds, setLibraryPaperIds] = useState<Set<string>>(new Set());
+
+  // Fetch library papers to check which ones user already has
+  useEffect(() => {
+    if (!dataConnectUserId) return;
+
+    const fetchLibraryPapers = async () => {
+      try {
+        const res = await fetch(
+          `/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const items = data.results || [];
+          const paperIds = new Set(
+            items
+              .map((item: any) => item.metadata?.doc_id)
+              .filter((id: string | null) => id != null)
+          );
+          setLibraryPaperIds(paperIds);
+        }
+      } catch (err) {
+        console.error("Failed to fetch library papers:", err);
+      }
+    };
+
+    fetchLibraryPapers();
+  }, [dataConnectUserId]);
 
   // Fetch search history and top topics to generate recommendations
   useEffect(() => {
@@ -189,6 +217,8 @@ export default function DiscoveryPage() {
         throw new Error(data.error || "Failed to add paper");
       }
       alert("Paper added to library successfully!");
+      // Add to library set
+      setLibraryPaperIds((prev) => new Set(prev).add(arxivId));
     } catch (e) {
       alert((e as Error).message);
     } finally {
@@ -437,11 +467,32 @@ export default function DiscoveryPage() {
             </div>
           )}
 
-          {papers.map((paper) => (
+          {papers.map((paper) => {
+            const isInLibrary = libraryPaperIds.has(paper.doc_id);
+            
+            return (
             <div
               key={paper.doc_id}
-              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+              className={`bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow ${
+                isInLibrary ? "border-2 border-green-500" : ""
+              }`}
             >
+              {isInLibrary && (
+                <div className="mb-3 flex items-center gap-2 text-green-700 text-sm font-medium">
+                  <svg
+                    className="w-5 h-5"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Already in your library
+                </div>
+              )}
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -473,9 +524,13 @@ export default function DiscoveryPage() {
                 </div>
                 <button
                   onClick={() => handleAddPaper(paper.doc_id)}
-                  disabled={processingPapers.has(paper.doc_id)}
-                  className="shrink-0 w-10 h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  title="Add to collection"
+                  disabled={processingPapers.has(paper.doc_id) || isInLibrary}
+                  className={`shrink-0 w-10 h-10 flex items-center justify-center rounded-full transition-colors ${
+                    isInLibrary
+                      ? "bg-green-100 text-green-700 cursor-default"
+                      : "bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  }`}
+                  title={isInLibrary ? "Already in library" : "Add to collection"}
                 >
                   {processingPapers.has(paper.doc_id) ? (
                     <svg
@@ -497,6 +552,18 @@ export default function DiscoveryPage() {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       ></path>
                     </svg>
+                  ) : isInLibrary ? (
+                    <svg
+                      className="w-5 h-5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
                   ) : (
                     <svg
                       className="w-5 h-5"
@@ -515,7 +582,8 @@ export default function DiscoveryPage() {
                 </button>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       </div>
     </div>
