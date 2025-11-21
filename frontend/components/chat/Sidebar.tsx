@@ -116,7 +116,7 @@ export function Sidebar({
       const authString = formatAuthors(paper.authors ?? "") || "";
       return inTitle || authString.toLowerCase().includes(term);
     });
-  }, [deduped, search]);
+  }, [deduped, search, formatAuthors]);
 
   return (
     <section className="flex h-full flex-col">

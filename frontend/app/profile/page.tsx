@@ -34,7 +34,9 @@ export default function ProfilePage() {
       try {
         setTagLoading(true);
         const res = await fetch(
-          `/api/library/list?user_id=${encodeURIComponent(dataConnectUserId)}&t=${Date.now()}`
+          `/api/library/list?user_id=${encodeURIComponent(
+            dataConnectUserId
+          )}&t=${Date.now()}`
         );
         if (!res.ok) return;
         const data = await res.json();
@@ -44,7 +46,9 @@ export default function ProfilePage() {
         setSavedPapersCount(items.length);
 
         // Count favorites
-        const favorites = items.filter((item: any) => item?.metadata?.is_favorite === true);
+        const favorites = items.filter(
+          (item: any) => item?.metadata?.is_favorite === true
+        );
         setFavoritesCount(favorites.length);
 
         // Compute tag frequency based on title keywords (simple split by space)
@@ -94,25 +98,25 @@ export default function ProfilePage() {
   // Listen for storage events to refresh when favorites change from library page
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'library_updated' || e.key === 'chat_sessions_updated') {
-        setRefreshKey(prev => prev + 1);
+      if (e.key === "library_updated" || e.key === "chat_sessions_updated") {
+        setRefreshKey((prev) => prev + 1);
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
-    
+    window.addEventListener("storage", handleStorageChange);
+
     // Also listen for custom event on same page
     const handleCustomEvent = () => {
-      setRefreshKey(prev => prev + 1);
+      setRefreshKey((prev) => prev + 1);
     };
-    
-    window.addEventListener('libraryUpdated', handleCustomEvent);
-    window.addEventListener('chatSessionsUpdated', handleCustomEvent);
+
+    window.addEventListener("libraryUpdated", handleCustomEvent);
+    window.addEventListener("chatSessionsUpdated", handleCustomEvent);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('libraryUpdated', handleCustomEvent);
-      window.removeEventListener('chatSessionsUpdated', handleCustomEvent);
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("libraryUpdated", handleCustomEvent);
+      window.removeEventListener("chatSessionsUpdated", handleCustomEvent);
     };
   }, []);
 
@@ -175,9 +179,11 @@ export default function ProfilePage() {
               <h1 className="mt-3 text-4xl font-semibold">
                 {firebaseUser.displayName || "Researcher"}
               </h1>
-              <p className="mt-2 text-sm text-slate-500">{firebaseUser.email}</p>
+              <p className="mt-2 text-sm text-slate-500">
+                {firebaseUser.email}
+              </p>
               <p className="text-xs text-slate-400">
-                Joined {" "}
+                Joined
                 {firebaseUser.metadata?.creationTime
                   ? new Date(
                       firebaseUser.metadata.creationTime
@@ -187,7 +193,7 @@ export default function ProfilePage() {
             </div>
             <div className="flex flex-col gap-3 text-sm font-semibold">
               <button
-                  onClick={() => setIsEditing(!isEditing)}
+                onClick={() => setIsEditing(!isEditing)}
                 className="cursor-pointer rounded-2xl border border-slate-200 px-6 py-2 text-slate-800 transition hover:border-blue-200"
               >
                 {isEditing ? "Cancel" : "Edit Profile"}
@@ -214,7 +220,7 @@ export default function ProfilePage() {
             <p className="text-sm uppercase tracking-[0.3em] text-purple-500">
               Chat
             </p>
-            <p className="mt-2 text-3xl font-bold">0</p>
+            <p className="mt-2 text-3xl font-bold">{chatSessionsCount}</p>
             <p className="text-xs text-slate-500">sessions logged</p>
           </div>
           <div className="rounded-3xl border border-slate-100 bg-white p-5 text-center shadow-sm">
