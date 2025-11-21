@@ -2,80 +2,118 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="bg-gray-50 font-sans text-gray-800 min-h-screen flex flex-col">
-      {/* Hero */}
-      <header className="text-center py-28 bg-linear-to-r from-blue-700 via-blue-600 to-blue-500 text-white shadow-inner">
-        <h2 className="text-5xl font-extrabold mb-6 tracking-tight">
-          Compare, Analyze, and Explore <br /> Computer Science Research
-        </h2>
-        <p className="text-lg text-blue-100 mb-8 max-w-2xl mx-auto">
-          Search across papers, compare algorithms, and link directly to real
-          code — all in one intelligent research platform.
-        </p>
-      </header>
+    <main className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-slate-100 text-slate-900">
+      <section className="relative overflow-hidden px-6 py-24">
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-blue-50 via-white to-purple-50" />
+        <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full bg-blue-200/40 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-32 w-32 rounded-full bg-purple-200/40 blur-3xl" />
+        <div className="mx-auto grid max-w-6xl gap-10 rounded-3xl border border-slate-100 bg-white/70 p-10 shadow-2xl shadow-blue-100 md:grid-cols-[1.1fr_0.9fr]">
+          <div className="text-center md:text-left">
+            <p className="text-xs uppercase tracking-[0.4em] text-blue-500">Paperlink</p>
+            <h1 className="mt-4 text-4xl font-bold leading-tight md:text-5xl">
+              Compare, analyze, and explore computer science research faster.
+            </h1>
+            <p className="mt-4 text-base text-slate-500">
+              Search thousands of papers, track your library, chat with documents, and compare methodologies in seconds.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3 md:justify-start justify-center">
+              <Link
+                href="/discovery"
+                className="cursor-pointer rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5"
+              >
+                Discover Papers
+              </Link>
+              <Link
+                href="/compare"
+                className="cursor-pointer rounded-full border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-200"
+              >
+                Compare Papers
+              </Link>
+              <Link
+                href="/chat"
+                className="cursor-pointer rounded-full border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-200"
+              >
+                Open Chat
+              </Link>
+            </div>
+          </div>
+          <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 text-left shadow-lg">
+            <p className="text-xs uppercase tracking-[0.3em] text-blue-500">Highlights</p>
+            <div className="mt-6 space-y-4">
+              {["ArXiv discovery with smart filters", "Library curation + favorites", "RAG chat with PDF viewer"].map(
+                (item) => (
+                  <div key={item} className="rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm font-semibold text-slate-600">
+                    {item}
+                  </div>
+                )
+              )}
+            </div>
+            <div className="mt-6 rounded-2xl border border-slate-100 px-4 py-4 text-sm text-slate-500">
+              Built for speed: discovery, comparison, and chat in one workflow.
+            </div>
+          </div>
+        </div>
+      </section>
 
-      {/* Features */}
-      <section className="max-w-6xl mx-auto py-20 px-6 grid md:grid-cols-3 gap-10">
+      <section className="mx-auto grid max-w-6xl gap-6 px-6 py-16 md:grid-cols-3">
         {[
           {
-            title: "📚 Structured Comparison",
-            text: "Compare algorithms, datasets, and results side-by-side — not just summaries.",
+            title: "Structured Comparison",
+            text: "Summaries of methods, results, and limitations across papers in one view.",
           },
           {
-            title: "⚡ Multi-Paper Search",
-            text: "Search, filter, and analyze multiple papers at once — no downloads needed.",
+            title: "Discovery + Library",
+            text: "Search arXiv, add favorites, and keep a curated reading list for future chats.",
           },
           {
-            title: "💻 Code Linking",
-            text: "Automatically link papers to their GitHub codebases for deeper understanding.",
+            title: "Contextual Chat",
+            text: "Upload PDFs and chat with your papers using citation-backed answers.",
           },
-        ].map((feature, i) => (
+        ].map((feature) => (
           <div
-            key={i}
-            className="bg-white rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 p-8 text-center hover:-translate-y-1"
+            key={feature.title}
+            className="rounded-3xl border border-slate-100 bg-white/90 p-6 shadow-sm shadow-slate-200"
           >
-            <h3 className="font-semibold text-xl mb-3">{feature.title}</h3>
-            <p className="text-gray-600 leading-relaxed">{feature.text}</p>
+            <h3 className="text-lg font-semibold text-blue-600">
+              {feature.title}
+            </h3>
+            <p className="mt-3 text-sm text-slate-600">{feature.text}</p>
           </div>
         ))}
       </section>
 
-      {/* Team */}
-      <section className="bg-gray-100 py-20">
-        <div className="max-w-5xl mx-auto text-center">
-          <h3 className="text-3xl font-bold mb-4">Meet the Team</h3>
-          <p className="text-gray-600 mb-10">
-            Developed by PaperLink Team — AU25 CSE 5914 Knowledge-Based Systems
+      <section className="bg-white py-16">
+        <div className="mx-auto max-w-5xl px-6 text-center">
+          <p className="text-xs uppercase tracking-[0.4em] text-blue-500">
+            Team
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
+          <h2 className="mt-3 text-3xl font-semibold">PaperLink Builders</h2>
+          <p className="mt-2 text-sm text-slate-500">
+            AU25 CSE 5914 Knowledge-Based Systems
+          </p>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 md:grid-cols-3">
             {[
               "Jeevan Nadella",
               "Adam Khalil",
               "Yutong Ye",
               "Athin Shetty",
               "Jason Zhang",
-            ].map((name, i) => (
+            ].map((name) => (
               <div
-                key={i}
-                className="bg-white rounded-xl shadow hover:shadow-md transition-all p-6"
+                key={name}
+                className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 text-slate-700 shadow-sm"
               >
-                <h4 className="font-semibold text-lg">{name}</h4>
-                <p className="text-gray-500 text-sm mt-1">
-                  4th Year CSE, AI Spec.
-                </p>
+                <p className="font-semibold">{name}</p>
+                <p className="text-xs text-slate-500">4th Year CSE, AI Spec.</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="text-center py-6 bg-blue-700 text-white">
-        <p className="text-sm">
-          &copy; 2025 <span className="font-semibold">CS Paper Compare</span> |
-          Built with Next.js, FastAPI, Chroma, and Firebase
-        </p>
+      <footer className="border-t border-slate-100 bg-white py-6 text-center text-xs text-slate-500">
+        © 2025 PaperLink · Built with Next.js, FastAPI, Chroma, Firebase
       </footer>
-    </div>
+    </main>
   );
 }

@@ -428,8 +428,7 @@ export default function ChatPage() {
     }
   };
   // Compute Navbar height at runtime so the chat area can exactly fill the
-  // remaining viewport. Also disable body scrolling while this page is active
-  // so the visible area (navbar + chat) never causes a window scrollbar.
+  // remaining viewport.
   const [navHeight, setNavHeight] = useState<number>(64);
   useEffect(() => {
     const update = () => {
@@ -441,14 +440,8 @@ export default function ChatPage() {
     update();
     window.addEventListener("resize", update);
 
-    // Prevent the document from scrolling while on the chat page. Save
-    // previous overflow and restore on unmount.
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
     return () => {
       window.removeEventListener("resize", update);
-      document.body.style.overflow = prev || "";
     };
   }, []);
   const navbarHeight = navHeight; // used below in styles

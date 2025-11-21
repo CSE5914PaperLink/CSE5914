@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useUser } from "@/contexts/UserContext";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { signOutUser } from "@/lib/firebase";
 
 export default function ProfilePage() {
@@ -121,6 +120,16 @@ export default function ProfilePage() {
     router.push("/");
   };
 
+  const initials = useMemo(() => {
+    const source = firebaseUser?.displayName || firebaseUser?.email || "?";
+    return source
+      .split(" ")
+      .map((part) => part[0]?.toUpperCase() || "")
+      .slice(0, 2)
+      .join("")
+      .padEnd(2, "");
+  }, [firebaseUser]);
+
   if (loading) {
     return (
       <div className="bg-gray-50 font-sans text-gray-800 min-h-screen flex flex-col items-center justify-center">
@@ -134,175 +143,161 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="bg-gray-50 font-sans text-gray-800 min-h-screen flex flex-col">
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto w-full px-6 py-12 flex-1">
-        {/* Profile Card */}
-        <div className="bg-white rounded-2xl shadow-md p-8 mb-8">
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-            {/* Avatar */}
-            <div className="flex-shrink-0">
-              <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
-                <span className="text-4xl font-bold text-white">
-                  {(firebaseUser.displayName ||
-                    firebaseUser.email ||
-                    "U")[0].toUpperCase()}
-                </span>
-              </div>
+    <main className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-slate-100 text-slate-900">
+      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-12">
+        <header className="rounded-3xl border border-slate-100 bg-white/90 p-8 shadow-xl shadow-blue-100/60">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center">
+            <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 text-3xl font-bold text-white shadow-lg">
+              {initials}
             </div>
-
-            {/* Profile Info */}
-            <div className="flex-1 w-full">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                    {firebaseUser.displayName || "User"}
-                  </h2>
-                  <p className="text-gray-600">{firebaseUser.email}</p>
-                  <p className="text-gray-500 text-sm mt-1">
-                    Joined{" "}
-                    {firebaseUser.metadata?.creationTime
-                      ? new Date(
-                          firebaseUser.metadata.creationTime
-                        ).toLocaleDateString()
-                      : "recently"}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => setIsEditing(!isEditing)}
-                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors duration-200 whitespace-nowrap"
-                  >
-                    {isEditing ? "Cancel" : "Edit Profile"}
-                  </button>
-                  <button
-                    onClick={handleSignOut}
-                    className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-semibold transition-colors duration-200 whitespace-nowrap"
-                  >
-                    Sign Out
-                  </button>
-                </div>
-              </div>
+            <div className="flex-1">
+              <p className="text-xs uppercase tracking-[0.4em] text-blue-500">
+                Profile
+              </p>
+              <h1 className="mt-3 text-4xl font-semibold">
+                {firebaseUser.displayName || "Researcher"}
+              </h1>
+              <p className="mt-2 text-sm text-slate-500">{firebaseUser.email}</p>
+              <p className="text-xs text-slate-400">
+                Joined {" "}
+                {firebaseUser.metadata?.creationTime
+                  ? new Date(
+                      firebaseUser.metadata.creationTime
+                    ).toLocaleDateString()
+                  : "recently"}
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 text-sm font-semibold">
+              <button
+                  onClick={() => setIsEditing(!isEditing)}
+                className="cursor-pointer rounded-2xl border border-slate-200 px-6 py-2 text-slate-800 transition hover:border-blue-200"
+              >
+                {isEditing ? "Cancel" : "Edit Profile"}
+              </button>
+              <button
+                onClick={handleSignOut}
+                className="cursor-pointer rounded-2xl bg-red-50 px-6 py-2 text-red-600 transition hover:bg-red-100"
+              >
+                Sign Out
+              </button>
             </div>
           </div>
+        </header>
 
-          {/* Top Tags Section */}
-          <div className="bg-white rounded-2xl shadow-md p-8 mb-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">
-              Your Top Topics
-            </h3>
+        <section className="grid gap-5 md:grid-cols-3">
+          <div className="rounded-3xl border border-slate-100 bg-white p-5 text-center shadow-sm">
+            <p className="text-sm uppercase tracking-[0.3em] text-blue-500">
+              Saved
+            </p>
+            <p className="mt-2 text-3xl font-bold">{savedPapersCount}</p>
+            <p className="text-xs text-slate-500">papers in library</p>
+          </div>
+          <div className="rounded-3xl border border-slate-100 bg-white p-5 text-center shadow-sm">
+            <p className="text-sm uppercase tracking-[0.3em] text-purple-500">
+              Chat
+            </p>
+            <p className="mt-2 text-3xl font-bold">0</p>
+            <p className="text-xs text-slate-500">sessions logged</p>
+          </div>
+          <div className="rounded-3xl border border-slate-100 bg-white p-5 text-center shadow-sm">
+            <p className="text-sm uppercase tracking-[0.3em] text-amber-500">
+              Favorites
+            </p>
+            <p className="mt-2 text-3xl font-bold">{favoritesCount}</p>
+            <p className="text-xs text-slate-500">starred references</p>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-100 bg-white/90 p-6 shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.35em] text-blue-500">
+                Library Insights
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold">Top Topics</h2>
+            </div>
+            <button
+              onClick={() => setRefreshKey((prev) => prev + 1)}
+              className="text-sm font-semibold text-blue-600"
+            >
+              Refresh
+            </button>
+          </div>
+          <div className="mt-4">
             {tagLoading ? (
-              <p className="text-gray-500">Loading...</p>
+              <p className="text-sm text-slate-500">Analyzing titles...</p>
             ) : topTags.length === 0 ? (
-              <p className="text-gray-500 italic">
-                No data yet. Add some papers to your library!
+              <p className="text-sm text-slate-400">
+                No data yet. Add papers to see trends.
               </p>
             ) : (
-              <ul className="space-y-2">
+              <div className="flex flex-wrap gap-2">
                 {topTags.map((tag) => (
-                  <li key={tag.name} className="text-gray-700">
-                    <span className="font-semibold">{tag.name}</span> ·{" "}
-                    {tag.count} paper(s)
-                  </li>
+                  <span
+                    key={tag.name}
+                    className="rounded-full border border-slate-200 px-4 py-1 text-sm font-medium text-slate-700"
+                  >
+                    {tag.name} · {tag.count}
+                  </span>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
+        </section>
 
-          {/* Edit Mode */}
-          {isEditing && (
-            <div className="mt-8 pt-8 border-t border-gray-200">
-              <h3 className="text-lg font-semibold mb-4 text-gray-900">
-                Edit Profile
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Display Name
-                  </label>
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
-                    placeholder="Your name"
-                  />
-                </div>
-                <div className="flex gap-4">
-                  <button
-                    onClick={handleSaveName}
-                    disabled={isSaving}
-                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-semibold transition-colors duration-200"
-                  >
-                    {isSaving ? "Saving..." : "Save Changes"}
-                  </button>
-                  <button
-                    onClick={() => setIsEditing(false)}
-                    className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-semibold transition-colors duration-200"
-                  >
-                    Cancel
-                  </button>
-                </div>
+        {isEditing && (
+          <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-md">
+            <h3 className="text-xl font-semibold">Edit Profile</h3>
+            <p className="text-sm text-slate-500">Update your display name.</p>
+            <div className="mt-4 space-y-4">
+              <label className="text-sm font-semibold text-slate-600">
+                Display Name
+              </label>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-2 text-slate-900 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="Your name"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSaveName}
+                  disabled={isSaving}
+                  className="cursor-pointer rounded-2xl bg-blue-600 px-5 py-2 font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                >
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="cursor-pointer rounded-2xl border border-slate-200 px-5 py-2 font-semibold text-slate-700"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
-          )}
-        </div>
+          </section>
+        )}
 
-        {/* Account Stats */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-2xl shadow-md p-6 text-center hover:shadow-lg transition-all duration-300">
-            <div className="text-3xl font-bold text-blue-600 mb-2">📚</div>
-            <h3 className="font-semibold text-gray-900 mb-1">Saved Papers</h3>
-            <p className="text-2xl font-bold text-gray-800">{savedPapersCount}</p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-md p-6 text-center hover:shadow-lg transition-all duration-300">
-            <div className="text-3xl font-bold text-purple-600 mb-2">💬</div>
-            <h3 className="font-semibold text-gray-900 mb-1">Chat Sessions</h3>
-            <p className="text-2xl font-bold text-gray-800">0</p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-md p-6 text-center hover:shadow-lg transition-all duration-300">
-            <div className="text-3xl font-bold text-green-600 mb-2">⭐</div>
-            <h3 className="font-semibold text-gray-900 mb-1">Favorites</h3>
-            <p className="text-2xl font-bold text-gray-800">{favoritesCount}</p>
-          </div>
-        </div>
-
-        {/* Account Settings */}
-        <div className="bg-white rounded-2xl shadow-md p-8 mb-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">
-            Account Settings
-          </h3>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between py-4 border-b border-gray-200">
-              <div>
-                <h4 className="font-semibold text-gray-900">Email</h4>
-                <p className="text-gray-600 text-sm">{firebaseUser.email}</p>
-              </div>
-              <span className="text-green-600 text-sm font-medium">
-                ✓ Verified
-              </span>
+        <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-md">
+          <h3 className="text-xl font-semibold">Account Settings</h3>
+          <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-700">Email</p>
+              <p className="text-xs text-slate-500">{firebaseUser.email}</p>
             </div>
+            <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+              ✓ Verified
+            </span>
           </div>
-        </div>
+        </section>
 
-        {/* Delete Account */}
         <div className="text-right">
-          <button className="text-red-600 hover:text-red-700 text-sm font-medium transition-colors duration-200 underline">
+          <button className="cursor-pointer text-sm font-semibold text-red-600 hover:text-red-700">
             Delete Account
           </button>
         </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="text-center py-6 bg-blue-700 text-white mt-auto">
-        <p className="text-sm">
-          &copy; 2025 <span className="font-semibold">CS Paper Compare</span> |
-          Built with Next.js, FastAPI, Chroma, and Firebase
-        </p>
-      </footer>
-    </div>
+      </div>
+    </main>
   );
 }

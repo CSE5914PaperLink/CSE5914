@@ -287,7 +287,7 @@ export default function ComparePage() {
                 selectedA === selectedB ||
                 chromaDocs.length < 2
               }
-              className="bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold px-8 py-3 rounded-2xl shadow-lg shadow-blue-400/40 transition-all hover:translate-y-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="cursor-pointer bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold px-8 py-3 rounded-2xl shadow-lg shadow-blue-400/40 transition-all hover:translate-y-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {loading ? "Comparing..." : "Compare Papers"}
             </button>
