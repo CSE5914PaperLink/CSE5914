@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useUser } from "@/contexts/UserContext";
 import { signOutUser } from "@/lib/firebase";
 import { useState, useRef, useEffect } from "react";
@@ -9,6 +10,22 @@ export default function Navbar() {
   const { firebaseUser } = useUser();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  const navLinks = [
+    { href: "/", label: "Home" },
+    { href: "/discovery", label: "Discover" },
+    { href: "/chat", label: "Chat" },
+    { href: "/library", label: "Library" },
+    { href: "/compare", label: "Compare" },
+  ];
+
+  const isActive = (href: string) => {
+    if (href === "/") {
+      return pathname === "/";
+    }
+    return pathname?.startsWith(href);
+  };
 
   const handleSignOut = async () => {
     await signOutUser();
@@ -33,51 +50,77 @@ export default function Navbar() {
   }, [dropdownOpen]);
 
   return (
-    <nav className="bg-linear-to-r from-blue-700 to-blue-600 text-white shadow-lg">
-      <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center container">
-        <Link href="/" className="text-2xl font-bold tracking-tight">
+    <nav className="sticky top-0 z-40 bg-white text-slate-900 shadow-lg shadow-slate-200">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <Link
+          href="/"
+          className="flex items-center gap-2 cursor-pointer text-2xl font-semibold tracking-tight text-slate-900"
+        >
+          <svg
+            className="h-6 w-6 text-blue-500"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21.44 11.05l-8.49 8.49a5 5 0 01-7.07-7.07l8.49-8.49a3 3 0 014.24 4.24l-8.49 8.49a1 1 0 01-1.42-1.42l7.78-7.78"
+            />
+          </svg>
           PaperLink
         </Link>
-        <div className="space-x-4 flex items-center">
-          <Link
-            href="/"
-            className="hover:underline text-white/90 hover:text-white"
-          >
-            Home
-          </Link>
-          <Link
-            href="/discovery"
-            className="hover:underline text-white/90 hover:text-white"
-          >
-            Discover
-          </Link>
-          <Link
-            href="/chat"
-            className="hover:underline text-white/90 hover:text-white"
-          >
-            Chat
-          </Link>
-          <Link
-            href="/library"
-            className="hover:underline text-white/90 hover:text-white"
-          >
-            Library
-          </Link>
-          <Link
-            href="/compare"
-            className="hover:underline text-white/90 hover:text-white"
-          >
-            Compare
-          </Link>
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-1 rounded-full bg-slate-100 p-1 text-sm font-medium shadow-inner shadow-white">
+            {navLinks.map((link) => {
+              const active = isActive(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`cursor-pointer rounded-full px-3 py-1.5 transition-colors ${
+                    active
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
+          <div className="flex gap-3 text-xs font-semibold uppercase tracking-wide text-slate-500 md:hidden">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`${isActive(link.href) ? "text-blue-600" : ""} cursor-pointer`}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
           {firebaseUser ? (
             <div className="relative" ref={dropdownRef}>
               <button
+                type="button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="text-2xl font-bold hover:text-blue-100 text-white transition-colors flex items-center gap-2"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-blue-200"
+                aria-expanded={dropdownOpen}
+                aria-haspopup="menu"
               >
-                {firebaseUser.displayName || firebaseUser.email?.split("@")[0]}
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-sm font-bold uppercase text-blue-700">
+                  {(firebaseUser.displayName || firebaseUser.email || "?")
+                    .trim()
+                    .charAt(0)
+                    .toUpperCase() || "?"}
+                </span>
+                <span className="max-w-[140px] truncate text-left">
+                  {firebaseUser.displayName || firebaseUser.email?.split("@")[0]}
+                </span>
                 <svg
-                  className={`w-4 h-4 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -92,17 +135,17 @@ export default function Navbar() {
               </button>
 
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50">
+                <div className="absolute right-0 mt-3 w-56 rounded-2xl border border-slate-100 bg-white p-2 text-slate-700 shadow-2xl" role="menu">
                   <Link
                     href="/profile"
-                    className="block px-4 py-2 text-gray-800 hover:bg-blue-50 transition-colors"
+                    className="block rounded-xl px-3 py-2 text-sm font-medium hover:bg-slate-50"
                     onClick={() => setDropdownOpen(false)}
                   >
                     View Profile
                   </Link>
                   <button
                     onClick={handleSignOut}
-                    className="w-full text-left block px-4 py-2 text-gray-800 hover:bg-blue-50 transition-colors"
+                    className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50"
                   >
                     Sign Out
                   </button>
@@ -112,7 +155,7 @@ export default function Navbar() {
           ) : (
             <Link
               href="/login"
-              className="bg-white text-blue-700 px-5 py-2 rounded-lg font-semibold shadow-sm hover:bg-blue-50 transition-all duration-200"
+              className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-500"
             >
               Login
             </Link>

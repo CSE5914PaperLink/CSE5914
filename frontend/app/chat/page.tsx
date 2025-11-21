@@ -1,14 +1,13 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Sidebar } from "@/components/chat/Sidebar";
 import { Messages } from "@/components/chat/Messages";
-import { InputForm, type Feature } from "@/components/chat/InputForm";
+import { InputForm } from "@/components/chat/InputForm";
 import { ChatHistory } from "@/components/chat/ChatHistory";
 import dynamic from "next/dynamic";
 
 const PdfViewer = dynamic(
-  () =>
-    import("@/components/chat/PdfViewer").then((mod) => mod.PdfViewer),
+  () => import("@/components/chat/PdfViewer").then((mod) => mod.PdfViewer),
   { ssr: false }
 );
 
@@ -20,6 +19,38 @@ import type {
   SourceChunk,
 } from "@/components/chat/types";
 import { useUser } from "@/contexts/UserContext";
+
+const ChevronRight = () => (
+  <svg
+    className="w-5 h-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M9 5l7 7-7 7"
+    />
+  </svg>
+);
+
+const ChevronLeft = () => (
+  <svg
+    className="w-5 h-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M15 19l-7-7 7-7"
+    />
+  </svg>
+);
 
 export default function ChatPage() {
   const { dataConnectUserId } = useUser();
@@ -50,7 +81,11 @@ export default function ChatPage() {
     return newId;
   });
 
-  // Split ratio for chat/pdf (0..1). Sidebar stays auto.
+  const [contextCollapsed, setContextCollapsed] = useState(false);
+  const [paperContextCollapsed, setPaperContextCollapsed] = useState(false);
+  const [historyCollapsed, setHistoryCollapsed] = useState(false);
+
+  // Split ratio for chat/pdf (0..1). Context column stays fixed width.
   // Use a fixed SSR-safe initial value to avoid hydration mismatch; load stored value after mount.
   const [split, setSplit] = useState<number>(0.5);
   const splitRef = useRef(split);
@@ -67,7 +102,6 @@ export default function ChatPage() {
     splitRef.current = split;
   }, [split]);
 
-  const [active, setActive] = useState<Feature>(null);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -103,7 +137,7 @@ export default function ChatPage() {
 
       const data = await response.json();
       const newSessionId = data.chatSession_insert.id;
-      
+
       setSessionId(newSessionId);
       // Persist session ID to sessionStorage
       if (typeof window !== "undefined") {
@@ -117,11 +151,11 @@ export default function ChatPage() {
         },
       ]);
       setRefreshHistory((prev) => prev + 1);
-      
+
       // Notify profile page to update chat sessions count
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event('chatSessionsUpdated'));
-        localStorage.setItem('chat_sessions_updated', Date.now().toString());
+        window.dispatchEvent(new Event("chatSessionsUpdated"));
+        localStorage.setItem("chat_sessions_updated", Date.now().toString());
       }
     } catch (error) {
       console.error("Error creating session:", error);
@@ -180,7 +214,6 @@ export default function ChatPage() {
     }
   }, [dataConnectUserId, sessionId]);
 
-
   useEffect(() => {
     // fetch user's library from API that merges DataConnect + ChromaDB
     if (!dataConnectUserId) return;
@@ -208,44 +241,19 @@ export default function ChatPage() {
     });
   };
 
-  const onFeature = (f: Exclude<Feature, null>, name: string) => {
-    setActive(f);
-    addMessage(
-      `Switched to ${name} mode. You can now ask questions related to this feature.`,
-      "system"
-    );
-  };
-
-  const onSubmit = async (e: React.FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed) return;
 
-    const labels = {
-      search: "Search Papers",
-      papers: "My Papers",
-      analyze: "Compare & Analyze",
-    } as const;
-    const display = active
-      ? `[${labels[active as Exclude<Feature, null>]}] ${trimmed}`
-      : trimmed;
-    addMessage(display, "user");
+    addMessage(trimmed, "user");
     setInput("");
     setTyping(true);
 
     try {
       // Build system instruction based on active feature
-      let systemInstruction =
+      const systemInstruction =
         "You are a helpful AI assistant for researchers working with computer science papers.";
-      if (active === "search") {
-        systemInstruction +=
-          " You help users discover and search for research papers.";
-      } else if (active === "papers") {
-        systemInstruction += " You help users manage their paper collections.";
-      } else if (active === "analyze") {
-        systemInstruction +=
-          " You help users compare and analyze research papers.";
-      }
 
       // include selected doc ids for RAG
       const docs = Array.from(selectedDocs.values());
@@ -434,7 +442,7 @@ export default function ChatPage() {
         const data = await response.json();
         const aiResponse =
           data.content || "Sorry, I couldn't generate a response.";
-        
+
         const images = data.images || [];
         const chunks = data.chunks || [];
         const imageChunks = data.images || [];
@@ -544,8 +552,7 @@ export default function ChatPage() {
     }
   };
   // Compute Navbar height at runtime so the chat area can exactly fill the
-  // remaining viewport. Also disable body scrolling while this page is active
-  // so the visible area (navbar + chat) never causes a window scrollbar.
+  // remaining viewport.
   const [navHeight, setNavHeight] = useState<number>(64);
   useEffect(() => {
     const update = () => {
@@ -557,21 +564,22 @@ export default function ChatPage() {
     update();
     window.addEventListener("resize", update);
 
-    // Prevent the document from scrolling while on the chat page. Save
-    // previous overflow and restore on unmount.
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
     return () => {
       window.removeEventListener("resize", update);
-      document.body.style.overflow = prev || "";
     };
   }, []);
   const navbarHeight = navHeight; // used below in styles
   const handleWidthPx = 6;
-  // 5-column grid: ChatHistory | sidebar | chat | handle | pdf
-  // use fr units for chat/pdf so they split the remaining space after sidebar correctly
-  const gridTemplate = `auto auto ${split}fr ${handleWidthPx}px ${1 - split}fr`;
+  const expandedContextWidth = 360;
+  const collapsedContextWidth = 0;
+  const contextColumnWidth = contextCollapsed
+    ? collapsedContextWidth
+    : expandedContextWidth;
+  const contextGapWidth = contextCollapsed ? 48 : 12;
+  // 5-column grid: context stack | spacer | chat | drag handle | pdf
+  const gridTemplate = `${contextColumnWidth}px ${contextGapWidth}px ${split}fr ${handleWidthPx}px ${
+    1 - split
+  }fr`;
 
   return (
     <div className="w-screen flex flex-col bg-white overflow-hidden">
@@ -586,57 +594,106 @@ export default function ChatPage() {
           className="h-full grid gap-0"
           style={{ gridTemplateColumns: gridTemplate }}
         >
-          <ChatHistory
-            userId={dataConnectUserId}
-            currentSessionId={sessionId}
-            onSessionSelect={loadSession}
-            onNewChat={createNewSession}
-            refreshTrigger={refreshHistory}
-          />
-          
-          <Sidebar
-            library={library}
-            selectedDocs={selectedDocs}
-            onToggleSelect={(id: string, checked: boolean) => {
-              setSelectedDocs((s) => {
-                const copy = new Set(s);
-                if (checked) copy.add(id);
-                else copy.delete(id);
-                return copy;
-              });
-            }}
-            onDelete={async (id: string) => {
-              const item = library.find((x) => x.id === id);
-              const title =
-                item?.metadata?.title || item?.metadata?.doc_id || id;
-              try {
-                const res = await fetch(
-                  `/api/library/delete?id=${encodeURIComponent(id)}`,
-                  { method: "DELETE" }
-                );
-                if (!res.ok) {
-                  const err = await res.json().catch(() => ({}));
-                  addMessage(
-                    `Error deleting ${title}: ${
-                      err.error || res.statusText
-                    }` as string,
-                    "system"
-                  );
-                  return;
-                }
-                setLibrary((prev) => prev.filter((x) => x.id !== id));
-                setSelectedDocs((s) => {
-                  const copy = new Set(s);
-                  copy.delete(id);
-                  return copy;
-                });
-              } catch (err) {
-                const msg =
-                  err instanceof Error ? err.message : "Unknown error";
-                addMessage(`Error deleting ${title}: ${msg}`, "system");
-              }
-            }}
-          />
+          <div
+            className={`relative flex h-full flex-col bg-gradient-to-b from-white via-slate-50 to-slate-100 ${
+              contextCollapsed ? "" : "border-r border-slate-200"
+            }`}
+          >
+            {!contextCollapsed && (
+              <div className="flex flex-1 min-h-0 flex-col divide-y divide-slate-200">
+                <div
+                  className={`flex min-h-0 flex-col ${
+                    paperContextCollapsed ? "" : "flex-1"
+                  }`}
+                >
+                  <Sidebar
+                    collapsed={paperContextCollapsed}
+                    onToggleCollapse={() =>
+                      setPaperContextCollapsed((prev) => !prev)
+                    }
+                    library={library}
+                    selectedDocs={selectedDocs}
+                    onToggleSelect={(id: string, checked: boolean) => {
+                      setSelectedDocs((s) => {
+                        const copy = new Set(s);
+                        if (checked) copy.add(id);
+                        else copy.delete(id);
+                        return copy;
+                      });
+                    }}
+                    onDelete={async (id: string) => {
+                      const item = library.find((x) => x.id === id);
+                      const title =
+                        item?.metadata?.title || item?.metadata?.doc_id || id;
+                      try {
+                        const res = await fetch(
+                          `/api/library/delete?id=${encodeURIComponent(id)}`,
+                          { method: "DELETE" }
+                        );
+                        if (!res.ok) {
+                          const err = await res.json().catch(() => ({}));
+                          addMessage(
+                            `Error deleting ${title}: ${
+                              err.error || res.statusText
+                            }` as string,
+                            "system"
+                          );
+                          return;
+                        }
+                        setLibrary((prev) => prev.filter((x) => x.id !== id));
+                        setSelectedDocs((s) => {
+                          const copy = new Set(s);
+                          copy.delete(id);
+                          return copy;
+                        });
+                      } catch (err) {
+                        const msg =
+                          err instanceof Error ? err.message : "Unknown error";
+                        addMessage(`Error deleting ${title}: ${msg}`, "system");
+                      }
+                    }}
+                  />
+                </div>
+                <div
+                  className={`flex min-h-0 flex-col ${
+                    historyCollapsed ? "" : "flex-1"
+                  }`}
+                >
+                  <ChatHistory
+                    userId={dataConnectUserId}
+                    currentSessionId={sessionId}
+                    onSessionSelect={loadSession}
+                    onNewChat={createNewSession}
+                    refreshTrigger={refreshHistory}
+                    collapsed={historyCollapsed}
+                    onToggleCollapse={() =>
+                      setHistoryCollapsed((prev) => !prev)
+                    }
+                  />
+                </div>
+              </div>
+            )}
+            {!contextCollapsed && (
+              <button
+                className="absolute top-1/2 right-[-22px] z-10 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:border-blue-200 hover:text-slate-900"
+                title="Collapse context"
+                onClick={() => setContextCollapsed(true)}
+              >
+                <ChevronLeft />
+              </button>
+            )}
+          </div>
+          <div className="relative flex items-center justify-center bg-white">
+            {contextCollapsed && (
+              <button
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:border-blue-200 hover:text-slate-900"
+                title="Expand context"
+                onClick={() => setContextCollapsed(false)}
+              >
+                <ChevronRight />
+              </button>
+            )}
+          </div>
 
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
             <Messages
@@ -651,13 +708,7 @@ export default function ChatPage() {
                 }
               }}
             />
-            <InputForm
-              active={active}
-              input={input}
-              setInput={setInput}
-              onFeature={onFeature}
-              onSubmit={onSubmit}
-            />
+            <InputForm input={input} setInput={setInput} onSubmit={onSubmit} />
           </div>
           {/* Drag handle between chat and PDF */}
           <div

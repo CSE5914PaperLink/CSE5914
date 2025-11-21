@@ -41,7 +41,8 @@ export default function LibraryPage() {
   const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>(
     {}
   );
-  
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -106,14 +107,10 @@ export default function LibraryPage() {
   };
 
   const handleDelete = async (dataconnectId: string) => {
-    if (
-      !confirm("Are you sure you want to delete this paper from your library?")
-    )
-      return;
-
     try {
       await deletePaper({ paperId: dataconnectId });
       setItems(items.filter((p) => p.dataconnect_id !== dataconnectId));
+      setDeleteConfirmId(null);
     } catch (e) {
       alert("Failed to delete paper: " + (e as Error).message);
     }
@@ -151,8 +148,8 @@ export default function LibraryPage() {
       );
 
       // Trigger profile page refresh
-      window.dispatchEvent(new Event('libraryUpdated'));
-      localStorage.setItem('library_updated', Date.now().toString());
+      window.dispatchEvent(new Event("libraryUpdated"));
+      localStorage.setItem("library_updated", Date.now().toString());
     } catch (e) {
       alert("Failed to update favorite: " + (e as Error).message);
     }
@@ -234,22 +231,25 @@ export default function LibraryPage() {
           ? authors.some((author) => author.toLowerCase().includes(query))
           : (authors as string)?.toLowerCase().includes(query) || false;
         const docIdMatch = item.metadata.doc_id?.toLowerCase().includes(query);
-        
+
         if (!titleMatch && !authorsMatch && !docIdMatch) {
           return false;
         }
       }
-      
+
       // Status filter
-      if (filterStatus !== "all" && item.metadata.ingestion_status !== filterStatus) {
+      if (
+        filterStatus !== "all" &&
+        item.metadata.ingestion_status !== filterStatus
+      ) {
         return false;
       }
-      
+
       // Favorites filter
       if (filterFavorites && !item.metadata.is_favorite) {
         return false;
       }
-      
+
       return true;
     })
     .sort((a, b) => {
@@ -285,24 +285,44 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-8 flex items-center justify-between">
+    <main className="relative min-h-screen bg-gradient-to-b from-white via-slate-50 to-slate-100">
+      <div className="mx-auto max-w-6xl px-6 py-12">
+        <div className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white/90 p-6 shadow-xl shadow-blue-100/70 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Library</h1>
-            <p className="text-gray-600">Your ingested arXiv papers</p>
+            <p className="text-[11px] uppercase tracking-[0.45em] text-blue-500">
+              Research Library
+            </p>
+            <h1 className="mt-2 text-4xl font-semibold text-slate-950">
+              My Papers
+            </h1>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600">
+              Browse ingested papers, track processing state, and curate your
+              favorites.
+            </p>
           </div>
-          <button
-            onClick={fetchItems}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-            disabled={loading}
-          >
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
+                showFilters
+                  ? "border-blue-200 bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-blue-200"
+              }`}
+            >
+              {showFilters ? "Hide Filters" : "Show Filters"}
+            </button>
+            <button
+              onClick={fetchItems}
+              className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:translate-y-0.5"
+              disabled={loading}
+            >
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
         </div>
 
         {/* Search and Filter Section */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div className="mt-8 rounded-2xl border border-slate-100 bg-white/90 p-6 shadow-xl shadow-slate-100">
           <div className="space-y-4">
             {/* Search Bar with Filter Button */}
             <div className="flex gap-2">
@@ -311,15 +331,15 @@ export default function LibraryPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by title, author, or arXiv ID..."
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                className="flex-1 rounded-2xl border border-slate-200 px-4 py-2 text-slate-900 shadow-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-200"
               />
               <button
                 type="button"
                 onClick={() => setShowFilters(!showFilters)}
-                className={`relative px-3 py-2 rounded-lg transition-colors flex items-center justify-center ${
+                className={`relative inline-flex items-center justify-center rounded-2xl border px-4 py-2 font-semibold transition ${
                   showFilters
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-blue-200"
                 }`}
                 title="Toggle filters"
               >
@@ -338,7 +358,8 @@ export default function LibraryPage() {
                 </svg>
                 {(filterStatus !== "all" || filterFavorites) && (
                   <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full min-w-[20px] text-center">
-                    {(filterStatus !== "all" ? 1 : 0) + (filterFavorites ? 1 : 0)}
+                    {(filterStatus !== "all" ? 1 : 0) +
+                      (filterFavorites ? 1 : 0)}
                   </span>
                 )}
               </button>
@@ -346,18 +367,20 @@ export default function LibraryPage() {
 
             {/* Expandable Filters Panel */}
             {showFilters && (
-              <div className="pt-4 border-t border-gray-200 space-y-4">
+              <div className="pt-4 border-t border-slate-200 space-y-4">
                 {/* Filters Row */}
                 <div className="flex flex-wrap items-center gap-4">
                   {/* Sort By */}
                   <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                    <label className="text-sm font-medium text-slate-700 whitespace-nowrap">
                       Sort By:
                     </label>
                     <select
                       value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as "title" | "year" | "added")}
-                      className="px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
+                      onChange={(e) =>
+                        setSortBy(e.target.value as "title" | "year" | "added")
+                      }
+                      className="rounded-2xl border border-slate-200 px-3 py-1.5 text-sm text-slate-900 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                     >
                       <option value="added">Recently Added</option>
                       <option value="title">Title (A-Z)</option>
@@ -367,13 +390,13 @@ export default function LibraryPage() {
 
                   {/* Status Filter */}
                   <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                    <label className="text-sm font-medium text-slate-700 whitespace-nowrap">
                       Status:
                     </label>
                     <select
                       value={filterStatus}
                       onChange={(e) => setFilterStatus(e.target.value)}
-                      className="px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
+                      className="rounded-2xl border border-slate-200 px-3 py-1.5 text-sm text-slate-900 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                     >
                       <option value="all">All</option>
                       <option value="completed">Completed</option>
@@ -389,20 +412,24 @@ export default function LibraryPage() {
                       type="checkbox"
                       checked={filterFavorites}
                       onChange={(e) => setFilterFavorites(e.target.checked)}
-                      className="rounded border-gray-300"
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-gray-700 font-medium">⭐ Favorites Only</span>
+                    <span className="text-slate-700 font-medium">
+                      ⭐ Favorites Only
+                    </span>
                   </label>
 
                   {/* Clear Filters Button */}
-                  {(filterStatus !== "all" || filterFavorites || sortBy !== "added") && (
+                  {(filterStatus !== "all" ||
+                    filterFavorites ||
+                    sortBy !== "added") && (
                     <button
                       onClick={() => {
                         setFilterStatus("all");
                         setFilterFavorites(false);
                         setSortBy("added");
                       }}
-                      className="text-sm text-blue-600 hover:text-blue-700 underline font-medium ml-auto"
+                      className="ml-auto text-sm font-semibold text-blue-600 hover:text-blue-700"
                     >
                       Reset
                     </button>
@@ -412,7 +439,7 @@ export default function LibraryPage() {
             )}
 
             {/* Results Count */}
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-slate-500">
               Showing {filteredAndSortedItems.length} of {items.length} papers
             </div>
           </div>
@@ -451,37 +478,39 @@ export default function LibraryPage() {
             No papers added yet. Go to Discovery to add papers.
           </div>
         )}
-        {items.length > 0 && filteredAndSortedItems.length === 0 && !loading && (
-          <div className="text-center py-12 text-gray-500">
-            <svg
-              className="w-16 h-16 mx-auto mb-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              ></path>
-            </svg>
-            <p className="text-lg">No papers match your filters</p>
-            <button
-              onClick={() => {
-                setSearchQuery("");
-                setFilterStatus("all");
-                setFilterFavorites(false);
-                setSortBy("added");
-              }}
-              className="mt-4 text-blue-600 hover:text-blue-700 underline"
-            >
-              Clear all filters
-            </button>
-          </div>
-        )}
+        {items.length > 0 &&
+          filteredAndSortedItems.length === 0 &&
+          !loading && (
+            <div className="text-center py-12 text-gray-500">
+              <svg
+                className="w-16 h-16 mx-auto mb-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                ></path>
+              </svg>
+              <p className="text-lg">No papers match your filters</p>
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterStatus("all");
+                  setFilterFavorites(false);
+                  setSortBy("added");
+                }}
+                className="mt-4 text-blue-600 hover:text-blue-700 underline"
+              >
+                Clear all filters
+              </button>
+            </div>
+          )}
         {!loading && filteredAndSortedItems.length > 0 && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {filteredAndSortedItems.map((item) => {
               const docId = item.id;
               const isExpanded = expandedPaperId === docId;
@@ -493,60 +522,68 @@ export default function LibraryPage() {
                 ? item.metadata.authors.join(", ")
                 : item.metadata.authors;
               const maxAuthorsLength = 150;
-              const truncatedAuthors = authorsString.length > maxAuthorsLength
-                ? authorsString.slice(0, maxAuthorsLength) + "..."
-                : authorsString;
+              const truncatedAuthors =
+                authorsString.length > maxAuthorsLength
+                  ? authorsString.slice(0, maxAuthorsLength) + "..."
+                  : authorsString;
 
               return (
                 <div
                   key={item.dataconnect_id}
-                  className="bg-white rounded-lg shadow p-6"
+                  className="rounded-3xl border border-slate-100 bg-white p-6 shadow-xl shadow-slate-200"
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-blue-500">
+                        Paper
+                        {item.metadata.year && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+                            {item.metadata.year}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="mt-2 text-2xl font-semibold text-slate-900">
                         {item.metadata.title}
                       </h3>
-                      <p className="text-sm text-gray-600 mb-2">
+                      <p className="mt-2 text-sm text-slate-600">
                         {truncatedAuthors}
                       </p>
                       {item.metadata.abstract && (
-                        <p className="text-gray-700 text-sm line-clamp-3 mb-3">
+                        <p className="mt-3 text-sm leading-relaxed text-slate-700 line-clamp-3">
                           {item.metadata.abstract}
                         </p>
                       )}
-                      <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-3 items-center">
+                      <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                         {item.metadata.doc_id && (
-                          <span>🆔 {item.metadata.doc_id}</span>
-                        )}
-                        {item.metadata.year && (
-                          <span>📅 {item.metadata.year}</span>
+                          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2 py-1 text-[11px]">
+                            ID: {item.metadata.doc_id}
+                          </span>
                         )}
                         <span
-                          className={`px-2 py-1 rounded ${
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${
                             item.metadata.ingestion_status === "completed"
-                              ? "bg-green-100 text-green-800"
+                              ? "bg-green-100 text-green-700"
                               : item.metadata.ingestion_status === "processing"
-                              ? "bg-blue-100 text-blue-800"
+                              ? "bg-blue-100 text-blue-700"
                               : item.metadata.ingestion_status === "pending"
-                              ? "bg-yellow-100 text-yellow-800"
+                              ? "bg-yellow-100 text-yellow-700"
                               : item.metadata.ingestion_status === "failed"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-gray-100 text-gray-800"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-slate-100 text-slate-600"
                           }`}
                         >
                           {item.metadata.ingestion_status === "processing"
-                            ? "⏳ Processing..."
+                            ? "⏳ Processing"
                             : item.metadata.ingestion_status}
                         </span>
                         {item.in_chromadb && (
-                          <span className="px-2 py-1 rounded bg-blue-100 text-blue-800">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">
                             ✓ In Vector DB
                           </span>
                         )}
                       </div>
                     </div>
-                    <div className="shrink-0 flex gap-2">
+                    <div className="flex shrink-0 gap-2">
                       <button
                         onClick={() =>
                           toggleFavorite(
@@ -554,10 +591,10 @@ export default function LibraryPage() {
                             item.metadata.is_favorite || false
                           )
                         }
-                        className={`px-3 py-2 text-sm rounded transition-colors ${
+                        className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
                           item.metadata.is_favorite
-                            ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
-                            : "bg-gray-100 hover:bg-gray-200 text-gray-600"
+                            ? "border border-yellow-200 bg-yellow-50 text-yellow-700"
+                            : "border border-slate-200 text-slate-600 hover:border-slate-300"
                         }`}
                         title={
                           item.metadata.is_favorite
@@ -567,27 +604,31 @@ export default function LibraryPage() {
                       >
                         {item.metadata.is_favorite ? "⭐" : "☆"}
                       </button>
-                      {/* <button
-                      onClick={() => toggleImages(docId)}
-                      className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded"
-                      title="View images"
-                      disabled={isLoadingImages}
-                    >
-                      {isLoadingImages ? "Loading..." : isExpanded ? "Hide Images" : "View Images"}
-                    </button> */}
                       <button
-                        onClick={() => handleDelete(item.dataconnect_id)}
-                        className="px-3 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded"
+                        onClick={() => {
+                          if (deleteConfirmId === item.dataconnect_id) {
+                            handleDelete(item.dataconnect_id);
+                          } else {
+                            setDeleteConfirmId(item.dataconnect_id);
+                          }
+                        }}
+                        className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+                          deleteConfirmId === item.dataconnect_id
+                            ? "bg-red-600 text-white hover:bg-red-700"
+                            : "bg-red-50 text-red-600 hover:bg-red-100"
+                        }`}
                         title="Delete paper"
                       >
-                        Delete
+                        {deleteConfirmId === item.dataconnect_id
+                          ? "Click to confirm"
+                          : "Delete"}
                       </button>
                     </div>
                   </div>
 
                   {/* Image viewer dropdown */}
                   {isExpanded && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="mt-4 pt-4 border-t border-slate-100">
                       {images.length === 0 ? (
                         <p className="text-sm text-gray-500 italic">
                           No images extracted from this paper.
@@ -635,6 +676,6 @@ export default function LibraryPage() {
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 }
