@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useUser } from "@/contexts/UserContext";
 import { useRouter } from "next/navigation";
-import { signOutUser } from "@/lib/firebase";
+import { signOutUser } from "@/lib/firebase.client"; // ✅ client-only
 
 export default function ProfilePage() {
   const { firebaseUser, dataConnectUserId, loading } = useUser();

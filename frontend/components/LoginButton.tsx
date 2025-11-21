@@ -7,7 +7,7 @@ import {
   signInWithGoogle,
   signOutUser,
   onAuthStateChangedListener,
-} from "../lib/firebase";
+} from "../lib/firebase.client"; // ✅ client-only
 
 export default function LoginButton() {
   const [user, setUser] = useState<User | null>(null);

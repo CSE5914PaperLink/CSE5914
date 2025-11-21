@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User as FirebaseUser } from "firebase/auth";
-import { onAuthStateChangedListener } from "@/lib/firebase";
+import { onAuthStateChangedListener } from "@/lib/firebase.client"; // ✅ client-only
 import { createUser, getUserByEmail } from "@/src/dataconnect-generated";
 
 interface UserContextType {
