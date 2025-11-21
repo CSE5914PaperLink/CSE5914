@@ -303,6 +303,35 @@ export default function DiscoveryPage() {
                 Upload
               </button>
               <button
+                type="button"
+                onClick={() => setShowFilters(!showFilters)}
+                className={`relative px-3 py-3 rounded-lg transition-colors flex items-center justify-center ${
+                  showFilters
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+                title="Toggle filters"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                  ></path>
+                </svg>
+                {(filters.from_date || filters.to_date || filters.min_citations || filters.is_oa || filters.has_fulltext) && (
+                  <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full min-w-[20px] text-center">
+                    {(filters.from_date ? 1 : 0) + (filters.to_date ? 1 : 0) + (filters.min_citations ? 1 : 0) + (filters.is_oa ? 1 : 0) + (filters.has_fulltext ? 1 : 0)}
+                  </span>
+                )}
+              </button>
+              <button
                 type="submit"
                 disabled={loading}
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -331,28 +360,6 @@ export default function DiscoveryPage() {
                 </div>
               </div>
             )}
-
-            {/* Filter Toggle */}
-            <button
-              type="button"
-              onClick={() => setShowFilters(!showFilters)}
-              className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                ></path>
-              </svg>
-              {showFilters ? "Hide Filters" : "Show Filters"}
-            </button>
 
             {/* Filters Panel */}
             {showFilters && (
