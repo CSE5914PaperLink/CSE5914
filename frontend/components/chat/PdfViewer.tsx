@@ -3,7 +3,12 @@
 import { LibraryItem, SourceChunk } from "./types";
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 
-import { Worker, Viewer, SpecialZoomLevel } from "@react-pdf-viewer/core";
+import {
+  Worker,
+  Viewer,
+  SpecialZoomLevel,
+  type DocumentLoadEvent,
+} from "@react-pdf-viewer/core";
 import { highlightPlugin, Trigger } from "@react-pdf-viewer/highlight";
 import type { RenderHighlightsProps } from "@react-pdf-viewer/highlight";
 import "@react-pdf-viewer/core/lib/styles/index.css";
@@ -46,6 +51,7 @@ export function PdfViewer({
     width: number;
     height: number;
   } | null>(null);
+  const pageCountRef = useRef<number | null>(null);
 
   // Determine which document to show based on highlight source
   const targetRoot = useMemo(() => {
@@ -75,29 +81,23 @@ export function PdfViewer({
   const highlightAreas = useMemo(() => {
     if (!highlightSource || highlightSource.page === undefined) return [];
 
-    // Create highlight for the provided source (silently)
-
-    // Validate page number (must be >= 1, as PDFs are 1-indexed in our system)
+    // Validate page number (must be >= 1)
     if (!highlightSource.page || highlightSource.page < 1) {
-      // Invalid page number, skip highlight
-      return [];
-    }
-
-    // Validate bbox - skip if missing or has null/undefined values
-    if (
-      !highlightSource.bbox ||
-      highlightSource.bbox.left == null ||
-      highlightSource.bbox.top == null ||
-      highlightSource.bbox.right == null ||
-      highlightSource.bbox.bottom == null
-    ) {
-      // Missing or incomplete bbox, skip highlight
       return [];
     }
 
     const bbox = highlightSource.bbox;
+    if (
+      !bbox ||
+      bbox.left == null ||
+      bbox.top == null ||
+      bbox.right == null ||
+      bbox.bottom == null
+    ) {
+      // No bounding box available – nothing to highlight
+      return [];
+    }
 
-    // Validate that coordinates are in valid range (0-1)
     if (
       bbox.left < 0 ||
       bbox.left > 1 ||
@@ -112,22 +112,17 @@ export function PdfViewer({
         "PdfViewer - bbox coordinates out of range (should be 0-1):",
         bbox
       );
-      // Try to use anyway in case it's old data
     }
 
-    const areas = [
+    return [
       {
-        pageIndex: highlightSource.page - 1, // PDF pages are 0-indexed
+        pageIndex: highlightSource.page - 1,
         height: (bbox.bottom - bbox.top) * 100,
         width: (bbox.right - bbox.left) * 100,
         left: bbox.left * 100,
         top: bbox.top * 100,
       },
     ];
-
-    // computed highlight areas
-
-    return areas;
   }, [highlightSource]);
 
   const renderHighlights = useCallback(
@@ -165,33 +160,68 @@ export function PdfViewer({
 
   const { jumpToHighlightArea } = highlightPluginInstance;
 
+  const isValidArea = useCallback(
+    (area: {
+      pageIndex: number;
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    } | null) => {
+      if (!area) return false;
+      if (area.pageIndex < 0) return false;
+      const count = pageCountRef.current;
+      if (count !== null && area.pageIndex >= count) {
+        return false;
+      }
+      return true;
+    },
+    []
+  );
+
   // Jump to the highlighted area when it changes
-  // Store the jump request for when PDF loads
   useEffect(() => {
     if (highlightAreas.length > 0) {
       const area = highlightAreas[0];
-
-      // Store pending jump
       pendingJumpRef.current = area;
-
-      // Try to jump immediately (works if PDF is already loaded)
-      jumpToHighlightArea(area);
+      if (pageCountRef.current !== null) {
+        if (isValidArea(area)) {
+          jumpToHighlightArea(area);
+        } else {
+          pendingJumpRef.current = null;
+          console.warn(
+            "PdfViewer - skipping highlight with invalid page index",
+            area.pageIndex
+          );
+        }
+      }
     }
-  }, [highlightAreas, jumpToHighlightArea]);
+  }, [highlightAreas, jumpToHighlightArea, isValidArea]);
 
   // Callback when PDF document loads
-  const handleDocumentLoad = useCallback(() => {
-    // Execute pending jump if any
-    if (pendingJumpRef.current) {
-      // Small delay to ensure PDF is fully rendered
-      setTimeout(() => {
-        if (pendingJumpRef.current) {
-          jumpToHighlightArea(pendingJumpRef.current);
-          pendingJumpRef.current = null;
-        }
-      }, 100);
-    }
-  }, [jumpToHighlightArea]);
+  const handleDocumentLoad = useCallback(
+    (e: DocumentLoadEvent) => {
+      pageCountRef.current = e.doc?.numPages ?? null;
+      if (pendingJumpRef.current) {
+        setTimeout(() => {
+          if (pendingJumpRef.current && isValidArea(pendingJumpRef.current)) {
+            jumpToHighlightArea(pendingJumpRef.current);
+          } else {
+            pendingJumpRef.current = null;
+          }
+        }, 100);
+      }
+    },
+    [jumpToHighlightArea, isValidArea]
+  );
+
+  // Clean up pending state when switching docs
+  useEffect(() => {
+    return () => {
+      pendingJumpRef.current = null;
+      pageCountRef.current = null;
+    };
+  }, []);
 
   if (reps.length === 0) {
     return (

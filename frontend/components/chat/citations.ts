@@ -1,16 +1,53 @@
 import { SourceChunk } from "./types";
 
 const CITATION_GROUP_REGEX = /\[(\s*\d+(?:\s*,\s*\d+)*)\]/g;
+const PARAGRAPH_SPLIT_REGEX = /\n{2,}/;
+const PARAGRAPH_SEPARATOR_REGEX = /\n{2,}/g;
+const NON_BREAKING_SPACE = "\u00A0";
 
-const BRACKETED_SOURCE_REGEX =
-  /\[\s*(?:image\s+)?source\s*#?(\d+)\s*\]/gi;
+const BRACKETED_SOURCE_REGEX = /\[\s*(?:image\s+)?source\s*#?(\d+)\s*\]/gi;
 const PAREN_SOURCE_REGEX = /\(\s*(?:image\s+)?source\s*#?(\d+)\s*\)/gi;
-const BARE_SOURCE_REGEX =
-  /(^|[\s\[\(])((?:image\s+)?source\s*#?(\d+))/gi;
+const BARE_SOURCE_REGEX = /(^|[\s\[\(])((?:image\s+)?source\s*#?(\d+))/gi;
 
 const TOKEN_REGEX = /\b[a-z0-9]{4,}\b/gi;
 
 type ParagraphCitations = Record<number, number[]>;
+
+type Paragraph = {
+  raw: string;
+  tokens: Set<string>;
+};
+
+const hasContent = (value: string | undefined) => !!value?.trim();
+
+const findNearestParagraphWithContent = (
+  paragraphs: Paragraph[],
+  startIdx: number
+): number => {
+  if (!paragraphs.length) {
+    return 0;
+  }
+
+  const clamp = (idx: number) =>
+    Math.min(Math.max(idx, 0), Math.max(paragraphs.length - 1, 0));
+
+  const index = clamp(startIdx);
+  if (hasContent(paragraphs[index]?.raw)) {
+    return index;
+  }
+
+  for (let i = index - 1; i >= 0; i--) {
+    if (hasContent(paragraphs[i]?.raw)) {
+      return i;
+    }
+  }
+  for (let i = index + 1; i < paragraphs.length; i++) {
+    if (hasContent(paragraphs[i]?.raw)) {
+      return i;
+    }
+  }
+  return index;
+};
 
 const isAlphaNumeric = (value: string | undefined) =>
   !!value && /[a-z0-9]/i.test(value);
@@ -68,21 +105,24 @@ const appendCitation = (
 };
 
 const rebuildTextWithCitations = (
-  segments: string[],
+  paragraphs: Paragraph[],
   separators: string[],
   citations: ParagraphCitations
 ) => {
   let rebuilt = "";
-  for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i];
+  for (let i = 0; i < paragraphs.length; i++) {
+    const segment = paragraphs[i]?.raw ?? "";
     const trailingWhitespaceMatch = segment.match(/\s+$/);
     const trailingWhitespace = trailingWhitespaceMatch
       ? trailingWhitespaceMatch[0]
       : "";
     const baseLength = segment.length - trailingWhitespace.length;
     const baseText = baseLength >= 0 ? segment.slice(0, baseLength) : segment;
-    const addition = citations[i]
-      ? citations[i].map((num) => ` [${num}]`).join("")
+    const numbers = citations[i]?.length ? citations[i] : undefined;
+    const needsSpacer =
+      numbers && baseText.length > 0 && !/\s$/.test(baseText);
+    const addition = numbers
+      ? `${needsSpacer ? NON_BREAKING_SPACE : ""}[${numbers.join(", ")}]`
       : "";
     rebuilt += baseText + addition + trailingWhitespace;
     if (i < separators.length) {
@@ -102,6 +142,24 @@ const extractCitationNumbers = (group: string): number[] => {
     .split(",")
     .map((segment) => parseInt(segment.trim(), 10))
     .filter((value) => Number.isFinite(value));
+};
+
+const splitIntoParagraphs = (text: string): {
+  paragraphs: Paragraph[];
+  separators: string[];
+} => {
+  const rawSegments = text.split(PARAGRAPH_SPLIT_REGEX);
+  if (rawSegments.length === 0) {
+    rawSegments.push(text);
+  }
+
+  const paragraphs: Paragraph[] = rawSegments.map((segment) => ({
+    raw: segment,
+    tokens: new Set(tokenize(segment)),
+  }));
+
+  const separators = text.match(PARAGRAPH_SEPARATOR_REGEX) ?? [];
+  return { paragraphs, separators };
 };
 
 /**
@@ -126,18 +184,13 @@ export const annotateWithCitations = (
     numbers.forEach((value) => existingNumbers.add(value));
   }
 
-  const segments = normalized.split(/\n{2,}/);
-  if (segments.length === 0) {
-    segments.push(normalized);
-  }
-  const separators = normalized.match(/\n{2,}/g) ?? [];
-
-  const paragraphTokens = segments.map(
-    (segment) => new Set(tokenize(segment))
-  );
+  const { paragraphs, separators } = splitIntoParagraphs(normalized);
 
   const citationsPerParagraph: ParagraphCitations = {};
-  const fallbackParagraphIndex = segments.length - 1;
+  const fallbackParagraphIndex = findNearestParagraphWithContent(
+    paragraphs,
+    paragraphs.length - 1
+  );
 
   sources.forEach((source, idx) => {
     const citationNumber = getResolvedCitationNumber(source, idx);
@@ -146,14 +199,16 @@ export const annotateWithCitations = (
     }
 
     const sourceTokens = new Set(
-      tokenize(source.content || source.caption || source.heading || source.title)
+      tokenize(
+        source.content || source.caption || source.heading || source.title
+      )
     );
 
     let destinationIdx = fallbackParagraphIndex;
     if (sourceTokens.size > 0) {
       let bestScore = 0;
-      paragraphTokens.forEach((paragraphTokenSet, paragraphIdx) => {
-        const score = overlapScore(paragraphTokenSet, sourceTokens);
+      paragraphs.forEach((paragraph, paragraphIdx) => {
+        const score = overlapScore(paragraph.tokens, sourceTokens);
         if (score > bestScore) {
           bestScore = score;
           destinationIdx = paragraphIdx;
@@ -161,11 +216,20 @@ export const annotateWithCitations = (
       });
     }
 
-    appendCitation(citationsPerParagraph, destinationIdx, citationNumber);
+    const resolvedParagraphIdx = findNearestParagraphWithContent(
+      paragraphs,
+      destinationIdx
+    );
+
+    appendCitation(
+      citationsPerParagraph,
+      resolvedParagraphIdx,
+      citationNumber
+    );
     existingNumbers.add(citationNumber);
   });
 
-  return rebuildTextWithCitations(segments, separators, citationsPerParagraph);
+  return rebuildTextWithCitations(paragraphs, separators, citationsPerParagraph);
 };
 
 export const parseCitationGroup = (groupText: string): number[] => {

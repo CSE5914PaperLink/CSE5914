@@ -135,6 +135,13 @@ export default function ChatPage() {
 
       // include selected doc ids for RAG
       const docs = Array.from(selectedDocs.values());
+      const docTitleMap = new Map(
+        library.map((item) => [item.metadata.doc_id, item.metadata.title])
+      );
+      const docDetails = docs.map((docId) => ({
+        doc_id: docId,
+        title: docTitleMap.get(docId) || docId,
+      }));
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
@@ -144,6 +151,7 @@ export default function ChatPage() {
           prompt: trimmed,
           system: systemInstruction,
           doc_ids: docs,
+          doc_titles: docDetails,
           thread_id: threadId, // Pass thread ID for conversation memory
         }),
       });
@@ -291,7 +299,10 @@ export default function ChatPage() {
             } catch (e) {
               // Skip invalid JSON lines
               if (e instanceof Error && !e.message.includes("Unexpected")) {
+                console.warn("Failed to parse streamed event line:", line, e);
                 throw e;
+              } else {
+                console.warn("Non-error JSON parse failure for line:", line, e);
               }
             }
           }

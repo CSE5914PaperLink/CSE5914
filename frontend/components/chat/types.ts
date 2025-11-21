@@ -12,6 +12,7 @@ export type LibraryItem = {
   id: string;
   metadata: PaperMetadata;
   document?: string | null;
+  in_chromadb?: boolean;
 };
 
 export type ImageAsset = {

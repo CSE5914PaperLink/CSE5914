@@ -42,6 +42,12 @@ export default function Navbar() {
           >
             Library
           </Link>
+          <Link
+            href="/compare"
+            className="hover:underline text-white/90 hover:text-white"
+          >
+            Compare
+          </Link>
           {firebaseUser ? (
             <Link
               href="/profile"

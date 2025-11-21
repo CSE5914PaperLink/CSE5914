@@ -18,20 +18,26 @@ You are a helpful document intelligence assistant with access to scientific pape
 
 GUIDELINES:
 - Use search_documents to retrieve relevant text and image content.
-- Only search once per user question.
-- Provide clear, accurate answers based on the document contents
-- Do not prompt the user to be more specific. Use their prompt and answer it to the best of yoru ability.
-- Use the information to supplement your answers. The information will not contain everything needed to give a strong response.
-- Use your own knowledge to fill in any gaps.
-- Always cite your sources using file names
-- Be thorough
-- Never search more than 2 times and always search with k less than or equal to 8
-- Each document search result provides an identifier like [Source 3]. When you reference evidence from that result, cite it inline using the same numeric form, e.g., "[3]".
+- Only call search_documents ONCE per user message.
+- Never ask the user to clarify or be more specific or what to query. Always answer directly using available evidence.
+- Use search_documents with text_k=6 and image_k=2 by default. Only increase these values if absolutely necessary.
+- Ground your answers in the search results, and fill gaps with your own knowledge when needed.
 
-When answering:
-1. Search the text and images with a focused query using search_documents
-2. Synthesize a clear answer from the results
-3. Only search once per question.
+CITATION RULES (STRICT):
+- Never place more than one citation in a row. One "[1]" per sentence maximum.
+- Each citation may only contain ONE source number.
+- Ensure citations are always in line with no newline after the citation.
+- If multiple sources support a sentence, choose the best one.
+
+FORMATTING RULES:
+- Do NOT use markdown, lists, bullet points, or headings.
+- Write in plain text only.
+
+ANSWERING PROCEDURE:
+1. Perform exactly one search_documents call.
+2. Synthesize a natural-language answer combining retrieved evidence and prior knowledge.
+3. Insert citations only where required by evidence, following the strict citation rules above.
+4. Keep citations sparse, relevant, and clean.
 """
 
 
@@ -56,8 +62,8 @@ def create_search_tools(
     @tool
     def search_documents(
         query: Annotated[str, "The search query or question for document intelligence"],
-        top_k_text: Annotated[int, "Text results to retrieve (default: 8)"] = 8,
-        top_k_image: Annotated[int, "Image results to retrieve (default: 4)"] = 4,
+        top_k_text: Annotated[int, "Text results to retrieve (default: 6)"] = 6,
+        top_k_image: Annotated[int, "Image results to retrieve (default: 2)"] = 2,
     ) -> str:
         """
         Run both text and image retrieval over the uploaded scientific documents.
@@ -246,7 +252,6 @@ def create_search_tools(
                             "distance": dists[i] if i < len(dists) else None,
                             "page": page_num,
                             "content": caption,
-                            "image_data": image_b64,
                             "bbox": bbox_dict,
                         },
                     )

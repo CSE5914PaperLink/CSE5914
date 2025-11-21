@@ -5,7 +5,7 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, system, temperature = 0.7, doc_ids, thread_id } = body;
+    const { prompt, system, temperature = 0, doc_ids, thread_id } = body;
 
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json(
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
           doc_ids,
           thread_id: thread_id || `session-${Date.now()}`,
           temperature,
-          top_k: 8,
+          top_k: 6,
         }),
       });
 

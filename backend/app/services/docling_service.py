@@ -69,7 +69,7 @@ class DoclingService:
         tokenizer = HuggingFaceTokenizer(
             tokenizer=AutoTokenizer.from_pretrained("nomic-ai/nomic-embed-text-v1.5"),
         )
-        chunker = HybridChunker(tokenizer=tokenizer, merge_peers=False)
+        chunker = HybridChunker(tokenizer=tokenizer)
         results = []
 
         for chunk in chunker.chunk(doc):
