@@ -2,12 +2,12 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { User } from "firebase/auth";
+import type { User } from "firebase/auth";
 import {
   signInWithGoogle,
   signOutUser,
   onAuthStateChangedListener,
-} from "../lib/firebase";
+} from "../lib/firebase.client";
 
 export default function LoginButton() {
   const [user, setUser] = useState<User | null>(null);

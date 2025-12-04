@@ -1,8 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { User as FirebaseUser } from "firebase/auth";
-import { onAuthStateChangedListener } from "@/lib/firebase";
+import type { User as FirebaseUser } from "firebase/auth";
+import { onAuthStateChangedListener } from "@/lib/firebase.client";
 import { createUser, getUserByEmail } from "@/src/dataconnect-generated";
 
 interface UserContextType {
@@ -21,8 +21,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [dataConnectUserId, setDataConnectUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // Wait for client-side mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
+    // Don't set up auth listener until component is mounted on client
+    if (!mounted) {
+      return;
+    }
+
     const unsubscribe = onAuthStateChangedListener(async (user) => {
       setFirebaseUser(user);
 
@@ -53,7 +64,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [mounted]);
 
   return (
     <UserContext.Provider value={{ firebaseUser, dataConnectUserId, loading }}>

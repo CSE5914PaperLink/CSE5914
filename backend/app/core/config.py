@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # ChromaDB configuration
     chroma_persist_path: str = "./chroma"  # relative to backend working dir
     chroma_collection_name: str = "documents"
+    
+    # Server configuration
+    port: int = 8080  # Default port, Cloud Run sets PORT env var
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

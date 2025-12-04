@@ -1,0 +1,50 @@
+# Alternative Dockerfile with Cloud Storage FUSE for ChromaDB persistence
+# This requires additional setup and may have performance implications
+# For most use cases, use the standard Dockerfile with persistent disk
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies including gcsfuse
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    gnupg \
+    && echo "deb http://packages.cloud.google.com/apt gcsfuse-bullseye main" | \
+       tee /etc/apt/sources.list.d/gcsfuse.list \
+    && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
+    && apt-get update \
+    && apt-get install -y gcsfuse \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
+
+# Copy requirements file
+COPY requirements.txt ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create mount point for Cloud Storage
+RUN mkdir -p /mnt/chroma && chmod 777 /mnt/chroma
+
+# Expose port
+ENV PORT=8080
+EXPOSE 8080
+
+# Mount script (run before starting the app)
+COPY mount-gcs.sh /mount-gcs.sh
+RUN chmod +x /mount-gcs.sh
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
+
+# Start script that mounts GCS and runs the app
+CMD ["/bin/bash", "-c", "/mount-gcs.sh && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers 1"]
+

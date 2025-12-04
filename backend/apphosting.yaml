@@ -2,22 +2,47 @@
 # See https://firebase.google.com/docs/app-hosting/configure#cloud-run
 runConfig:
   minInstances: 0
-  # maxInstances: 100
-  # concurrency: 80
-  # cpu: 1
-  # memoryMiB: 512
+  maxInstances: 10
+  concurrency: 80
+  cpu: 2
+  memoryMiB: 4096
+  timeoutSeconds: 300
 
 # Environment variables and secrets.
-# env:
-  # Configure environment variables.
-  # See https://firebase.google.com/docs/app-hosting/configure#user-defined-environment
-  # - variable: MESSAGE
-  #   value: Hello world!
-  #   availability:
-  #     - BUILD
-  #     - RUNTIME
+env:
+  # Runtime environment variables
+  - variable: PORT
+    value: "8080"
+    availability:
+      - RUNTIME
+  
+  - variable: PYTHONUNBUFFERED
+    value: "1"
+    availability:
+      - BUILD
+      - RUNTIME
+  
+  # CORS configuration - Add your frontend URLs
+  - variable: CORS_ORIGINS
+    value: "http://localhost:3000,http://127.0.0.1:3000,https://frontend-app-745486781817.us-central1.run.app"
+    availability:
+      - RUNTIME
 
   # Grant access to secrets in Cloud Secret Manager.
-  # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
-  # - variable: MY_SECRET
-  #   secret: mySecretRef
+  # Uncomment and configure these after creating secrets in Secret Manager:
+  # See: https://firebase.google.com/docs/app-hosting/configure#secret-parameters
+  
+  # - variable: GEMINI_API_KEY
+  #   secret: gemini-api-key
+  #   availability:
+  #     - RUNTIME
+  
+  # - variable: GITHUB_API_TOKEN
+  #   secret: github-api-token
+  #   availability:
+  #     - RUNTIME
+  
+  # - variable: NOMIC_API_KEY
+  #   secret: nomic-api-key
+  #   availability:
+  #     - RUNTIME

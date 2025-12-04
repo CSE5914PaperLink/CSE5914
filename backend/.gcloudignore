@@ -1,0 +1,71 @@
+# This file specifies files that are *not* uploaded to Google Cloud
+# using gcloud. It follows the same syntax as .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Poetry (not needed for deployment)
+poetry.lock
+pyproject.toml
+.poetry/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# ChromaDB data (use Cloud Storage or persistent disk)
+chroma/
+chroma_data/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation (keep README.md)
+*.md
+!README.md
+
+# Node modules
+node_modules/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+

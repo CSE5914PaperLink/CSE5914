@@ -13,12 +13,16 @@ from app.core.config import settings
 app = FastAPI()
 
 # Configure CORS
+# Get allowed origins from environment variable, fallback to localhost for dev
+import os
+allowed_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],  # Frontend origins
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
