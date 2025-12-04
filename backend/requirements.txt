@@ -1,0 +1,42 @@
+# Backend Requirements for Python 3.12
+# Generated from actual imports found in codebase
+# Install with: pip install -r requirements.txt
+
+# Core Framework
+fastapi>=0.119.0,<0.120.0
+pydantic-settings>=2.11.0,<3.0.0
+python-multipart>=0.0.19,<0.1.0
+uvicorn[standard]>=0.37.0,<0.38.0
+
+# HTTP Clients
+httpx>=0.28.1,<0.29.0
+
+# Google AI Services
+google-genai>=1.48.0,<2.0.0
+google-api-core>=2.0.0  # Required for google.api_core.exceptions
+
+# Document Processing
+docling>=2.55.1,<3.0.0
+transformers>=4.30.0  # Required for AutoTokenizer in docling_service
+
+# Vector Database & Embeddings
+chromadb>=1.3.0,<2.0.0
+langchain-chroma>=1.0.0,<2.0.0
+langchain-nomic>=1.0.1,<2.0.0
+langchain-core>=1.0.5,<2.0.0
+langchain-community>=0.4.1,<0.5.0
+
+# LangChain & LangGraph
+langchain-google-genai>=3.1.0,<4.0.0
+langgraph>=1.0.3,<2.0.0
+
+# Image Processing
+Pillow>=10.0.0  # Required for PIL.Image
+
+# Firebase
+firebase-admin>=7.1.0,<8.0.0
+firebase-functions>=0.5.0  # Required for Firebase Cloud Functions
+
+# Note: docling-core is imported but may be included as a dependency of docling
+# If installation fails, you may need to install it separately
+

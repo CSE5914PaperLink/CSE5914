@@ -6,18 +6,39 @@ runConfig:
   # concurrency: 80
   # cpu: 1
   # memoryMiB: 512
+  # Startup command - Cloud Run requires listening on PORT env var (default 8080)
+  startupCommand: "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"
 
 # Environment variables and secrets.
-# env:
-  # Configure environment variables.
-  # See https://firebase.google.com/docs/app-hosting/configure#user-defined-environment
-  # - variable: MESSAGE
-  #   value: Hello world!
+# Configure these in Firebase Console > App Hosting > Backend > Environment Variables
+# Or uncomment and set values below (NOT recommended for secrets)
+env:
+  # CORS origins - REQUIRED: Set this to your frontend URL(s)
+  # Example: "https://your-frontend-app.web.app,https://your-frontend-app.firebaseapp.com"
+  - variable: CORS_ORIGINS
+    value: "http://localhost:3000,http://127.0.0.1:3000"  # Update with production URLs
+    availability:
+      - RUNTIME
+  
+  # Gemini API Key - REQUIRED: Set via Firebase Console or Cloud Secret Manager
+  # - variable: GEMINI_API_KEY
+  #   secret: gemini-api-key  # Reference from Cloud Secret Manager
   #   availability:
-  #     - BUILD
   #     - RUNTIME
-
-  # Grant access to secrets in Cloud Secret Manager.
-  # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
-  # - variable: MY_SECRET
-  #   secret: mySecretRef
+  
+  # Optional: Other API keys
+  # - variable: GITHUB_API_TOKEN
+  #   secret: github-api-token
+  #   availability:
+  #     - RUNTIME
+  
+  # - variable: NOMIC_API_KEY
+  #   secret: nomic-api-key
+  #   availability:
+  #     - RUNTIME
+  
+  # Debug mode
+  - variable: DEBUG
+    value: "false"
+    availability:
+      - RUNTIME

@@ -12,13 +12,17 @@ from app.core.config import settings
 
 app = FastAPI()
 
-# Configure CORS
+# Configure CORS - supports both development and production origins
+# CORS_ORIGINS env var should be comma-separated list: "http://localhost:3000,https://your-app.web.app"
+cors_origins = [
+    origin.strip()
+    for origin in settings.cors_origins.split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],  # Frontend origins
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
