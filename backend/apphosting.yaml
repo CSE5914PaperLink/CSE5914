@@ -7,7 +7,12 @@ runConfig:
   # cpu: 1
   # memoryMiB: 512
   # Startup command - Cloud Run requires listening on PORT env var (default 8080)
-  startupCommand: "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"
+  # Option 1: Use Python script (recommended - handles PORT env var properly)
+  startupCommand: "python start.py"
+  # Option 2: Use shell script (alternative)
+  # startupCommand: "bash start.sh"
+  # Option 3: Direct command (if PORT is set as env var in Console)
+  # startupCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
 
 # Environment variables and secrets.
 # Configure these in Firebase Console > App Hosting > Backend > Environment Variables
