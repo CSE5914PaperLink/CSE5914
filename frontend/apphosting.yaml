@@ -1,0 +1,25 @@
+# Settings for Frontend (Next.js on Firebase App Hosting).
+# See https://firebase.google.com/docs/app-hosting/configure
+buildConfig:
+  buildCommand: npm run build
+  outputDirectory: .next
+
+# Environment variables should be set in Firebase Console > App Hosting > Frontend > Environment Variables
+# Required variables:
+# - BACKEND_URL (server-side only)
+# - NEXT_PUBLIC_BACKEND_URL (client-side, must be public)
+# - NEXT_PUBLIC_FIREBASE_API_KEY
+# - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+# - NEXT_PUBLIC_FIREBASE_PROJECT_ID
+# - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+# - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+# - NEXT_PUBLIC_FIREBASE_APP_ID
+
+# Note: Do NOT put secrets in this file. Use Firebase Console or Cloud Secret Manager.
+# env:
+#   - variable: BACKEND_URL
+#     value: "https://your-backend-service.run.app"
+#     availability:
+#       - BUILD
+#       - RUNTIME
+
