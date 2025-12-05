@@ -112,6 +112,7 @@ async def chat_agent(
 
         tool_call_detected = False
         first_content_token = True
+        accumulated_content = ""
 
         try:
             async for msg, metadata in agent.astream(
@@ -140,10 +141,31 @@ async def chat_agent(
                         first_content_token = False
                         yield json.dumps({"type": "status", "value": "answer"}) + "\n"
 
+                    # Accumulate content for JSON parsing
+                    accumulated_content += content
                     yield json.dumps({"type": "token", "value": content}) + "\n"
 
+            # After all tokens received, parse the JSON response
+            if accumulated_content:
+                try:
+                    # Try to parse the response as JSON
+                    response_json = json.loads(accumulated_content)
+                    if isinstance(response_json, dict):
+                        # Send the full JSON response
+                        print(f"Agent Response JSON: {json.dumps(response_json, indent=2)}")
+                        yield json.dumps({"type": "json_response", "value": response_json}) + "\n"
+                except json.JSONDecodeError:
+                    # If JSON parsing fails, the accumulated content is already sent as tokens
+                    print(f"Warning: Could not parse Gemini response as JSON: {accumulated_content}...")
+
             if sources_tracker:
-                yield json.dumps({"type": "sources", "value": sources_tracker}) + "\n"
+                # Remove large image_data from sources to prevent JSON serialization issues
+                filtered_sources = {}
+                for source_id, source_data in sources_tracker.items():
+                    filtered_data = {k: v for k, v in source_data.items() if k != "image_data"}
+                    filtered_sources[source_id] = filtered_data
+                
+                yield json.dumps({"type": "sources", "value": filtered_sources}) + "\n"
 
             yield json.dumps({"type": "done"}) + "\n"
 

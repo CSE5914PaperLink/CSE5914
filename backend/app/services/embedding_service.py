@@ -7,6 +7,7 @@ from io import BytesIO
 from PIL import Image
 import shutil
 import re
+import numpy as np
 
 from langchain_nomic import NomicEmbeddings
 from langchain_community.vectorstores.utils import filter_complex_metadata
@@ -53,7 +54,17 @@ class NomicEmbeddingService:
         )
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        return self.embedder.embed_documents(texts)
+        embeddings = self.embedder.embed_documents(texts)
+        # L2 Normalize
+        return [self._normalize(e) for e in embeddings]
+
+    def _normalize(self, vector: List[float]) -> List[float]:
+        """Manual L2 normalization to ensure unit length."""
+        arr = np.array(vector)
+        norm = np.linalg.norm(arr)
+        if norm == 0:
+            return vector
+        return (arr / norm).tolist()
 
     def embed_query(self, text: str) -> List[float]:
         """
@@ -62,7 +73,8 @@ class NomicEmbeddingService:
         """
         # Add search_query prefix if not already present
         normalized = text if text.strip().startswith("search_query:") else f"search_query: {text}"
-        return self.embedder.embed_query(normalized)
+        emb = self.embedder.embed_query(normalized)
+        return self._normalize(emb)
 
     # (Vision embedding disabled for simplicity — can re-enable easily)
     def embed_images(
@@ -95,9 +107,13 @@ class NomicEmbeddingService:
         embeddings = self.embedder.embed_image(pil_images)
         dim = len(embeddings[0]) if embeddings else 0
         print(f"DEBUG: Nomic returned {len(embeddings)} image embeddings, dim={dim}")
-        if embeddings:
-            print(f"DEBUG: First 5 dims of first image embedding: {embeddings[0][:5]}")
-        return embeddings
+        
+        # Normalize image embeddings too
+        normalized_embeddings = [self._normalize(e) for e in embeddings]
+        
+        if normalized_embeddings:
+            print(f"DEBUG: First 5 dims of first image embedding: {normalized_embeddings[0][:5]}")
+        return normalized_embeddings
 
 
 # Utility: extract GitHub URL from PDF text
@@ -156,17 +172,55 @@ def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
     if detected_repo_url:
         extra_metadata.github_url = detected_repo_url
 
-    # Store text chunks
     chroma.vectorstore.add_documents(chroma_text_docs, embedding_fn=embedder.embedder)
 
-    for meta in image_info["metadatas"]:
-        meta.update(
-            {
-                "doc_id": extra_metadata.doc_id,
-                "title": extra_metadata.title,
-                "type": "image",
-            }
-        )
+
+
+    # Process and store images as text embeddings
+    if image_info["uris"]:
+        print(f"Processing {len(image_info['uris'])} images with text annotations...")
+        try:
+            # Create documents from image descriptions (caption + annotation)
+            chroma_image_docs = []
+            
+            for meta in image_info["metadatas"]:
+                caption = meta.get("caption", "")
+                annotation = meta.get("annotation", "")
+                print(f"Caption: {caption}")
+                print(f"Annotation: {annotation}")
+                # Combine caption and annotation as the searchable text
+                description = f"{caption}\n\n{annotation}" if annotation else caption
+                
+                if not description.strip():
+                    # Skip images with no description
+                    continue
+                
+                # Update metadata with doc info (keep image_b64 for retrieval)
+                merged_meta = {
+                    **meta,
+                    "doc_id": extra_metadata.doc_id,
+                    "title": extra_metadata.title,
+                    "type": "image",
+                }
+                
+                chroma_image_docs.append(
+                    Document(
+                        page_content=description,
+                        metadata=merged_meta,
+                    )
+                )
+            
+            if chroma_image_docs:
+                # Add using standard add_documents (embeds the text descriptions)
+                # Filter metadata for ChromaDB compatibility
+                filtered_image_docs = filter_complex_metadata(chroma_image_docs)
+                chroma.vectorstore.add_documents(filtered_image_docs)
+                print(f"Successfully added {len(chroma_image_docs)} images (as text embeddings) to Chroma.")
+            else:
+                print("No images with descriptions to embed.")
+
+        except Exception as e:
+            print(f"Error embedding/storing image descriptions: {e}")
 
     if image_info["tmp_dir"]:
         shutil.rmtree(image_info["tmp_dir"], ignore_errors=True)
@@ -239,6 +293,7 @@ def ingest_repo_files_into_chroma(
         )
 
     if documents:
-        chroma.vectorstore.add_documents(documents, embedding_fn=embedder.embedder)
+        filtered_docs = filter_complex_metadata(documents)
+        chroma.vectorstore.add_documents(filtered_docs, embedding_fn=embedder.embedder)
 
     return len(documents)

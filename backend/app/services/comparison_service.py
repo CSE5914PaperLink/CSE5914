@@ -10,6 +10,7 @@ from fastapi import HTTPException
 
 from app.services.chroma_service import ChromaService
 from app.services.gemini_service import GeminiService
+from app.services.embedding_service import NomicEmbeddingService
 from app.services.section_utils import (
     SECTION_KEYWORDS,
     normalize_heading,
@@ -28,6 +29,7 @@ class ComparisonService:
     def __init__(self, chroma_service: Optional[ChromaService] = None):
         self.chroma = chroma_service or ChromaService()
         self.gemini = GeminiService()
+        self.embedder = NomicEmbeddingService()
 
     def compare_documents(self, doc_a: str, doc_b: str) -> Dict[str, Any]:
         chunks_a = self._fetch_chunks(doc_a)
@@ -483,3 +485,143 @@ Respond with 2-3 concise paragraphs.
                 }
             )
         return citations
+
+    def generate_matrix(
+        self, doc_ids: List[str], aspects: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        if not aspects:
+            aspects = ["Model", "Dataset", "Performance", "Experiments", "Limitations"]
+
+        matrix = {}
+        for doc_id in doc_ids:
+            # We need the title for the prompt
+            chunks = self._fetch_chunks(doc_id)
+            if not chunks:
+                continue
+            doc_info = self._extract_doc_info(chunks, fallback_id=doc_id)
+            
+            extracted_aspects = {}
+            for aspect in aspects:
+                extracted_aspects[aspect] = self._extract_aspect_with_rag(
+                    doc_id, doc_info.get("title", doc_id), aspect
+                )
+
+            matrix[doc_id] = {
+                "info": doc_info,
+                "aspects": extracted_aspects
+            }
+
+        return {"matrix": matrix, "aspects": aspects}
+
+    def _extract_aspect_with_rag(
+        self, doc_id: str, doc_title: str, aspect: str
+    ) -> Dict[str, Any]:
+        query = f"What does the paper say about {aspect}?"
+        qvec = self.embedder.embed_query(query)
+
+        # Text-only Search
+        res = self.chroma.collection.query(
+            query_embeddings=[qvec],
+            n_results=6,
+            include=["documents"],
+            where={"$and": [{"doc_id": {"$eq": doc_id}}, {"type": {"$eq": "text"}}]},
+        )
+        
+        texts = (res.get("documents") or [[]])[0]
+
+        # Generate Summary
+        context_text = "\n\n".join(texts)
+        if not context_text:
+            return {"summary": "Not mentioned", "images": []}
+
+        prompt = f"""
+Extract a concise summary (1-2 sentences) regarding the aspect "{aspect}" from the provided text chunks of the paper "{doc_title}".
+If the aspect is not mentioned, return "Not mentioned".
+
+Content:
+<<<
+{context_text}
+>>>
+
+Respond with strict JSON:
+{{
+  "summary": "..."
+}}
+"""
+        try:
+            response_text = self.gemini.generate_content(
+                prompt,
+                temperature=0.1,
+                max_output_tokens=200,
+                system_instruction="You are a research assistant extracting structured data.",
+            )
+            cleaned = self._extract_json_payload(response_text)
+            if not cleaned:
+                 summary = "Error parsing response"
+            else:
+                data = json.loads(cleaned)
+                summary = data.get("summary", "Not mentioned")
+        except Exception as exc:
+            logger.error("Failed to extract aspect %s for %s: %s", aspect, doc_id, exc)
+            summary = "Error"
+
+        return {
+            "summary": summary,
+            "images": []
+        }
+
+    def _aggregate_doc_text(self, chunks: List[Dict[str, Any]], max_chars: int = 10000) -> str:
+        if not chunks:
+            return ""
+        texts = []
+        total_chars = 0
+        # Sort chunks by index to get coherent text
+        sorted_chunks = sorted(chunks, key=lambda c: c["metadata"].get("chunk_index", 0))
+        
+        for chunk in sorted_chunks:
+            text = (chunk.get("text") or "").strip()
+            if not text:
+                continue
+            texts.append(text)
+            total_chars += len(text)
+            if total_chars >= max_chars:
+                break
+        return "\n\n".join(texts)
+
+    def _extract_aspects(
+        self, doc_info: Dict[str, Any], text: str, aspects: List[str]
+    ) -> Dict[str, str]:
+        prompt = f"""
+Extract the following aspects from the research paper provided below.
+Aspects to extract: {", ".join(aspects)}
+
+Paper: {doc_info.get("title")}
+Content:
+<<<
+{text}
+>>>
+
+Respond with strict JSON where keys are the aspects and values are the extracted short summaries (1-2 sentences max).
+If an aspect is not found, set the value to "Not mentioned".
+Example JSON:
+{{
+  "{aspects[0]}": "...",
+  "{aspects[1]}": "..."
+}}
+"""
+        try:
+            response_text = self.gemini.generate_content(
+                prompt,
+                temperature=0.1,
+                max_output_tokens=500,
+                system_instruction="You are a research assistant extracting structured data from papers.",
+            )
+            cleaned = self._extract_json_payload(response_text)
+            if not cleaned:
+                 return {a: "Error parsing response" for a in aspects}
+            data = json.loads(cleaned)
+            # Ensure all aspects are present
+            return {a: data.get(a, "Not mentioned") for a in aspects}
+        except Exception as exc:
+            logger.error("Failed to extract aspects for %s: %s", doc_info.get("doc_id"), exc)
+            return {a: "Error" for a in aspects}
