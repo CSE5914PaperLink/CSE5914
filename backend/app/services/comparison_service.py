@@ -483,3 +483,89 @@ Respond with 2-3 concise paragraphs.
                 }
             )
         return citations
+
+    def generate_matrix(
+        self, doc_ids: List[str], aspects: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        if not aspects:
+            aspects = ["Model", "Dataset", "Performance", "Experiments"]
+
+        matrix = {}
+        for doc_id in doc_ids:
+            chunks = self._fetch_chunks(doc_id)
+            if not chunks:
+                continue
+            
+            doc_info = self._extract_doc_info(chunks, fallback_id=doc_id)
+            text = self._aggregate_section_text(chunks) # Re-using this to get a good chunk of text
+            
+            # If text is too long, we might want to be smarter, but for now let's truncate to a reasonable limit for the matrix prompt
+            # to avoid context window issues if we process many docs. 
+            # However, _aggregate_section_text already limits to MAX_SECTION_CHARACTERS (3000). 
+            # We might want more for a full paper summary, but let's try with what we have or fetch more.
+            # Let's fetch a bit more for the matrix since we need global info.
+            full_text = self._aggregate_doc_text(chunks, max_chars=15000)
+
+            extracted = self._extract_aspects(doc_info, full_text, aspects)
+            matrix[doc_id] = {
+                "info": doc_info,
+                "aspects": extracted
+            }
+
+        return {"matrix": matrix, "aspects": aspects}
+
+    def _aggregate_doc_text(self, chunks: List[Dict[str, Any]], max_chars: int = 10000) -> str:
+        if not chunks:
+            return ""
+        texts = []
+        total_chars = 0
+        # Sort chunks by index to get coherent text
+        sorted_chunks = sorted(chunks, key=lambda c: c["metadata"].get("chunk_index", 0))
+        
+        for chunk in sorted_chunks:
+            text = (chunk.get("text") or "").strip()
+            if not text:
+                continue
+            texts.append(text)
+            total_chars += len(text)
+            if total_chars >= max_chars:
+                break
+        return "\n\n".join(texts)
+
+    def _extract_aspects(
+        self, doc_info: Dict[str, Any], text: str, aspects: List[str]
+    ) -> Dict[str, str]:
+        prompt = f"""
+Extract the following aspects from the research paper provided below.
+Aspects to extract: {", ".join(aspects)}
+
+Paper: {doc_info.get("title")}
+Content:
+<<<
+{text}
+>>>
+
+Respond with strict JSON where keys are the aspects and values are the extracted short summaries (1-2 sentences max).
+If an aspect is not found, set the value to "Not mentioned".
+Example JSON:
+{{
+  "{aspects[0]}": "...",
+  "{aspects[1]}": "..."
+}}
+"""
+        try:
+            response_text = self.gemini.generate_content(
+                prompt,
+                temperature=0.1,
+                max_output_tokens=500,
+                system_instruction="You are a research assistant extracting structured data from papers.",
+            )
+            cleaned = self._extract_json_payload(response_text)
+            if not cleaned:
+                 return {a: "Error parsing response" for a in aspects}
+            data = json.loads(cleaned)
+            # Ensure all aspects are present
+            return {a: data.get(a, "Not mentioned") for a in aspects}
+        except Exception as exc:
+            logger.error("Failed to extract aspects for %s: %s", doc_info.get("doc_id"), exc)
+            return {a: "Error" for a in aspects}

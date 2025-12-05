@@ -13,6 +13,8 @@ from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
+from docling_core.types.doc.document import PictureDescriptionData
+from docling.datamodel.pipeline_options import PictureDescriptionVlmOptions
 from transformers import AutoTokenizer
 
 
@@ -49,17 +51,31 @@ class DoclingService:
         meta = svc.extract_from_url(url)
     """
 
+    _converter_instance = None
+
     def __init__(self) -> None:
-        pipeline_options = PdfPipelineOptions()
-        pipeline_options.do_ocr = False
-        pipeline_options.do_table_structure = True
-        pipeline_options.generate_picture_images = True
-        pipeline_options.images_scale = 2.0
-        self._converter = DocumentConverter(
-            format_options={
-                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-            }
-        )
+        
+        if DoclingService._converter_instance is None:
+            pipeline_options = PdfPipelineOptions()
+            pipeline_options.do_ocr = False
+            pipeline_options.do_table_structure = False
+            pipeline_options.generate_picture_images = True
+            pipeline_options.images_scale = 2.0
+            
+            # Enable SmolVLM picture descriptions (local model)
+            pipeline_options.do_picture_description = False
+            pipeline_options.picture_description_options = PictureDescriptionVlmOptions(
+                repo_id="HuggingFaceTB/SmolVLM-256M-Instruct",
+                prompt="Give a detailed description of this image in 5 sentences or less."
+            )
+            
+            DoclingService._converter_instance = DocumentConverter(
+                format_options={
+                    InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+                }
+            )
+        
+        self._converter = DoclingService._converter_instance
 
     def extract_chunks(self, doc) -> List[Dict[str, Any]]:
         """
@@ -69,7 +85,7 @@ class DoclingService:
         tokenizer = HuggingFaceTokenizer(
             tokenizer=AutoTokenizer.from_pretrained("nomic-ai/nomic-embed-text-v1.5"),
         )
-        chunker = HybridChunker(tokenizer=tokenizer)
+        chunker = HybridChunker(tokenizer=tokenizer, merge_chunks=False)
         results = []
 
         for chunk in chunker.chunk(doc):
@@ -94,45 +110,75 @@ class DoclingService:
 
         doc_items = raw_meta.get("doc_items", [])
         if doc_items:
-            prov = doc_items[0].get("prov", [])
-            if prov:
-                p = prov[0]
-                page_no = p.get("page_no")
-                out["page"] = page_no
+            # Calculate union bbox of all items in the chunk
+            # Initialize with extreme values
+            min_l, min_t = float("inf"), float("inf")
+            max_r, max_b = float("-inf"), float("-inf")
+            
+            # Track page with most items to assign the chunk to a specific page
+            page_counts = {}
+            
+            found_bbox = False
+            
+            for item in doc_items:
+                provs = item.get("prov", [])
+                for p in provs:
+                    page_no = p.get("page_no")
+                    if page_no:
+                        page_counts[page_no] = page_counts.get(page_no, 0) + 1
+                    
+                    bbox = p.get("bbox")
+                    if bbox:
+                        found_bbox = True
+                        l, t, r, b = bbox.get("l"), bbox.get("t"), bbox.get("r"), bbox.get("b")
+                        if l is not None: min_l = min(min_l, l)
+                        if t is not None: min_t = min(min_t, t)
+                        if r is not None: max_r = max(max_r, r)
+                        if b is not None: max_b = max(max_b, b)
 
-                bbox = p.get("bbox")
-                if bbox:
-                    # Default to US Letter size (612 x 792 points) if page size unknown
-                    # TODO: Could extract actual page sizes from document
-                    page_width, page_height = 612, 792
+            # Determine primary page
+            if page_counts:
+                primary_page = max(page_counts, key=page_counts.get)
+                out["page"] = primary_page
+            
+            if found_bbox:
+                # Default to US Letter size (612 x 792 points) if page size unknown
+                # TODO: Could extract actual page sizes from document
+                page_width, page_height = 612, 792
 
-                    # Normalize coordinates to 0-1 range
-                    bbox_left = (
-                        bbox.get("l") / page_width
-                        if bbox.get("l") is not None
-                        else None
-                    )
-                    bbox_right = (
-                        bbox.get("r") / page_width
-                        if bbox.get("r") is not None
-                        else None
-                    )
-                    # Flip y-coordinates (PDF uses bottom-left origin)
-                    bbox_top = (
-                        (page_height - bbox.get("t")) / page_height
-                        if bbox.get("t") is not None
-                        else None
-                    )
-                    bbox_bottom = (
-                        (page_height - bbox.get("b")) / page_height
-                        if bbox.get("b") is not None
-                        else None
-                    )
+                # Normalize coordinates to 0-1 range
+                bbox_left = min_l / page_width
+                bbox_right = max_r / page_width
+                
+                min_l, min_b = float("inf"), float("inf")
+                max_r, max_t = float("-inf"), float("-inf")
+                
+                for item in doc_items:
+                    provs = item.get("prov", [])
+                    for p in provs:
+                        bbox = p.get("bbox")
+                        if bbox:
+                            l, t, r, b = bbox.get("l"), bbox.get("t"), bbox.get("r"), bbox.get("b")
+                            # Docling v2: l, r, t, b. 
+                            # Usually t is top (higher y), b is bottom (lower y).
+                            if l is not None: min_l = min(min_l, l)
+                            if r is not None: max_r = max(max_r, r)
+                            if t is not None: max_t = max(max_t, t)
+                            if b is not None: min_b = min(min_b, b)
+                
+                bbox_left = min_l / page_width
+                bbox_right = max_r / page_width
+                
+                # Screen Top = (Page Height - PDF Top) / Page Height
+                bbox_top = (page_height - max_t) / page_height
+                
+                # Screen Bottom = (Page Height - PDF Bottom) / Page Height
+                bbox_bottom = (page_height - min_b) / page_height
 
-                    out["bbox_left"] = bbox_left
-                    out["bbox_top"] = bbox_top
-                    out["bbox_right"] = bbox_right
-                    out["bbox_bottom"] = bbox_bottom
+                out["bbox_left"] = bbox_left
+                out["bbox_top"] = bbox_top
+                out["bbox_right"] = bbox_right
+                out["bbox_bottom"] = bbox_bottom
 
         if "headings" in raw_meta:
             out["headings"] = " > ".join(raw_meta["headings"])
@@ -178,6 +224,14 @@ class DoclingService:
             buf = io.BytesIO()
             img.save(buf, format="PNG")
             b64_data = base64.b64encode(buf.getvalue()).decode("utf-8")
+            
+            # Extract VLM annotations
+            annotation_text = ""
+            pic_annotations = getattr(pic, "annotations", [])
+            for annotation in pic_annotations:
+                if isinstance(annotation, PictureDescriptionData):
+                    annotation_text = getattr(annotation, "text", "")
+                    break  # Use first annotation found
 
             bbox = getattr(prov[0], "bbox", None)
 
@@ -208,6 +262,7 @@ class DoclingService:
                 "picture_number": i,
                 "page": page_no,
                 "caption": pic.caption_text(doc),
+                "annotation": annotation_text,
                 "bbox_left": bbox_left,
                 "bbox_top": bbox_top,
                 "bbox_right": bbox_right,
