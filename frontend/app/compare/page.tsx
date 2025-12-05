@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useUser } from "@/contexts/UserContext";
 import type { LibraryItem } from "@/components/chat/types";
 
-const DEFAULT_ASPECTS = ["Model", "Dataset", "Performance", "Year", "Limitations"];
+const DEFAULT_ASPECTS = ["Model", "Dataset", "Performance", "Experiments", "Limitations"];
 
 type Citation = {
   chunk_id?: string;
@@ -47,7 +47,7 @@ type MatrixResponse = {
     string,
     {
       info: { doc_id: string; title: string };
-      aspects: Record<string, string>;
+      aspects: Record<string, { summary: string; images: SectionImage[] }>;
     }
   >;
   aspects: string[];
@@ -379,26 +379,30 @@ export default function ComparePage() {
                   Select Papers to Compare
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-2 border border-slate-100 rounded-xl bg-slate-50">
-                  {chromaDocs.map((doc) => (
-                    <label
-                      key={doc.metadata.doc_id}
-                      className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all ${
-                        selectedDocs.includes(doc.metadata.doc_id)
-                          ? "bg-blue-50 border-blue-200 shadow-sm"
-                          : "bg-white border-slate-200 hover:border-blue-300"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300 mr-3"
-                        checked={selectedDocs.includes(doc.metadata.doc_id)}
-                        onChange={() => toggleDocSelection(doc.metadata.doc_id)}
-                      />
-                      <span className="text-sm font-medium text-slate-700 truncate">
-                        {doc.metadata.title || doc.metadata.doc_id}
-                      </span>
-                    </label>
-                  ))}
+                  {chromaDocs.map((doc) => {
+                    const docId = doc.metadata.doc_id || "";
+                    if (!docId) return null;
+                    return (
+                      <label
+                        key={docId}
+                        className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all ${
+                          selectedDocs.includes(docId)
+                            ? "bg-blue-50 border-blue-200 shadow-sm"
+                            : "bg-white border-slate-200 hover:border-blue-300"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300 mr-3"
+                          checked={selectedDocs.includes(docId)}
+                          onChange={() => toggleDocSelection(docId)}
+                        />
+                        <span className="text-sm font-medium text-slate-700 truncate">
+                          {doc.metadata.title || docId}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
                   Selected: {selectedDocs.length} documents
@@ -610,11 +614,19 @@ export default function ComparePage() {
                      <td className="p-4 border-b border-slate-100 text-sm font-semibold text-slate-700">
                        {aspect}
                      </td>
-                     {Object.values(matrixData.matrix).map((doc) => (
-                       <td key={`${doc.info.doc_id}-${aspect}`} className="p-4 border-b border-slate-100 text-sm text-slate-600 leading-relaxed">
-                         {doc.aspects[aspect] || "—"}
-                       </td>
-                     ))}
+                      {Object.values(matrixData.matrix).map((doc) => {
+                        const cellData = doc.aspects[aspect];
+                        const summary = cellData?.summary || "—";
+
+                        return (
+                          <td
+                            key={`${doc.info.doc_id}-${aspect}`}
+                            className="p-4 border-b border-slate-100 text-sm text-slate-600 leading-relaxed align-top"
+                          >
+                            <p className="mb-3">{summary}</p>
+                          </td>
+                        );
+                      })}
                    </tr>
                  ))}
                </tbody>

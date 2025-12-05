@@ -10,6 +10,7 @@ from fastapi import HTTPException
 
 from app.services.chroma_service import ChromaService
 from app.services.gemini_service import GeminiService
+from app.services.embedding_service import NomicEmbeddingService
 from app.services.section_utils import (
     SECTION_KEYWORDS,
     normalize_heading,
@@ -28,6 +29,7 @@ class ComparisonService:
     def __init__(self, chroma_service: Optional[ChromaService] = None):
         self.chroma = chroma_service or ChromaService()
         self.gemini = GeminiService()
+        self.embedder = NomicEmbeddingService()
 
     def compare_documents(self, doc_a: str, doc_b: str) -> Dict[str, Any]:
         chunks_a = self._fetch_chunks(doc_a)
@@ -488,31 +490,85 @@ Respond with 2-3 concise paragraphs.
         self, doc_ids: List[str], aspects: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         if not aspects:
-            aspects = ["Model", "Dataset", "Performance", "Experiments"]
+            aspects = ["Model", "Dataset", "Performance", "Experiments", "Limitations"]
 
         matrix = {}
         for doc_id in doc_ids:
+            # We need the title for the prompt
             chunks = self._fetch_chunks(doc_id)
             if not chunks:
                 continue
-            
             doc_info = self._extract_doc_info(chunks, fallback_id=doc_id)
-            text = self._aggregate_section_text(chunks) # Re-using this to get a good chunk of text
             
-            # If text is too long, we might want to be smarter, but for now let's truncate to a reasonable limit for the matrix prompt
-            # to avoid context window issues if we process many docs. 
-            # However, _aggregate_section_text already limits to MAX_SECTION_CHARACTERS (3000). 
-            # We might want more for a full paper summary, but let's try with what we have or fetch more.
-            # Let's fetch a bit more for the matrix since we need global info.
-            full_text = self._aggregate_doc_text(chunks, max_chars=15000)
+            extracted_aspects = {}
+            for aspect in aspects:
+                extracted_aspects[aspect] = self._extract_aspect_with_rag(
+                    doc_id, doc_info.get("title", doc_id), aspect
+                )
 
-            extracted = self._extract_aspects(doc_info, full_text, aspects)
             matrix[doc_id] = {
                 "info": doc_info,
-                "aspects": extracted
+                "aspects": extracted_aspects
             }
 
         return {"matrix": matrix, "aspects": aspects}
+
+    def _extract_aspect_with_rag(
+        self, doc_id: str, doc_title: str, aspect: str
+    ) -> Dict[str, Any]:
+        query = f"What does the paper say about {aspect}?"
+        qvec = self.embedder.embed_query(query)
+
+        # Text-only Search
+        res = self.chroma.collection.query(
+            query_embeddings=[qvec],
+            n_results=6,
+            include=["documents"],
+            where={"$and": [{"doc_id": {"$eq": doc_id}}, {"type": {"$eq": "text"}}]},
+        )
+        
+        texts = (res.get("documents") or [[]])[0]
+
+        # Generate Summary
+        context_text = "\n\n".join(texts)
+        if not context_text:
+            return {"summary": "Not mentioned", "images": []}
+
+        prompt = f"""
+Extract a concise summary (1-2 sentences) regarding the aspect "{aspect}" from the provided text chunks of the paper "{doc_title}".
+If the aspect is not mentioned, return "Not mentioned".
+
+Content:
+<<<
+{context_text}
+>>>
+
+Respond with strict JSON:
+{{
+  "summary": "..."
+}}
+"""
+        try:
+            response_text = self.gemini.generate_content(
+                prompt,
+                temperature=0.1,
+                max_output_tokens=200,
+                system_instruction="You are a research assistant extracting structured data.",
+            )
+            cleaned = self._extract_json_payload(response_text)
+            if not cleaned:
+                 summary = "Error parsing response"
+            else:
+                data = json.loads(cleaned)
+                summary = data.get("summary", "Not mentioned")
+        except Exception as exc:
+            logger.error("Failed to extract aspect %s for %s: %s", aspect, doc_id, exc)
+            summary = "Error"
+
+        return {
+            "summary": summary,
+            "images": []
+        }
 
     def _aggregate_doc_text(self, chunks: List[Dict[str, Any]], max_chars: int = 10000) -> str:
         if not chunks:
