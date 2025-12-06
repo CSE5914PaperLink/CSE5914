@@ -19,9 +19,14 @@ class Settings(BaseSettings):
     
     # Server configuration
     port: int = 8080  # Default port, Cloud Run sets PORT env var
+    
+    # CORS configuration (optional - comma-separated origins)
+    cors_origins: str | None = None
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        extra="ignore",  # Ignore extra fields from .env to prevent validation errors
     )
 
 

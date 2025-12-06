@@ -11,10 +11,7 @@ runConfig:
 # Environment variables and secrets.
 env:
   # Runtime environment variables
-  - variable: PORT
-    value: "8080"
-    availability:
-      - RUNTIME
+  # Note: PORT is automatically set by Cloud Run/App Hosting, no need to define it
   
   - variable: PYTHONUNBUFFERED
     value: "1"

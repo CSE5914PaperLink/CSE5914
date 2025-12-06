@@ -41,3 +41,4 @@ Write-Host "4. Run dev server: npm run dev"
 Write-Host ""
 Write-Host "✅ Setup complete! Edit .env.local with your Firebase config." -ForegroundColor Green
 
+

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser } from "@/contexts/UserContext";
-import { signOutUser } from "@/lib/firebase.client";
+import { signOutUser } from "@/lib/firebase";
 import { useState, useRef, useEffect } from "react";
 
 export default function Navbar() {

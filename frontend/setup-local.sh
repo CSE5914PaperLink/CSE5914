@@ -44,3 +44,4 @@ echo "4. Run dev server: npm run dev"
 echo ""
 echo "✅ Setup complete! Edit .env.local with your Firebase config."
 
+

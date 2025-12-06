@@ -43,14 +43,29 @@ class RepoMetadata:
 
 # Embedding Service Wrapper
 class NomicEmbeddingService:
-    """Service for local Nomic embeddings with multimodal support."""
+    """Service for Nomic embeddings with multimodal support.
+    
+    Supports both local inference (default) and remote API mode (if NOMIC_API_KEY is set).
+    """
 
     def __init__(self):
-        self.embedder = NomicEmbeddings(  # type: ignore[call-arg]
-            model="nomic-embed-text-v1.5",
-            inference_mode="local",
-            vision_model="nomic-embed-vision-v1.5",
-        )
+        # Use remote API if API key is provided, otherwise use local inference
+        nomic_api_key = settings.nomic_api_key
+        
+        if nomic_api_key:
+            # Remote API mode - requires API key
+            self.embedder = NomicEmbeddings(  # type: ignore[call-arg]
+                model="nomic-embed-text-v1.5",
+                nomic_api_key=nomic_api_key,
+                vision_model="nomic-embed-vision-v1.5",
+            )
+        else:
+            # Local inference mode - no API key needed
+            self.embedder = NomicEmbeddings(  # type: ignore[call-arg]
+                model="nomic-embed-text-v1.5",
+                inference_mode="local",
+                vision_model="nomic-embed-vision-v1.5",
+            )
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         return self.embedder.embed_documents(texts)

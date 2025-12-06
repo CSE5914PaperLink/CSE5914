@@ -8,21 +8,15 @@ from app.api.routes_library import router as library_router
 from app.api.routes_openalex import router as openalex_router
 from app.api.routes_docling import router as docling_router
 from app.api.routes_compare import router as compare_router
+from app.api.routes_api import router as api_router
 from app.core.config import settings
 
 app = FastAPI()
 
 # Configure CORS
-# Get allowed origins from environment variable, fallback to localhost for dev
-import os
-allowed_origins = os.getenv(
-    "CORS_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000"
-).split(",")
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=["*"],  # Or specify your Lovable domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -36,6 +30,7 @@ app.include_router(gemini_router)
 app.include_router(library_router)
 app.include_router(docling_router)
 app.include_router(compare_router)
+app.include_router(api_router)  # New standardized API endpoints
 
 
 # Temporary test endpoints

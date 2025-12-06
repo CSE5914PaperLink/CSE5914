@@ -120,3 +120,4 @@ Then edit `.env.local` with your Firebase config.
 
 For detailed instructions, see [LOCAL_SETUP.md](./LOCAL_SETUP.md)
 
+

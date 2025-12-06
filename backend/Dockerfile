@@ -26,14 +26,14 @@ COPY . .
 # Create directory for ChromaDB persistence
 RUN mkdir -p /app/chroma && chmod 777 /app/chroma
 
-# Expose port (Cloud Run uses PORT environment variable)
-ENV PORT=8080
+# Expose port (Cloud Run/App Hosting sets PORT environment variable automatically)
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
+# Health check with longer start period to allow app to initialize
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:$PORT/health || exit 1
 
 # Run uvicorn with production settings
-CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers 1
+# PORT is automatically set by Cloud Run/App Hosting at runtime
+CMD exec uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
 

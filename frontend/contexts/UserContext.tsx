@@ -1,8 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import type { User as FirebaseUser } from "firebase/auth";
-import { onAuthStateChangedListener } from "@/lib/firebase.client";
+import { User as FirebaseUser } from "firebase/auth";
+import { onAuthStateChangedListener, handleRedirectResult } from "@/lib/firebase";
 import { createUser, getUserByEmail } from "@/src/dataconnect-generated";
 
 interface UserContextType {
@@ -21,18 +21,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [dataConnectUserId, setDataConnectUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
-
-  // Wait for client-side mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
-    // Don't set up auth listener until component is mounted on client
-    if (!mounted) {
-      return;
-    }
+    // Handle redirect result first (if user came back from OAuth redirect)
+    handleRedirectResult().catch((error) => {
+      console.error("Error handling redirect result:", error);
+    });
 
     const unsubscribe = onAuthStateChangedListener(async (user) => {
       setFirebaseUser(user);
@@ -64,7 +58,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [mounted]);
+  }, []);
 
   return (
     <UserContext.Provider value={{ firebaseUser, dataConnectUserId, loading }}>

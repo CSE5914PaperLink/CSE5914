@@ -90,3 +90,4 @@ Write-Host "✅ All done!" -ForegroundColor Green
 Write-Host "🌐 Your frontend is live at: $FRONTEND_URL" -ForegroundColor Cyan
 Write-Host "🔗 Backend CORS updated to allow: $FRONTEND_URL" -ForegroundColor Green
 
+
