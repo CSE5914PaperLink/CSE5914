@@ -169,9 +169,11 @@ async def add_arxiv(doc_id: str, request: Optional[AddArxivRequest] = None):
         pdf_bytes = r.content
 
     meta = _fetch_arxiv_metadata(doc_id)
-    github_url = None
+    
+    # Store manual repo URL (if provided) before ingestion
+    manual_github_url = None
     if request.github_repos:
-        github_url = normalize_github_url(request.github_repos[0])
+        manual_github_url = normalize_github_url(request.github_repos[0])
 
     pdf_meta = PdfMetadata(
         doc_id=doc_id,
@@ -180,24 +182,17 @@ async def add_arxiv(doc_id: str, request: Optional[AddArxivRequest] = None):
         summary=meta.get("summary", ""),
         published=meta.get("published", ""),
         authors=meta.get("authors", []),
-        github_url=github_url, 
+        github_url=manual_github_url, 
     )
 
+    # PDF ingestion may detect and set github_url from PDF text
     stats = ingest_pdf_bytes_into_chroma(pdf_bytes, extra_metadata=pdf_meta)
-    # If GitHub repo exists, fetch files & ingest to Chroma
-    repo_url = pdf_meta.github_url
-    if repo_url:
-        repo_files = await github_service.fetch_repo_files(repo_url)
-        if repo_files:
-            ingest_repo_files_into_chroma(
-                repo_url=repo_url,
-                arxiv_id=doc_id,
-                repo_files=repo_files,
-                base_metadata={
-                    "doc_id": doc_id,
-                    "source": "github",
-                },
-            )
+    
+    # After ingestion, pdf_meta.github_url may contain:
+    # - Manual repo URL (if provided), OR
+    # - Detected repo URL from PDF text, OR
+    # - None (if neither found)
+
     response_data = {
         "status": "ok",
         "doc_id": doc_id,
@@ -206,8 +201,55 @@ async def add_arxiv(doc_id: str, request: Optional[AddArxivRequest] = None):
         "repos": [],
     }
 
+    # Auto-fetch GitHub repo if detected in PDF and not manually provided
+    auto_discovered_repos = []
+    if pdf_meta.github_url:
+        # Check if this repo is already in the manual list
+        normalized_auto_url = normalize_github_url(pdf_meta.github_url)
+        manual_repo_urls = [normalize_github_url(r) for r in request.github_repos] if request.github_repos else []
+        
+        if normalized_auto_url not in manual_repo_urls:
+            try:
+                logger.info(f"Auto-fetching GitHub repo detected in PDF: {normalized_auto_url}")
+                repo_files = await github_service.fetch_repo_files(normalized_auto_url)
+                if repo_files:
+                    base_metadata = asdict(pdf_meta)
+                    files_ingested = ingest_repo_files_into_chroma(
+                        repo_url=normalized_auto_url,
+                        arxiv_id=doc_id,
+                        repo_files=repo_files,
+                        base_metadata=base_metadata,
+                    )
+                    auto_discovered_repos.append({
+                        "url": normalized_auto_url,
+                        "status": "ok",
+                        "files_ingested": files_ingested,
+                        "source": "pdf_detection",
+                    })
+                    logger.info(f"Auto-ingested {files_ingested} files from {normalized_auto_url} for {doc_id}")
+                else:
+                    logger.warning(f"No files fetched from auto-detected repo: {normalized_auto_url}")
+                    auto_discovered_repos.append({
+                        "url": normalized_auto_url,
+                        "status": "warning",
+                        "files_ingested": 0,
+                        "reason": "No files fetched",
+                        "source": "pdf_detection",
+                    })
+            except Exception as e:
+                logger.error(f"Failed to auto-ingest repo {pdf_meta.github_url}: {e}")
+                auto_discovered_repos.append({
+                    "url": normalized_auto_url,
+                    "status": "error",
+                    "error": str(e),
+                    "source": "pdf_detection",
+                })
+
+    # Add auto-discovered repos to response
+    response_data["repos"].extend(auto_discovered_repos)
+
+    # Process manually provided repos
     if request.github_repos:
-        github_service = GitHubService()
         base_metadata = asdict(pdf_meta)
 
         for repo_url in request.github_repos:
@@ -305,26 +347,56 @@ def list_chunks(doc_id: str, limit: int = 200, offset: int = 0):
 
 @router.delete("/delete/{doc_id}")
 def delete_item(doc_id: str):
+    """
+    Delete all chunks (text, images, repo files) for a specific document.
+    """
     chroma = ChromaService()
 
     try:
         to_delete = []
 
-        data = chroma.collection.get(include=["metadatas", "documents"])
-        for i, _id in enumerate(data.get("ids", [])):
-            md = (data.get("metadatas") or [{}])[i] or {}
-            if (
-                md.get("doc_id") == doc_id
-                or str(_id).startswith(f"{doc_id}::chunk::")
-                or str(_id) == doc_id
-            ):
-                to_delete.append(_id)
+        # Query for all chunks with this doc_id (text, images, repo files)
+        # This is more efficient than getting all data and filtering
+        data = chroma.collection.get(
+            where={"doc_id": doc_id},
+            include=["metadatas"],
+        )
+        to_delete.extend(data.get("ids", []))
 
+        # Also check for root_id matches (for repo files)
+        root_data = chroma.collection.get(
+            where={"root_id": doc_id},
+            include=["metadatas"],
+        )
+        root_ids = root_data.get("ids", [])
+        for root_id in root_ids:
+            if root_id not in to_delete:
+                to_delete.append(root_id)
+
+        # Also check for legacy ID patterns
+        # Fallback: check all if nothing found (for backward compatibility)
         if not to_delete:
+            all_data = chroma.collection.get(include=["metadatas"])
+            for i, _id in enumerate(all_data.get("ids", [])):
+                md = (all_data.get("metadatas") or [{}])[i] or {}
+                if (
+                    md.get("doc_id") == doc_id
+                    or md.get("root_id") == doc_id
+                    or str(_id).startswith(f"{doc_id}::chunk::")
+                    or str(_id) == doc_id
+                ):
+                    if _id not in to_delete:
+                        to_delete.append(_id)
+
+        # Delete from ChromaDB
+        if to_delete:
+            chroma.delete(to_delete)
+            logger.info(f"Deleted {len(to_delete)} chunks (text + images + repo) for doc_id: {doc_id}")
+            return JSONResponse({"status": "deleted", "deleted_count": len(to_delete)})
+        else:
+            # Try direct ID delete as last resort
             chroma.delete([doc_id])
             return JSONResponse({"status": "deleted", "id": doc_id})
-
-        chroma.delete(to_delete)
-        return JSONResponse({"status": "deleted", "deleted_count": len(to_delete)})
     except Exception as e:
+        logger.error(f"Failed to delete document {doc_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

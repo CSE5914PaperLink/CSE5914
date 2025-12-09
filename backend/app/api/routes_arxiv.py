@@ -1,9 +1,12 @@
+import logging
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from xml.etree import ElementTree as ET
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/arxiv", tags=["arxiv"])
 
@@ -78,6 +81,12 @@ def _parse_arxiv_feed(xml_text: str) -> list[dict]:
     return results
 
 
+@router.options("/search")
+async def options_search_arxiv():
+    """Handle CORS preflight requests for /arxiv/search"""
+    return Response(status_code=200)
+
+
 @router.get("/search")
 async def search_arxiv(
     q: Optional[str] = Query(None, description="free text"),
@@ -86,7 +95,7 @@ async def search_arxiv(
     abs: Optional[str] = Query(None, description="abstract contains"),
     cat: Optional[str] = Query(None, description="category, e.g., cs.CL"),
     start: int = Query(0, ge=0),
-    max_results: int = Query(10, ge=1, le=200),
+    max_results: int = Query(10, ge=1, le=200, description="Maximum number of results to return (default: 10)"),
     sortBy: Optional[str] = Query(
         None, pattern="^(relevance|lastUpdatedDate|submittedDate)$"
     ),
@@ -109,11 +118,58 @@ async def search_arxiv(
         headers={"User-Agent": UA, "Accept": "application/atom+xml"},
         follow_redirects=True,
     ) as client:
-        r = await client.get(ARXIV_API, params=params)
-        if r.status_code != 200:
-            raise HTTPException(status_code=r.status_code, detail=r.text)
-        items = _parse_arxiv_feed(r.text)
-        return JSONResponse({"results": items, "count": len(items)})
+        try:
+            r = await client.get(ARXIV_API, params=params)
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=504,
+                detail="Request to arXiv API timed out. Please try again later."
+            )
+        except httpx.RequestError as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to connect to arXiv API: {str(e)}"
+            )
+        
+        # Handle specific status codes
+        if r.status_code == 200:
+            items = _parse_arxiv_feed(r.text)
+            return JSONResponse({"results": items, "count": len(items)})
+        elif r.status_code == 429:
+            # Rate limiting
+            retry_after = r.headers.get("Retry-After", "unknown")
+            logger.warning(
+                f"arXiv API rate limit exceeded. Status: {r.status_code}, "
+                f"Retry-After: {retry_after}, Query: {query[:100]}"
+            )
+            raise HTTPException(
+                status_code=429,
+                detail=f"arXiv API rate limit exceeded. Please wait before making more requests. Retry after: {retry_after} seconds"
+            )
+        elif r.status_code == 400:
+            # Bad request - might be invalid query
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid request to arXiv API: {r.text[:200] if r.text else 'Bad request'}"
+            )
+        elif r.status_code == 403:
+            # Forbidden
+            raise HTTPException(
+                status_code=403,
+                detail="Access forbidden by arXiv API. This may be due to rate limiting or blocking."
+            )
+        elif r.status_code == 503:
+            # Service unavailable
+            raise HTTPException(
+                status_code=503,
+                detail="arXiv API is temporarily unavailable. Please try again later."
+            )
+        else:
+            # Other status codes
+            raise HTTPException(
+                status_code=r.status_code,
+                detail=f"arXiv API returned error: {r.status_code} - {r.text[:200] if r.text else 'Unknown error'}"
+            )
 
 
 @router.get("/download/{doc_id}")

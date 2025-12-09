@@ -63,8 +63,8 @@ SEARCH RULES (Unified)
 ===========================================
 1. You MUST call search_documents() exactly once per user request.
 2. Use default settings:
-     text_k=6
-     image_k=2
+     text_k=8
+     image_k=0 (image search is disabled)
 3. If retrieved evidence is insufficient:
      → Answer using prior knowledge, but DO NOT fabricate citations.
 4. Combine all retrieved chunks into a clean, concise response.
@@ -117,20 +117,21 @@ def create_search_tools(
     def search_documents(
         query: Annotated[str, "The search query for document intelligence"],
         top_k_text: Annotated[int, "Max text results"] = 8,
-        top_k_image: Annotated[int, "Max image results"] = 4,
+        top_k_image: Annotated[int, "Max image results"] = 0,  # Disabled: set to 0 to skip image search
     ) -> str:
         """
         Unified text + image search for RAG.
+        Note: Image search is currently disabled (default top_k_image=0).
 
         Args:
             query: The search query or question.
             top_k_text: Maximum number of text results to return.
-            top_k_image: Maximum number of image results to return.
+            top_k_image: Maximum number of image results to return (default 0, disabled).
 
         Returns:
             A formatted multiline string containing:
             - Text search results (or a message if none found)
-            - Image search results (or a message if none found)
+            - Image search results (disabled by default)
             - All retrieved metadata and content for each match
         """
 
@@ -163,9 +164,14 @@ def create_search_tools(
             text_where = {"doc_id": {"$in": doc_ids}}
             qvec = embedder.embed_query(query)
 
+            # When multiple documents are provided, fetch more results to ensure balanced representation
+            # Fetch top_k per document to ensure we get results from all documents
+            num_docs = len(doc_ids) if doc_ids else 1
+            fetch_k = max(top_k_text, top_k_text * num_docs)
+
             res = chroma_service.collection.query(
                 query_embeddings=[qvec],
-                n_results=top_k_text,
+                n_results=fetch_k,
                 include=["documents", "metadatas", "distances"],
                 where=cast(Any, text_where),
             )
@@ -177,17 +183,51 @@ def create_search_tools(
             if not docs:
                 output_sections.append("## TEXT RESULTS\nNo text found.")
             else:
-                entries = []
+                # Group results by doc_id to ensure balanced representation
+                results_by_doc: dict[str, List[Tuple[str, dict, float]]] = {}
                 for i, doc in enumerate(docs):
                     md = metas[i] or {}
+                    doc_id = md.get("doc_id", "unknown")
+                    if doc_id not in results_by_doc:
+                        results_by_doc[doc_id] = []
+                    results_by_doc[doc_id].append((doc, md, dists[i] if i < len(dists) else float('inf')))
 
+                # Balance results: take top_k_text chunks, ensuring representation from each document
+                balanced_results: List[Tuple[str, dict, float]] = []
+                if len(results_by_doc) > 1:
+                    # Multiple documents: use round-robin to ensure balanced representation
+                    per_doc_k = max(1, top_k_text // len(results_by_doc))
+                    remaining_k = top_k_text
+                    
+                    # Sort each document's results by distance (lower is better)
+                    for doc_id in results_by_doc:
+                        results_by_doc[doc_id].sort(key=lambda x: x[2])
+                    
+                    # Round-robin selection to balance across documents
+                    doc_indices = {doc_id: 0 for doc_id in results_by_doc}
+                    while remaining_k > 0 and any(doc_indices[doc_id] < len(results_by_doc[doc_id]) for doc_id in results_by_doc):
+                        for doc_id in results_by_doc:
+                            if remaining_k <= 0:
+                                break
+                            if doc_indices[doc_id] < len(results_by_doc[doc_id]):
+                                balanced_results.append(results_by_doc[doc_id][doc_indices[doc_id]])
+                                doc_indices[doc_id] += 1
+                                remaining_k -= 1
+                else:
+                    # Single document: just take top_k_text
+                    if results_by_doc:
+                        doc_id = list(results_by_doc.keys())[0]
+                        balanced_results = sorted(results_by_doc[doc_id], key=lambda x: x[2])[:top_k_text]
+
+                entries = []
+                for doc, md, distance in balanced_results:
                     doc_id = md.get("doc_id")
                     filename = md.get("filename")  # repo files or pdf chunks
                     title = md.get("title") or filename or doc_id or "unknown"
 
                     heading = md.get("headings", "unknown")
                     page = md.get("page")
-                    chunk_idx = md.get("chunk_index", i)
+                    chunk_idx = md.get("chunk_index", len(entries))
 
                     unique_id = f"text:{doc_id}:chunk{chunk_idx}:p{page}"
 
@@ -215,7 +255,7 @@ def create_search_tools(
                             "title": title,
                             "filename": filename,
                             "heading": heading,
-                            "distance": dists[i] if i < len(dists) else None,
+                            "distance": distance if distance != float('inf') else None,
                             "page": page,
                             "chunk_index": chunk_idx,
                             "content": doc.strip(),
@@ -235,98 +275,101 @@ def create_search_tools(
             output_sections.append(f"## TEXT SEARCH ERROR\n{e}")
 
         # -----------------------------
-        # IMAGE SEARCH
+        # IMAGE SEARCH (DISABLED)
         # -----------------------------
-        try:
-            print(f"[IMAGE SEARCH] query={query}, doc_ids={doc_ids}, top_k={top_k_image}")
+        # Image search is currently disabled
+        # Set top_k_image default to 0 and skip image search entirely
+        if top_k_image > 0:
+            try:
+                print(f"[IMAGE SEARCH] query={query}, doc_ids={doc_ids}, top_k={top_k_image}")
 
-            image_where = {
-                "$and": [
-                    {"doc_id": {"$in": doc_ids}},
-                    {"type": "image"},
-                ]
-            }
+                image_where = {
+                    "$and": [
+                        {"doc_id": {"$in": doc_ids}},
+                        {"type": "image"},
+                    ]
+                }
 
-            qvec = embedder.embed_query(query)
+                qvec = embedder.embed_query(query)
 
-            res = chroma_service.collection.query(
-                query_embeddings=[qvec],
-                n_results=top_k_image,
-                include=["documents", "metadatas", "distances"],
-                where=cast(Any, image_where),
-            )
+                res = chroma_service.collection.query(
+                    query_embeddings=[qvec],
+                    n_results=top_k_image,
+                    include=["documents", "metadatas", "distances"],
+                    where=cast(Any, image_where),
+                )
 
-            docs = (res.get("documents") or [[]])[0]
-            metas = (res.get("metadatas") or [[]])[0]
-            dists = (res.get("distances") or [[]])[0]
+                docs = (res.get("documents") or [[]])[0]
+                metas = (res.get("metadatas") or [[]])[0]
+                dists = (res.get("distances") or [[]])[0]
 
-            if not docs:
-                output_sections.append("## IMAGE RESULTS\nNo image results.")
-            else:
-                entries = []
-                for i, _ in enumerate(docs):
-                    md = metas[i] or {}
+                if not docs:
+                    output_sections.append("## IMAGE RESULTS\nNo image results.")
+                else:
+                    entries = []
+                    for i, _ in enumerate(docs):
+                        md = metas[i] or {}
 
-                    doc_id = md.get("doc_id", "unknown")
-                    filename = md.get("filename")
-                    title = md.get("title") or filename or doc_id
+                        doc_id = md.get("doc_id", "unknown")
+                        filename = md.get("filename")
+                        title = md.get("title") or filename or doc_id
 
-                    caption = md.get("caption")
-                    image_b64 = md.get("image_b64")
-                    page = md.get("page") or 0
-                    picture_number = md.get("picture_number") or i
+                        caption = md.get("caption")
+                        image_b64 = md.get("image_b64")
+                        page = md.get("page") or 0
+                        picture_number = md.get("picture_number") or i
 
-                    img_uri = (
-                        f"data:image/png;base64,{image_b64}"
-                        if image_b64
-                        else None
-                    )
+                        img_uri = (
+                            f"data:image/png;base64,{image_b64}"
+                            if image_b64
+                            else None
+                        )
 
-                    unique_id = f"image:{doc_id}:p{page}:pic{picture_number}"
+                        unique_id = f"image:{doc_id}:p{page}:pic{picture_number}"
 
-                    bbox_dict = None
-                    bbox_left = md.get("bbox_left")
-                    bbox_top = md.get("bbox_top")
-                    bbox_right = md.get("bbox_right")
-                    bbox_bottom = md.get("bbox_bottom")
-                    if all(
-                        coord is not None
-                        for coord in [bbox_left, bbox_top, bbox_right, bbox_bottom]
-                    ):
-                        bbox_dict = {
-                            "left": bbox_left,
-                            "top": bbox_top,
-                            "right": bbox_right,
-                            "bottom": bbox_bottom,
-                        }
+                        bbox_dict = None
+                        bbox_left = md.get("bbox_left")
+                        bbox_top = md.get("bbox_top")
+                        bbox_right = md.get("bbox_right")
+                        bbox_bottom = md.get("bbox_bottom")
+                        if all(
+                            coord is not None
+                            for coord in [bbox_left, bbox_top, bbox_right, bbox_bottom]
+                        ):
+                            bbox_dict = {
+                                "left": bbox_left,
+                                "top": bbox_top,
+                                "right": bbox_right,
+                                "bottom": bbox_bottom,
+                            }
 
-                    citation_number = register_source(
-                        unique_id,
-                        {
-                            "type": "image",
-                            "doc_id": doc_id,
-                            "title": title,
-                            "filename": filename,
-                            "caption": caption,
-                            "distance": dists[i] if i < len(dists) else None,
-                            "page": page,
-                            "picture_number": picture_number,
-                            "content": caption,
-                            "image_data": image_b64,
-                            "bbox": bbox_dict,
-                        },
-                    )
+                        citation_number = register_source(
+                            unique_id,
+                            {
+                                "type": "image",
+                                "doc_id": doc_id,
+                                "title": title,
+                                "filename": filename,
+                                "caption": caption,
+                                "distance": dists[i] if i < len(dists) else None,
+                                "page": page,
+                                "picture_number": picture_number,
+                                "content": caption,
+                                "image_data": image_b64,
+                                "bbox": bbox_dict,
+                            },
+                        )
 
-                    entries.append(
-                        f"[Source {citation_number}] Title: {title}\n"
-                        f"Caption: {caption}\n"
-                        f"Content: {img_uri}\n"
-                    )
+                        entries.append(
+                            f"[Source {citation_number}] Title: {title}\n"
+                            f"Caption: {caption}\n"
+                            f"Content: {img_uri}\n"
+                        )
 
-                output_sections.append("## IMAGE RESULTS\n" + "\n---\n".join(entries))
+                    output_sections.append("## IMAGE RESULTS\n" + "\n---\n".join(entries))
 
-        except Exception as e:
-            output_sections.append(f"## IMAGE SEARCH ERROR\n{e}")
+            except Exception as e:
+                output_sections.append(f"## IMAGE SEARCH ERROR\n{e}")
 
         return "\n\n".join(output_sections)
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import List, Optional, Union, Dict, Any
 from dataclasses import dataclass, asdict
+from uuid import uuid4
 import base64
 from io import BytesIO
 from PIL import Image
@@ -174,7 +175,13 @@ def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
     # Store text chunks
     chroma.vectorstore.add_documents(chroma_text_docs, embedding_fn=embedder.embedder)
 
-    for meta in image_info["metadatas"]:
+    # Store image chunks in ChromaDB
+    chroma_image_docs = []
+    image_ids = image_info.get("ids", [])
+    image_metadatas = image_info.get("metadatas", [])
+    
+    for idx, meta in enumerate(image_metadatas):
+        # Update metadata with doc info
         meta.update(
             {
                 "doc_id": extra_metadata.doc_id,
@@ -182,12 +189,44 @@ def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
                 "type": "image",
             }
         )
+        
+        # Use caption as page_content for embedding/search, fallback to placeholder
+        # The image_b64 is stored in metadata for retrieval
+        caption = meta.get("caption", "") or f"Figure {meta.get('picture_number', idx + 1)} from page {meta.get('page', '?')}"
+        image_id = image_ids[idx] if idx < len(image_ids) else None
+        
+        # Create Document for the image
+        doc = Document(
+            page_content=caption,
+            metadata=meta,
+        )
+        
+        chroma_image_docs.append(doc)
+    
+    # Add images to ChromaDB with embeddings
+    if chroma_image_docs:
+        # Extract texts and embeddings for images
+        image_texts = [doc.page_content for doc in chroma_image_docs]
+        image_embeddings = embedder.embed_texts(image_texts)
+        
+        # Prepare data for ChromaDB collection
+        image_doc_ids = image_ids if image_ids and len(image_ids) == len(chroma_image_docs) else [str(uuid4()) for _ in chroma_image_docs]
+        image_metadatas_list = [doc.metadata for doc in chroma_image_docs]
+        
+        # Add images directly to ChromaDB collection with specific IDs
+        chroma.collection.add(
+            ids=image_doc_ids,
+            embeddings=image_embeddings,
+            documents=image_texts,
+            metadatas=image_metadatas_list,
+        )
+        print(f"[INGESTION] Stored {len(chroma_image_docs)} images in ChromaDB")
 
     if image_info["tmp_dir"]:
         shutil.rmtree(image_info["tmp_dir"], ignore_errors=True)
 
     print(
-        f"INGESTED PDF: {len(chunk_info)} text chunks, {len(image_info['uris'])} image chunks"
+        f"INGESTED PDF: {len(chunk_info)} text chunks, {len(image_info['uris'])} image chunks stored"
     )
 
     return {

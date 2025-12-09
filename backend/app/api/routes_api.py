@@ -50,6 +50,7 @@ class IngestResponse(BaseModel):
     doc_id: str
     text_chunks: List[str] = Field(default_factory=list)
     images: Optional[List[str]] = Field(default=None, description="List of image URLs or base64 strings")
+    github_url: Optional[str] = Field(default=None, description="GitHub repository URL detected from PDF (or null if not found)")
 
 
 class SemanticSearchRequest(BaseModel):
@@ -72,6 +73,7 @@ class SemanticSearchResponse(BaseModel):
 class IngestionStatusResponse(BaseModel):
     status: IngestionStatus
     progress: Optional[float] = Field(default=None, ge=0, le=100, description="Progress percentage")
+    github_url: Optional[str] = Field(default=None, description="GitHub repository URL detected from PDF (or null if not found)")
 
 
 class ContextRequest(BaseModel):
@@ -163,7 +165,13 @@ async def process_pdf_ingestion(
         
         stats = ingest_pdf_bytes_into_chroma(pdf_bytes, extra_metadata=pdf_meta)
         
+        # Capture GitHub URL detected during ingestion
+        detected_github_url = pdf_meta.github_url
+        
         logger.info(f"[INGESTION] Successfully stored in ChromaDB: {stats.get('text_chunks', 0)} text chunks, {stats.get('image_chunks', 0)} images")
+        if detected_github_url:
+            logger.info(f"[INGESTION] Detected GitHub URL: {detected_github_url}")
+        
         ingestion_status[paper_id]["progress"] = 90
         
         # Update status to completed with text chunks and images
@@ -174,6 +182,7 @@ async def process_pdf_ingestion(
             "text_chunks_count": stats.get("text_chunks", 0),
             "images": images[:10] if images else None,  # Store first 10 images
             "image_chunks_count": stats.get("image_chunks", 0),
+            "github_url": detected_github_url,  # Store detected GitHub URL
             "completed_at": datetime.now().isoformat(),
         })
         
@@ -211,6 +220,7 @@ async def ingest_pdf(
                 doc_id=paper_id,
                 text_chunks=status_data.get("text_chunks", [])[:10],  # Return first 10
                 images=status_data.get("images"),
+                github_url=status_data.get("github_url"),
             )
     
     # Initialize status
@@ -235,6 +245,7 @@ async def ingest_pdf(
         doc_id=paper_id,
         text_chunks=[],  # Empty initially, will be populated when processing completes
         images=None,
+        github_url=None,  # Will be populated when processing completes
     )
 
 
@@ -305,20 +316,39 @@ async def get_ingestion_status(paper_id: str):
         return IngestionStatusResponse(
             status=IngestionStatus(status_data["status"]),
             progress=status_data.get("progress"),
+            github_url=status_data.get("github_url"),
         )
     
     # Check if paper exists in ChromaDB (may have been ingested before status tracking)
+    # Try to find GitHub URL from metadata
     chroma = ChromaService()
     try:
         data = chroma.collection.get(
             where={"doc_id": paper_id},
             limit=1,
-            include=[],
+            include=["metadatas"],
         )
         if data.get("ids"):
+            # Try to find github_url from metadata
+            metadatas = data.get("metadatas", [])
+            github_url = None
+            if metadatas and len(metadatas) > 0:
+                # Check metadata for github_url or repo_url
+                for meta in metadatas:
+                    if meta:
+                        # Check for repo_url (for repo chunks)
+                        if meta.get("repo_url"):
+                            github_url = meta.get("repo_url")
+                            break
+                        # Check for github_url (if stored in PDF metadata)
+                        if meta.get("github_url"):
+                            github_url = meta.get("github_url")
+                            break
+            
             return IngestionStatusResponse(
                 status=IngestionStatus.COMPLETED,
                 progress=100,
+                github_url=github_url,
             )
     except Exception:
         pass
@@ -327,6 +357,7 @@ async def get_ingestion_status(paper_id: str):
     return IngestionStatusResponse(
         status=IngestionStatus.PENDING,
         progress=0,
+        github_url=None,
     )
 
 
@@ -394,12 +425,13 @@ async def get_paper_context(
 @router.delete("/embeddings/{paper_id}")
 async def delete_embeddings(paper_id: str):
     """
-    Delete all embeddings for a specific paper.
+    Delete all embeddings for a specific paper (both text and image chunks).
     """
     try:
         chroma = ChromaService()
         
-        # Find all chunks for this paper_id
+        # Find all chunks for this paper_id (both text and image types)
+        # Query without type filter to get everything with this doc_id
         data = chroma.collection.get(
             where={"doc_id": paper_id},
             include=["metadatas"],
@@ -407,13 +439,21 @@ async def delete_embeddings(paper_id: str):
         
         ids_to_delete = data.get("ids", [])
         
+        # Also check for any chunks with root_id or old ID patterns
         if not ids_to_delete:
-            # Also try to delete by doc_id directly
-            ids_to_delete = [paper_id]
+            # Try with root_id (for repo files)
+            root_data = chroma.collection.get(
+                where={"root_id": paper_id},
+                include=["metadatas"],
+            )
+            ids_to_delete = root_data.get("ids", [])
         
         # Delete from ChromaDB
         if ids_to_delete:
             chroma.delete(ids_to_delete)
+            logger.info(f"Deleted {len(ids_to_delete)} chunks (text + images) for paper_id: {paper_id}")
+        else:
+            logger.warning(f"No chunks found to delete for paper_id: {paper_id}")
         
         # Remove from status tracking if present
         if paper_id in ingestion_status:
