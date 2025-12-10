@@ -248,6 +248,9 @@ def create_search_tools(
                         chunk_idx = md.get("chunk_index", i)
                         unique_id = f"text:{doc_id}:chunk{chunk_idx}:p{page}"
                         
+                        # Extract repo_url for GitHub sources
+                        repo_url = md.get("repo_url")
+                        
                         citation_number = register_source(
                             unique_id,
                             {
@@ -261,6 +264,7 @@ def create_search_tools(
                                 "chunk_index": chunk_idx,
                                 "content": doc.strip(),
                                 "bbox": bbox_dict,
+                                "github_url": repo_url,  # Include repo_url as github_url for frontend
                             },
                         )
                         

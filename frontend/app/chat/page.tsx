@@ -357,6 +357,7 @@ export default function ChatPage() {
                   chunk_index?: number;
                   page?: number;
                   filename?: string;
+                  github_url?: string;
                   image_data?: string;
                   citation_number?: number;
                   bbox?: {
@@ -386,6 +387,7 @@ export default function ChatPage() {
                       chunk_index: src.chunk_index,
                       page: src.page,
                       filename: src.filename,
+                      github_url: src.github_url,
                       image_data: src.image_data,
                       citation_number: src.citation_number,
                       bbox: src.bbox,
