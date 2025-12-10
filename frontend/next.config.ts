@@ -9,13 +9,15 @@ const nextConfig: NextConfig = {
         port: "8000",
         pathname: "/library/images/**",
       },
+      {
+        protocol: "https",
+        hostname: process.env.NEXT_PUBLIC_BACKEND_HOSTNAME || "example.com",
+        port: "",
+        pathname: "/library/images/**",
+      },
     ],
   },
-  turbopack: {
-    resolveAlias: {
-      canvas: "./empty-module.js",
-    },
-  },
+
 };
 
 export default nextConfig;

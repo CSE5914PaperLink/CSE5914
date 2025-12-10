@@ -158,14 +158,20 @@ export async function POST(request: NextRequest) {
         });
       } catch (fetchErr: any) {
         console.error(`[Library Add] Backend fetch error:`, fetchErr);
-        // Mark as failed in DataConnect
+        // Don't mark as failed - the backend might still be processing
+        // Mark as pending and let the user check status later
         await updatePaperIngestionStatus(dc, {
           paperId,
-          status: "failed",
+          status: "pending",
         });
         return NextResponse.json(
-          { error: `Backend timeout or network error: ${fetchErr.message}` },
-          { status: 504 }
+          { 
+            success: true,
+            paperId,
+            status: "pending",
+            message: "Paper is being processed. This may take a few minutes. Refresh to check status." 
+          },
+          { status: 202 } // 202 Accepted
         );
       }
     } catch (err) {
