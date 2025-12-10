@@ -125,7 +125,7 @@ def extract_github_url(text: str) -> Optional[str]:
     Example matches:
         https://github.com/owner/repo
     """
-    pattern = r"https://github\.com/[A-Za-z0-9_-]+/[A-Za-z0-9._-]+"
+    pattern = r"https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+"
     match = re.search(pattern, text)
     return match.group(0) if match else None
 
