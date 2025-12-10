@@ -47,12 +47,8 @@ class ComparisonService:
         grouped_b = self._group_by_section(chunks_b)
         images_a = self._fetch_images(doc_a)
         images_b = self._fetch_images(doc_b)
-        assigned_images_a = self._assign_images_to_sections(
-            grouped_a, images_a
-        )
-        assigned_images_b = self._assign_images_to_sections(
-            grouped_b, images_b
-        )
+        assigned_images_a = self._assign_images_to_sections(grouped_a, images_a)
+        assigned_images_b = self._assign_images_to_sections(grouped_b, images_b)
 
         section_names = sorted(
             set(grouped_a.keys()) | set(grouped_b.keys()), key=section_sort_key
@@ -125,7 +121,9 @@ class ComparisonService:
             meta = chunk["metadata"]
             heading = meta.get("headings")
             chunk_index = meta.get("chunk_index", 0)
-            normalized = normalize_heading(heading, chunk_index=chunk_index, total_chunks=total)
+            normalized = normalize_heading(
+                heading, chunk_index=chunk_index, total_chunks=total
+            )
             if not normalized:
                 normalized = "Additional Content"
             grouped[normalized].append(chunk)
@@ -295,9 +293,7 @@ class ComparisonService:
         return section_names[0] if section_names else None
 
     @staticmethod
-    def _match_section_name(
-        canonical: str, section_names: List[str]
-    ) -> Optional[str]:
+    def _match_section_name(canonical: str, section_names: List[str]) -> Optional[str]:
         target = canonical.lower()
         for name in section_names:
             if target in name.lower():
@@ -326,7 +322,9 @@ class ComparisonService:
         return best_name
 
     @staticmethod
-    def _truncate_caption(caption: Optional[str], max_length: int = 120) -> Optional[str]:
+    def _truncate_caption(
+        caption: Optional[str], max_length: int = 120
+    ) -> Optional[str]:
         if not caption:
             return None
         trimmed = caption.strip()
@@ -499,17 +497,14 @@ Respond with 2-3 concise paragraphs.
             if not chunks:
                 continue
             doc_info = self._extract_doc_info(chunks, fallback_id=doc_id)
-            
+
             extracted_aspects = {}
             for aspect in aspects:
                 extracted_aspects[aspect] = self._extract_aspect_with_rag(
                     doc_id, doc_info.get("title", doc_id), aspect
                 )
 
-            matrix[doc_id] = {
-                "info": doc_info,
-                "aspects": extracted_aspects
-            }
+            matrix[doc_id] = {"info": doc_info, "aspects": extracted_aspects}
 
         return {"matrix": matrix, "aspects": aspects}
 
@@ -526,7 +521,7 @@ Respond with 2-3 concise paragraphs.
             include=["documents"],
             where={"$and": [{"doc_id": {"$eq": doc_id}}, {"type": {"$eq": "text"}}]},
         )
-        
+
         texts = (res.get("documents") or [[]])[0]
 
         # Generate Summary
@@ -536,7 +531,9 @@ Respond with 2-3 concise paragraphs.
 
         prompt = f"""
 Extract a concise summary (1-2 sentences) regarding the aspect "{aspect}" from the provided text chunks of the paper "{doc_title}".
-If the aspect is not mentioned, return "Not mentioned".
+
+IMPORTANT: Be permissive - if there is ANY information related to {aspect}, even if brief or indirect, extract and summarize it.
+Only return "Not mentioned" if the aspect is completely absent with no related information at all.
 
 Content:
 <<<
@@ -557,7 +554,7 @@ Respond with strict JSON:
             )
             cleaned = self._extract_json_payload(response_text)
             if not cleaned:
-                 summary = "Error parsing response"
+                summary = "Error parsing response"
             else:
                 data = json.loads(cleaned)
                 summary = data.get("summary", "Not mentioned")
@@ -565,19 +562,20 @@ Respond with strict JSON:
             logger.error("Failed to extract aspect %s for %s: %s", aspect, doc_id, exc)
             summary = "Error"
 
-        return {
-            "summary": summary,
-            "images": []
-        }
+        return {"summary": summary, "images": []}
 
-    def _aggregate_doc_text(self, chunks: List[Dict[str, Any]], max_chars: int = 10000) -> str:
+    def _aggregate_doc_text(
+        self, chunks: List[Dict[str, Any]], max_chars: int = 10000
+    ) -> str:
         if not chunks:
             return ""
         texts = []
         total_chars = 0
         # Sort chunks by index to get coherent text
-        sorted_chunks = sorted(chunks, key=lambda c: c["metadata"].get("chunk_index", 0))
-        
+        sorted_chunks = sorted(
+            chunks, key=lambda c: c["metadata"].get("chunk_index", 0)
+        )
+
         for chunk in sorted_chunks:
             text = (chunk.get("text") or "").strip()
             if not text:
@@ -618,10 +616,12 @@ Example JSON:
             )
             cleaned = self._extract_json_payload(response_text)
             if not cleaned:
-                 return {a: "Error parsing response" for a in aspects}
+                return {a: "Error parsing response" for a in aspects}
             data = json.loads(cleaned)
             # Ensure all aspects are present
             return {a: data.get(a, "Not mentioned") for a in aspects}
         except Exception as exc:
-            logger.error("Failed to extract aspects for %s: %s", doc_info.get("doc_id"), exc)
+            logger.error(
+                "Failed to extract aspects for %s: %s", doc_info.get("doc_id"), exc
+            )
             return {a: "Error" for a in aspects}

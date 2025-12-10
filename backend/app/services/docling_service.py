@@ -13,6 +13,8 @@ from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
+from docling_core.types.doc.document import PictureDescriptionData
+from docling.datamodel.pipeline_options import PictureDescriptionVlmOptions
 from transformers import AutoTokenizer
 
 
@@ -196,7 +198,8 @@ class DoclingService:
 
     def extract_images(self, doc: Any) -> Dict[str, Any]:
         """
-        Extract images from a Docling document and return as base64 URIs.
+        Extract images from a Docling document and include
+        the actual image data inside metadata as base64.
         Normalizes bbox coordinates to 0-1 range relative to page dimensions.
         """
 
@@ -209,6 +212,8 @@ class DoclingService:
             return {"uris": uris, "metadatas": metadatas, "ids": ids, "tmp_dir": None}
 
         tmp_dir = tempfile.mkdtemp(prefix="doc_images_")
+
+        page_sizes = {}
 
         for i, pic in enumerate(pictures, 1):
             prov = getattr(pic, "prov", None)
@@ -231,14 +236,27 @@ class DoclingService:
             img.save(buf, format="PNG")
             b64_data = base64.b64encode(buf.getvalue()).decode("utf-8")
 
+            # Extract VLM annotations
+            annotation_text = ""
+            pic_annotations = getattr(pic, "annotations", [])
+            for annotation in pic_annotations:
+                if isinstance(annotation, PictureDescriptionData):
+                    annotation_text = getattr(annotation, "text", "")
+                    break  # Use first annotation found
+
             bbox = getattr(prov[0], "bbox", None)
+
             page_no = prov[0].page_no
 
             # Normalize bbox coordinates to 0-1 range
             bbox_left, bbox_top, bbox_right, bbox_bottom = None, None, None, None
             if bbox:
-                # Default to US Letter size (612 x 792 points)
-                page_width, page_height = 612, 792
+                # Get page size (from dict or use default)
+                if page_no in page_sizes:
+                    page_width, page_height = page_sizes[page_no]
+                else:
+                    # Default to US Letter size (612 x 792 points)
+                    page_width, page_height = 612, 792
 
                 # Normalize coordinates to 0-1 range
                 bbox_left = bbox.l / page_width if page_width > 0 else None
@@ -255,6 +273,7 @@ class DoclingService:
                 "picture_number": i,
                 "page": page_no,
                 "caption": pic.caption_text(doc),
+                "annotation": annotation_text,
                 "bbox_left": bbox_left,
                 "bbox_top": bbox_top,
                 "bbox_right": bbox_right,

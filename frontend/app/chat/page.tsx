@@ -86,6 +86,7 @@ export default function ChatPage() {
 
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [githubOnly, setGithubOnly] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "intro",
@@ -257,6 +258,7 @@ export default function ChatPage() {
           doc_ids: docs,
           doc_titles: docDetails,
           session_id: sessionId, // Pass session ID for database persistence
+          github_only: githubOnly, // Pass GitHub filter flag
         }),
       });
 
@@ -291,6 +293,8 @@ export default function ChatPage() {
             page?: number;
             filename?: string;
             has_image?: boolean;
+            repo_url?: string;
+            github_url?: string;
             bbox?: {
               left: number;
               top: number;
@@ -337,6 +341,7 @@ export default function ChatPage() {
             page: src?.page,
             filename: src?.filename,
             bbox: src?.bbox,
+            github_url: src?.github_url || src?.repo_url, // Use github_url or fallback to repo_url
             citation_number: index + 1,
           };
         });
@@ -558,7 +563,13 @@ export default function ChatPage() {
                 }
               }}
             />
-            <InputForm input={input} setInput={setInput} onSubmit={onSubmit} />
+            <InputForm
+              input={input}
+              setInput={setInput}
+              onSubmit={onSubmit}
+              githubOnly={githubOnly}
+              onGithubToggle={() => setGithubOnly((prev) => !prev)}
+            />
           </div>
           {/* Drag handle between chat and PDF */}
           <div

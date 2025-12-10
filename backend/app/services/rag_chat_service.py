@@ -7,6 +7,7 @@ This service performs RAG (Retrieval Augmented Generation) chat using:
 3. Pydantic models for guaranteed JSON format
 """
 
+import logging
 from typing import List, Optional, Dict, Any, cast
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,9 @@ from google.genai import types
 from app.core.config import settings
 from app.services.chroma_service import ChromaService
 from app.services.embedding_service import NomicEmbeddingService
+
+
+logger = logging.getLogger(__name__)
 
 
 # Pydantic models for structured output
@@ -56,6 +60,8 @@ class SourceMetadata(BaseModel):
     distance: Optional[float] = None
     image_data: Optional[str] = None
     bbox: Optional[Dict[str, float]] = None
+    repo_url: Optional[str] = None
+    github_url: Optional[str] = None
 
 
 SYSTEM_PROMPT = """You are a helpful AI assistant for researchers working with scientific papers.
@@ -68,7 +74,7 @@ CRITICAL FORMATTING RULES:
 5. Paraphrase the content in your own words rather than copying text verbatim with its original citations.
 
 CONTENT RULES:
-1. Answer the user's question based ONLY on the provided context sources.
+1. Answer the user's question based on the provided context sources in a detailed way.
 2. Structure your response as multiple text chunks, each with its supporting source IDs.
 3. Use the exact source IDs provided (e.g., "text:doc123:chunk5:p3") in the source_ids array.
 4. If a statement is supported by multiple sources, include all relevant source IDs in the array.
@@ -77,6 +83,7 @@ CONTENT RULES:
 7. Each chunk should group sentences that share the same source(s).
 8. INCLUDE all image sources when they help visualize concepts, even if they don't directly contain information.
    For example, if discussing a model architecture, include diagram images. Reference them like: "The architecture is shown in the diagram." with the image source ID.
+9. Try to use at least 4-5 of the provided sources
 
 EXAMPLE OUTPUT FORMAT:
 {
@@ -153,8 +160,14 @@ def retrieve_sources(
     query: str,
     doc_ids: List[str],
     top_k: int = 10,
+    github_only: bool = False,
 ) -> Dict[str, SourceMetadata]:
-    """Retrieve relevant sources from ChromaDB."""
+    """
+    Retrieve relevant sources from ChromaDB.
+
+    Args:
+        github_only: If True, search BOTH paper and GitHub repo. If False, search ONLY paper (exclude repos).
+    """
 
     # Embed the query
     query_embedding = embedder.embed_query(query)
@@ -162,10 +175,32 @@ def retrieve_sources(
     # Build filter
     where_filter = None
     if doc_ids:
-        if len(doc_ids) == 1:
-            where_filter = {"doc_id": doc_ids[0]}
+        if github_only:
+            # GitHub icon is ON: Search BOTH paper and GitHub repo (all types)
+            if len(doc_ids) == 1:
+                where_filter = {"doc_id": doc_ids[0]}
+            else:
+                where_filter = {"doc_id": {"$in": doc_ids}}
         else:
-            where_filter = {"doc_id": {"$in": doc_ids}}
+            # GitHub icon is OFF: Search ONLY paper, EXCLUDE GitHub repos
+            if len(doc_ids) == 1:
+                where_filter = {
+                    "$and": [
+                        {"doc_id": doc_ids[0]},
+                        {"type": {"$ne": "repo"}},  # Exclude repo type
+                    ]
+                }
+            else:
+                where_filter = {
+                    "$and": [
+                        {"doc_id": {"$in": doc_ids}},
+                        {"type": {"$ne": "repo"}},  # Exclude repo type
+                    ]
+                }
+    elif github_only:
+        # No specific docs selected, but GitHub filter is on
+        # Search all repos
+        where_filter = {"type": "repo"}
 
     # Query ChromaDB
     results = chroma_service.collection.query(
@@ -228,6 +263,12 @@ def retrieve_sources(
             picture_number = md.get("picture_number") or i
             unique_id = f"image:{doc_id}:p{page}:pic{picture_number}"
 
+            # Extract GitHub URLs
+            repo_url_raw = md.get("repo_url")
+            repo_url = str(repo_url_raw) if repo_url_raw is not None else None
+            github_url_raw = md.get("github_url")
+            github_url = str(github_url_raw) if github_url_raw is not None else None
+
             sources[unique_id] = SourceMetadata(
                 id=unique_id,
                 type="image",
@@ -240,11 +281,19 @@ def retrieve_sources(
                 distance=dists[i] if i < len(dists) else None,
                 image_data=image_b64,
                 bbox=bbox_dict,
+                repo_url=repo_url,
+                github_url=github_url,
             )
         else:
             heading_raw = md.get("headings", "unknown")
             heading = str(heading_raw) if heading_raw is not None else "unknown"
             unique_id = f"text:{doc_id}:chunk{chunk_idx}:p{page}"
+
+            # Extract GitHub URLs
+            repo_url_raw = md.get("repo_url")
+            repo_url = str(repo_url_raw) if repo_url_raw is not None else None
+            github_url_raw = md.get("github_url")
+            github_url = str(github_url_raw) if github_url_raw is not None else None
 
             sources[unique_id] = SourceMetadata(
                 id=unique_id,
@@ -258,6 +307,8 @@ def retrieve_sources(
                 chunk_index=chunk_idx,
                 distance=dists[i] if i < len(dists) else None,
                 bbox=bbox_dict,
+                repo_url=repo_url,
+                github_url=github_url,
             )
 
     return sources
@@ -301,6 +352,65 @@ def generate_structured_response(
     return StructuredChatResponse.model_validate_json(response_text)
 
 
+def generate_search_query(
+    user_prompt: str,
+    doc_titles: Optional[List[Dict[str, str]]] = None,
+    model_name: Optional[str] = None,
+) -> str:
+    """Turn a user chat message into a concise vector search query.
+
+    Falls back to the original prompt on error or if no API key is configured.
+    """
+
+    base_query = user_prompt.strip()
+    if not base_query:
+        return base_query
+
+    if not settings.gemini_api_key:
+        return base_query
+
+    client = genai.Client(api_key=settings.gemini_api_key)
+    model = model_name or settings.gemini_default_model
+
+    titles_text = ""
+    if doc_titles:
+        titles_lines = [
+            f"- {d.get('title', d.get('doc_id', 'Unknown'))}" for d in doc_titles
+        ]
+        titles_text = "\nPapers in scope:\n" + "\n".join(titles_lines)
+
+    prompt = f"""
+Rewrite the user's message into a concise search query for vector retrieval.
+- Keep key entities, methods, datasets, and objectives.
+- Drop chit-chat and filler.
+- Keep it under 20 words.
+- Return ONLY the query text with no quotes or JSON.
+
+User message:
+{base_query}
+{titles_text}
+"""
+
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.1,
+                max_output_tokens=64,
+            ),
+        )
+        candidate = (response.text or "").strip()
+        if candidate:
+            return candidate.splitlines()[0].strip().strip('"')
+    except Exception as exc:
+        logger.warning(
+            "Search query generation failed; using raw prompt. Error: %s", exc
+        )
+
+    return base_query
+
+
 def rag_chat(
     prompt: str,
     doc_ids: List[str],
@@ -308,9 +418,13 @@ def rag_chat(
     model_name: Optional[str] = None,
     temperature: float = 0.2,
     top_k: int = 10,
+    github_only: bool = False,
 ) -> Dict[str, Any]:
     """
     Perform RAG chat and return structured response.
+
+    Args:
+        github_only: If True, only retrieve sources from GitHub repositories
 
     Returns:
         Dict with 'chunks' (list of text chunks with source_ids) and 'sources' (source metadata dict)
@@ -320,13 +434,21 @@ def rag_chat(
     chroma_service = ChromaService()
     embedder = NomicEmbeddingService()
 
+    # Generate a retrieval-friendly search query from the user prompt
+    search_query = generate_search_query(
+        user_prompt=prompt,
+        doc_titles=doc_titles,
+        model_name=model_name,
+    )
+
     # Retrieve sources
     sources = retrieve_sources(
         chroma_service=chroma_service,
         embedder=embedder,
-        query=prompt,
+        query=search_query,
         doc_ids=doc_ids,
         top_k=top_k,
+        github_only=github_only,
     )
 
     # Generate structured response

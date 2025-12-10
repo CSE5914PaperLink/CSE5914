@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
       doc_ids,
       doc_titles,
       session_id,
+      github_only = false,
     } = body;
 
     if (!prompt || typeof prompt !== "string") {
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
           doc_ids,
           doc_titles,
           temperature,
+          github_only,
         }),
       });
 

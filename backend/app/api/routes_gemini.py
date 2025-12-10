@@ -39,6 +39,7 @@ async def rag_chat_endpoint(
     doc_titles = body.get("doc_titles")
     temperature = float(body.get("temperature", 0.2))
     model_name = body.get("model")
+    github_only = body.get("github_only", False)
 
     try:
         result = rag_chat(
@@ -47,6 +48,7 @@ async def rag_chat_endpoint(
             doc_titles=doc_titles,
             model_name=model_name,
             temperature=temperature,
+            github_only=github_only,
         )
         return JSONResponse(result)
     except Exception as e:
