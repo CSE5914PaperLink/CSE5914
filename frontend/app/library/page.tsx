@@ -16,6 +16,7 @@ interface LibraryItem {
     ingestion_status: string;
     pdf_url: string | null;
     is_favorite?: boolean;
+    github_url?: string;
   };
   document?: string | null;
   in_chromadb: boolean;
@@ -542,8 +543,8 @@ export default function LibraryPage() {
                           </span>
                         )}
                       </div>
-                      <h3 className="mt-2 text-2xl font-semibold text-slate-900">
-                        {item.metadata.title}
+                      <h3 className="mt-2 text-2xl font-semibold text-slate-900 flex items-center gap-2">
+                        <span>{item.metadata.title}</span>
                       </h3>
                       <p className="mt-2 text-sm text-slate-600">
                         {truncatedAuthors}
@@ -584,6 +585,26 @@ export default function LibraryPage() {
                       </div>
                     </div>
                     <div className="flex shrink-0 gap-2">
+                      {item.metadata.github_url && (
+                        <a
+                          href={item.metadata.github_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 hover:border-slate-300 transition"
+                          title="View on GitHub"
+                        >
+                          <svg
+                            className="h-5 w-5"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 .5C5.648.5.5 5.787.5 12.266c0 5.194 3.438 9.607 8.205 11.168.6.115.82-.27.82-.6 0-.297-.012-1.28-.017-2.322-3.338.744-4.042-1.665-4.042-1.665-.546-1.424-1.334-1.805-1.334-1.805-1.09-.769.083-.754.083-.754 1.205.086 1.839 1.28 1.839 1.28 1.07 1.903 2.809 1.353 3.495 1.035.108-.807.418-1.353.762-1.664-2.665-.315-5.466-1.383-5.466-6.156 0-1.36.465-2.47 1.235-3.34-.124-.317-.535-1.592.115-3.32 0 0 1.005-.33 3.3 1.27a11.006 11.006 0 0 1 6 0c2.292-1.6 3.296-1.27 3.296-1.27.652 1.728.241 3.003.118 3.32.77.87 1.232 1.98 1.232 3.34 0 4.784-2.806 5.836-5.48 6.146.43.385.823 1.138.823 2.295 0 1.657-.015 2.994-.015 3.404 0 .333.216.722.825.598C20.065 21.87 23.5 17.457 23.5 12.266 23.5 5.787 18.352.5 12 .5Z" />
+                          </svg>
+                          <span className="sr-only">Open on GitHub</span>
+                        </a>
+                      )}
                       <button
                         onClick={() =>
                           toggleFavorite(

@@ -82,6 +82,7 @@ export function Sidebar({
       authors?: string | string[];
       reprId: string;
       chunkIds: string[];
+      github_url?: string;
     }
   >();
   for (const it of library) {
@@ -93,6 +94,7 @@ export function Sidebar({
       (md?.title as string | undefined) ||
       (md?.doc_id as string | undefined) ||
       rootId;
+    const githubUrl = md?.github_url as string | undefined;
     if (!grouped.has(rootId)) {
       grouped.set(rootId, {
         rootId,
@@ -100,6 +102,7 @@ export function Sidebar({
         authors: md?.authors as string | string[] | undefined,
         reprId: it.id,
         chunkIds: [it.id],
+        github_url: githubUrl,
       });
     } else {
       grouped.get(rootId)!.chunkIds.push(it.id);
@@ -197,8 +200,28 @@ export function Sidebar({
                     className="mt-1 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                   <div className="text-sm flex-1">
-                    <div className="font-semibold text-sm leading-tight line-clamp-2">
-                      {it.title}
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold text-sm leading-tight line-clamp-2 flex-1">
+                        {it.title}
+                      </div>
+                      {it.github_url && (
+                        <a
+                          href={it.github_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex-shrink-0 text-slate-700 hover:text-slate-900 transition-colors"
+                          title="View on GitHub"
+                        >
+                          <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                          >
+                            <path d="M12 .5C5.648.5.5 5.787.5 12.266c0 5.194 3.438 9.607 8.205 11.168.6.115.82-.27.82-.6 0-.297-.012-1.28-.017-2.322-3.338.744-4.042-1.665-4.042-1.665-.546-1.424-1.334-1.805-1.334-1.805-1.09-.769.083-.754.083-.754 1.205.086 1.839 1.28 1.839 1.28 1.07 1.903 2.809 1.353 3.495 1.035.108-.807.418-1.353.762-1.664-2.665-.315-5.466-1.383-5.466-6.156 0-1.36.465-2.47 1.235-3.34-.124-.317-.535-1.592.115-3.32 0 0 1.005-.33 3.3 1.27a11.006 11.006 0 0 1 6 0c2.292-1.6 3.296-1.27 3.296-1.27.652 1.728.241 3.003.118 3.32.77.87 1.232 1.98 1.232 3.34 0 4.784-2.806 5.836-5.48 6.146.43.385.823 1.138.823 2.295 0 1.657-.015 2.994-.015 3.404 0 .333.216.722.825.598C20.065 21.87 23.5 17.457 23.5 12.266 23.5 5.787 18.352.5 12 .5Z" />
+                          </svg>
+                        </a>
+                      )}
                     </div>
                     {it.authors &&
                       (() => {

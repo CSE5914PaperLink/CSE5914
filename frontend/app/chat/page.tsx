@@ -11,8 +11,6 @@ const PdfViewer = dynamic(
   { ssr: false }
 );
 
-import { annotateWithCitations } from "@/components/chat/citations";
-import { dedupeSources } from "@/components/chat/sourceUtils";
 import type {
   ChatMessage,
   LibraryItem,
@@ -65,22 +63,6 @@ export default function ChatPage() {
   });
   const [refreshHistory, setRefreshHistory] = useState(0);
 
-  // Thread ID for agent conversation memory
-  const [threadId] = useState(() => {
-    // Generate a unique thread ID for this session
-    // Persists across page refreshes via sessionStorage
-    const stored =
-      typeof window !== "undefined"
-        ? sessionStorage.getItem("chat_thread_id")
-        : null;
-    if (stored) return stored;
-    const newId = `thread-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("chat_thread_id", newId);
-    }
-    return newId;
-  });
-
   const [contextCollapsed, setContextCollapsed] = useState(false);
   const [paperContextCollapsed, setPaperContextCollapsed] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
@@ -104,6 +86,7 @@ export default function ChatPage() {
 
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [githubOnly, setGithubOnly] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "intro",
@@ -274,8 +257,8 @@ export default function ChatPage() {
           system: systemInstruction,
           doc_ids: docs,
           doc_titles: docDetails,
-          thread_id: threadId, // Pass thread ID for conversation memory
           session_id: sessionId, // Pass session ID for database persistence
+          github_only: githubOnly, // Pass GitHub filter flag
         }),
       });
 
@@ -286,262 +269,132 @@ export default function ChatPage() {
         throw new Error(errorData.error || "Failed to get response");
       }
 
-      // Check if response is streaming (agent mode) or JSON (simple chat)
-      const contentType = response.headers.get("content-type");
-      const isStreaming = contentType?.includes("text/event-stream");
+      const data = await response.json();
 
-      if (isStreaming) {
-        // Handle streaming response from agent
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-
-        if (!reader) {
-          throw new Error("No response body");
-        }
-
-        // Create initial AI message with status
-        const aiMessageId = crypto.randomUUID();
-        setMessages((m) => [
-          ...m,
+      // Check if this is a structured RAG response (has chunks) or simple chat (has content)
+      if (data.chunks && Array.isArray(data.chunks)) {
+        // Handle structured RAG response with chunks and sources
+        const chunks = data.chunks as Array<{
+          text: string;
+          source_ids: string[];
+        }>;
+        const sourcesDict = (data.sources || {}) as Record<
+          string,
           {
-            id: aiMessageId,
-            text: "",
-            sender: "ai",
-            status: "thinking",
-          },
-        ]);
-        setTyping(false);
+            id: string;
+            type: "text" | "image";
+            doc_id?: string;
+            title?: string;
+            heading?: string;
+            caption?: string;
+            distance?: number;
+            content?: string;
+            chunk_index?: number;
+            page?: number;
+            filename?: string;
+            has_image?: boolean;
+            repo_url?: string;
+            github_url?: string;
+            bbox?: {
+              left: number;
+              top: number;
+              right: number;
+              bottom: number;
+            };
+          }
+        >;
 
-        let fullContent = "";
+        // Build the response text with inline citations
+        // Group consecutive chunks by their sources and add citations
+        let responseText = "";
+        const usedSourceIds = new Set<string>();
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        chunks.forEach((chunk, index) => {
+          // Add the chunk text
+          responseText += chunk.text;
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n").filter((line) => line.trim());
+          // Add citation references for this chunk
+          if (chunk.source_ids && chunk.source_ids.length > 0) {
+            chunk.source_ids.forEach((id) => usedSourceIds.add(id));
+          }
 
-          for (const line of lines) {
-            try {
-              const event = JSON.parse(line);
+          // Add space between chunks
+          if (index < chunks.length - 1) {
+            responseText += " ";
+          }
+        });
 
-              if (event.type === "status") {
-                // Update the status of the AI message
-                setMessages((m) =>
-                  m.map((msg) =>
-                    msg.id === aiMessageId
-                      ? { ...msg, status: event.value }
-                      : msg
-                  )
-                );
-              } else if (event.type === "token") {
-                // Append token to content
-                fullContent += event.value;
-                setMessages((m) =>
-                  m.map((msg) =>
-                    msg.id === aiMessageId ? { ...msg, text: fullContent } : msg
-                  )
-                );
-              } else if (event.type === "sources") {
-                // Update sources on the AI message
-                // Backend now sends a dictionary with IDs as keys
-                type SourceData = {
-                  id?: string;
-                  type: "text" | "image";
-                  doc_id?: string;
-                  title?: string;
-                  heading?: string;
-                  caption?: string;
-                  distance?: number;
-                  content?: string;
-                  chunk_index?: number;
-                  page?: number;
-                  filename?: string;
-                  github_url?: string;
-                  image_data?: string;
-                  citation_number?: number;
-                  bbox?: {
-                    left: number;
-                    top: number;
-                    right: number;
-                    bottom: number;
-                  };
-                };
+        // Convert sources dict to SourceChunk array with citation numbers
+        const allSourceIds = Array.from(usedSourceIds);
+        const sources: SourceChunk[] = allSourceIds.map((id, index) => {
+          const src = sourcesDict[id];
+          return {
+            id: id,
+            type: src?.type || "text",
+            doc_id: src?.doc_id,
+            title: src?.title,
+            heading: src?.heading,
+            caption: src?.caption,
+            distance: src?.distance,
+            content: src?.content,
+            chunk_index: src?.chunk_index,
+            page: src?.page,
+            filename: src?.filename,
+            bbox: src?.bbox,
+            github_url: src?.github_url || src?.repo_url, // Use github_url or fallback to repo_url
+            citation_number: index + 1,
+          };
+        });
 
-                // Convert dictionary to array
-                const sourcesDict = (event.value || {}) as Record<
-                  string,
-                  SourceData
-                >;
-                const sourcesWithOrder = Object.entries(sourcesDict).map(
-                  ([id, src], index) => ({
-                    source: {
-                      id: id,
-                      type: src.type,
-                      doc_id: src.doc_id,
-                      title: src.title,
-                      heading: src.heading,
-                      caption: src.caption,
-                      distance: src.distance,
-                      content: src.content,
-                      chunk_index: src.chunk_index,
-                      page: src.page,
-                      filename: src.filename,
-                      github_url: src.github_url,
-                      image_data: src.image_data,
-                      citation_number: src.citation_number,
-                      bbox: src.bbox,
-                    } satisfies SourceChunk,
-                    order: index,
-                  })
-                );
+        // Create a mapping from source_id to citation number
+        const sourceIdToCitation = new Map<string, number>();
+        sources.forEach((src) => {
+          if (src.citation_number !== undefined) {
+            sourceIdToCitation.set(src.id, src.citation_number);
+          }
+        });
 
-                const orderedSources = sourcesWithOrder
-                  .sort((a, b) => {
-                    const aNum = a.source.citation_number ?? a.order + 1;
-                    const bNum = b.source.citation_number ?? b.order + 1;
-                    return aNum - bNum;
-                  })
-                  .map((entry) => entry.source);
+        // Build annotated text with inline citations
+        let annotatedText = "";
+        chunks.forEach((chunk, index) => {
+          annotatedText += chunk.text;
 
-                const dedupedSources = dedupeSources(orderedSources);
-                const annotatedText = annotateWithCitations(
-                  fullContent,
-                  dedupedSources
-                );
-                fullContent = annotatedText;
+          // Add citation numbers for this chunk's sources
+          if (chunk.source_ids && chunk.source_ids.length > 0) {
+            const citations = chunk.source_ids
+              .map((id) => sourceIdToCitation.get(id))
+              .filter((num): num is number => num !== undefined)
+              .sort((a, b) => a - b);
 
-                setMessages((m) =>
-                  m.map((msg) =>
-                    msg.id === aiMessageId
-                      ? { ...msg, sources: dedupedSources, text: annotatedText }
-                      : msg
-                  )
-                );
-              } else if (event.type === "error") {
-                throw new Error(event.value);
-              }
-            } catch (e) {
-              // Skip invalid JSON lines
-              if (e instanceof Error && !e.message.includes("Unexpected")) {
-                console.warn("Failed to parse streamed event line:", line, e);
-                throw e;
-              } else {
-                console.warn("Non-error JSON parse failure for line:", line, e);
-              }
+            if (citations.length > 0) {
+              annotatedText += ` [${citations.join(", ")}]`;
             }
           }
-        }
 
-        // Clear status when done
-        setMessages((m) =>
-          m.map((msg) =>
-            msg.id === aiMessageId ? { ...msg, status: undefined } : msg
-          )
-        );
-      } else {
-        // Handle JSON response (simple chat mode)
-        const data = await response.json();
-        const aiResponse =
-          data.content || "Sorry, I couldn't generate a response.";
-
-        const images = data.images || [];
-        const chunks = data.chunks || [];
-        const imageChunks = data.images || [];
-
-        // Combine text and image chunks into sources
-        const textSources: SourceChunk[] = chunks.map(
-          (
-            chunk: {
-              id: string;
-              doc_id?: string;
-              distance?: number;
-              content?: string;
-              chunk_index?: number;
-              page?: number;
-              heading?: string;
-            },
-            index: number
-          ) => ({
-            id: chunk.id,
-            type: "text" as const,
-            doc_id: chunk.doc_id,
-            distance: chunk.distance,
-            content: chunk.content,
-            chunk_index: chunk.chunk_index,
-            page: chunk.page,
-            heading: chunk.heading,
-            citation_number: index + 1,
-          })
-        );
-        const imageSources: SourceChunk[] = imageChunks.map(
-          (
-            img: {
-              id: string;
-              doc_id?: string;
-              distance?: number;
-              content?: string;
-              filename?: string;
-              page?: number;
-              url?: string;
-              image_data?: string;
-              caption?: string;
-              bbox?: {
-                left?: number;
-                right?: number;
-                top?: number;
-                bottom?: number;
-              };
-            },
-            index: number
-          ) => ({
-            id: img.id,
-            type: "image" as const,
-            doc_id: img.doc_id,
-            distance: img.distance,
-            content: img.content,
-            filename: img.filename,
-            page: img.page,
-            url: img.url,
-            image_data: img.image_data,
-            caption: img.caption,
-            citation_number: textSources.length + index + 1,
-            bbox: img.bbox
-              ? {
-                  left: img.bbox.left ?? 0,
-                  right: img.bbox.right ?? 1,
-                  top: img.bbox.top ?? 0,
-                  bottom: img.bbox.bottom ?? 1,
-                }
-              : undefined,
-          })
-        );
-        const sources: SourceChunk[] = dedupeSources([
-          ...textSources,
-          ...imageSources,
-        ]);
+          // Add space between chunks
+          if (index < chunks.length - 1) {
+            annotatedText += " ";
+          }
+        });
 
         setTyping(false);
-        const annotatedResponse =
-          sources.length > 0
-            ? annotateWithCitations(aiResponse, sources)
-            : aiResponse;
-        addMessage(annotatedResponse, "ai");
+        addMessage(annotatedText, "ai");
 
-        // Add images and sources to the last message
+        // Add sources to the last message
         setMessages((m) => {
           const updated = [...m];
-          if (updated.length > 0) {
-            if (images.length > 0) {
-              updated[updated.length - 1].images = images;
-            }
-            if (sources.length > 0) {
-              updated[updated.length - 1].text = annotatedResponse;
-              updated[updated.length - 1].sources = sources;
-            }
+          if (updated.length > 0 && sources.length > 0) {
+            updated[updated.length - 1].sources = sources;
           }
           return updated;
         });
+      } else {
+        // Handle simple chat response (no RAG)
+        const aiResponse =
+          data.content || "Sorry, I couldn't generate a response.";
+
+        setTyping(false);
+        addMessage(aiResponse, "ai");
       }
     } catch (error) {
       setTyping(false);
@@ -710,7 +563,13 @@ export default function ChatPage() {
                 }
               }}
             />
-            <InputForm input={input} setInput={setInput} onSubmit={onSubmit} />
+            <InputForm
+              input={input}
+              setInput={setInput}
+              onSubmit={onSubmit}
+              githubOnly={githubOnly}
+              onGithubToggle={() => setGithubOnly((prev) => !prev)}
+            />
           </div>
           {/* Drag handle between chat and PDF */}
           <div

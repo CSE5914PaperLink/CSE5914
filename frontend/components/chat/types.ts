@@ -5,6 +5,7 @@ export type PaperMetadata = {
   published?: string;
   summary?: string;
   pdf_url?: string;
+  github_url?: string;
   [key: string]: unknown;
 };
 

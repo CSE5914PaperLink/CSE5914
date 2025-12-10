@@ -12,17 +12,61 @@ from app.services.chroma_service import ChromaService
 from app.services.embedding_service import NomicEmbeddingService
 from app.services.gemini_service import GeminiService
 from app.services.agent_service import create_document_agent
+from app.services.rag_chat_service import rag_chat
 
 
 router = APIRouter(prefix="/gemini", tags=["gemini"])
 
 
+# RAG Chat endpoint (structured JSON output, no agent)
+@router.post("/rag_chat")
+async def rag_chat_endpoint(
+    body: dict = Body(...),
+):
+    """
+    RAG Chat endpoint that returns structured JSON with text chunks and sources.
+
+    This endpoint does NOT use the LangGraph agent. Instead, it:
+    1. Retrieves relevant chunks from ChromaDB
+    2. Calls Gemini with structured output (response_mime_type + response_schema)
+    3. Returns guaranteed JSON with text chunks and their source references
+    """
+    prompt = body.get("prompt")
+    if not prompt or not isinstance(prompt, str):
+        raise HTTPException(status_code=400, detail="prompt is required")
+
+    doc_ids = body.get("doc_ids", [])
+    doc_titles = body.get("doc_titles")
+    temperature = float(body.get("temperature", 0.2))
+    model_name = body.get("model")
+    github_only = body.get("github_only", False)
+
+    try:
+        result = rag_chat(
+            prompt=prompt,
+            doc_ids=doc_ids,
+            doc_titles=doc_titles,
+            model_name=model_name,
+            temperature=temperature,
+            github_only=github_only,
+        )
+        return JSONResponse(result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # GitHub question classifier
 def is_github_question(prompt: str) -> bool:
     keywords = [
-        "github", "repo", "repository",
-        "readme", "code", "source code",
-        "file", "files", "implementation",
+        "github",
+        "repo",
+        "repository",
+        "readme",
+        "code",
+        "source code",
+        "file",
+        "files",
+        "implementation",
     ]
     p = prompt.lower()
     return any(k in p for k in keywords)
@@ -99,7 +143,7 @@ async def chat_agent(
     config: Any = {
         "configurable": {
             "thread_id": thread_id,
-            "github_mode": github_mode,  
+            "github_mode": github_mode,
         }
     }
 
@@ -129,7 +173,9 @@ async def chat_agent(
                 if "tool" in langgraph_node.lower():
                     if not tool_call_detected:
                         tool_call_detected = True
-                        yield json.dumps({"type": "status", "value": "searching"}) + "\n"
+                        yield json.dumps(
+                            {"type": "status", "value": "searching"}
+                        ) + "\n"
                     continue
 
                 if "agent" in langgraph_node.lower() and hasattr(msg, "content"):
@@ -152,19 +198,27 @@ async def chat_agent(
                     response_json = json.loads(accumulated_content)
                     if isinstance(response_json, dict):
                         # Send the full JSON response
-                        print(f"Agent Response JSON: {json.dumps(response_json, indent=2)}")
-                        yield json.dumps({"type": "json_response", "value": response_json}) + "\n"
+                        print(
+                            f"Agent Response JSON: {json.dumps(response_json, indent=2)}"
+                        )
+                        yield json.dumps(
+                            {"type": "json_response", "value": response_json}
+                        ) + "\n"
                 except json.JSONDecodeError:
                     # If JSON parsing fails, the accumulated content is already sent as tokens
-                    print(f"Warning: Could not parse Gemini response as JSON: {accumulated_content}...")
+                    print(
+                        f"Warning: Could not parse Gemini response as JSON: {accumulated_content}..."
+                    )
 
             if sources_tracker:
                 # Remove large image_data from sources to prevent JSON serialization issues
                 filtered_sources = {}
                 for source_id, source_data in sources_tracker.items():
-                    filtered_data = {k: v for k, v in source_data.items() if k != "image_data"}
+                    filtered_data = {
+                        k: v for k, v in source_data.items() if k != "image_data"
+                    }
                     filtered_sources[source_id] = filtered_data
-                
+
                 yield json.dumps({"type": "sources", "value": filtered_sources}) + "\n"
 
             yield json.dumps({"type": "done"}) + "\n"

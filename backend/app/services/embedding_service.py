@@ -19,6 +19,7 @@ from app.core.config import settings
 
 # Metadata classes
 
+
 @dataclass
 class PdfMetadata:
     """Structured metadata for PDF documents (e.g., arXiv papers)."""
@@ -33,9 +34,11 @@ class PdfMetadata:
     github_url: Optional[str] = None
     github_readme: Optional[str] = None
 
+
 @dataclass
 class RepoMetadata:
     """Metadata for GitHub repositories."""
+
     repo_url: str
     readme: str
     arxiv_id: str
@@ -73,7 +76,11 @@ class NomicEmbeddingService:
         Queries should be prefixed with 'search_query:' for optimal retrieval.
         """
         # Add search_query prefix if not already present
-        normalized = text if text.strip().startswith("search_query:") else f"search_query: {text}"
+        normalized = (
+            text
+            if text.strip().startswith("search_query:")
+            else f"search_query: {text}"
+        )
         emb = self.embedder.embed_query(normalized)
         return self._normalize(emb)
 
@@ -108,16 +115,19 @@ class NomicEmbeddingService:
         embeddings = self.embedder.embed_image(pil_images)
         dim = len(embeddings[0]) if embeddings else 0
         print(f"DEBUG: Nomic returned {len(embeddings)} image embeddings, dim={dim}")
-        
+
         # Normalize image embeddings too
         normalized_embeddings = [self._normalize(e) for e in embeddings]
-        
+
         if normalized_embeddings:
-            print(f"DEBUG: First 5 dims of first image embedding: {normalized_embeddings[0][:5]}")
+            print(
+                f"DEBUG: First 5 dims of first image embedding: {normalized_embeddings[0][:5]}"
+            )
         return normalized_embeddings
 
 
 # Utility: extract GitHub URL from PDF text
+
 
 def extract_github_url(text: str) -> Optional[str]:
     """
@@ -175,15 +185,13 @@ def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
 
     chroma.vectorstore.add_documents(chroma_text_docs, embedding_fn=embedder.embedder)
 
-
-
     # Process and store images as text embeddings
     if image_info["uris"]:
         print(f"Processing {len(image_info['uris'])} images with text annotations...")
         try:
             # Create documents from image descriptions (caption + annotation)
             chroma_image_docs = []
-            
+
             for meta in image_info["metadatas"]:
                 caption = meta.get("caption", "")
                 annotation = meta.get("annotation", "")
@@ -191,11 +199,11 @@ def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
                 print(f"Annotation: {annotation}")
                 # Combine caption and annotation as the searchable text
                 description = f"{caption}\n\n{annotation}" if annotation else caption
-                
+
                 if not description.strip():
                     # Skip images with no description
                     continue
-                
+
                 # Update metadata with doc info (keep image_b64 for retrieval)
                 merged_meta = {
                     **meta,
@@ -203,20 +211,22 @@ def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
                     "title": extra_metadata.title,
                     "type": "image",
                 }
-                
+
                 chroma_image_docs.append(
                     Document(
                         page_content=description,
                         metadata=merged_meta,
                     )
                 )
-            
+
             if chroma_image_docs:
                 # Add using standard add_documents (embeds the text descriptions)
                 # Filter metadata for ChromaDB compatibility
                 filtered_image_docs = filter_complex_metadata(chroma_image_docs)
                 chroma.vectorstore.add_documents(filtered_image_docs)
-                print(f"Successfully added {len(chroma_image_docs)} images (as text embeddings) to Chroma.")
+                print(
+                    f"Successfully added {len(chroma_image_docs)} images (as text embeddings) to Chroma."
+                )
             else:
                 print("No images with descriptions to embed.")
 
@@ -235,6 +245,7 @@ def ingest_pdf_bytes_into_chroma(pdf_bytes: bytes, extra_metadata: PdfMetadata):
         "image_chunks": len(image_info["uris"]),
     }
 
+
 def ingest_repo_files_into_chroma(
     repo_url: str,
     arxiv_id: str,
@@ -250,10 +261,10 @@ def ingest_repo_files_into_chroma(
 
     # Detect README
     for f in repo_files:
-        if hasattr(f, "path"):   # RepoFile object
+        if hasattr(f, "path"):  # RepoFile object
             path = f.path.lower()
             content = f.content
-        else:                    
+        else:
             path = f.get("path", "").lower()
             content = f.get("content", "")
 
@@ -277,13 +288,13 @@ def ingest_repo_files_into_chroma(
 
         merged_meta = {
             **base_metadata,
-            "doc_id": arxiv_id, 
+            "doc_id": arxiv_id,
             "repo_url": repo_url,
             "root_id": arxiv_id,
             "type": "repo",
             "filename": path,
             "github_readme": readme_text,
-            "kind": "chunk",  
+            "kind": "chunk",
         }
 
         documents.append(

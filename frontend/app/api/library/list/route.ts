@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
       .filter((id): id is string => id !== null);
 
     let chromaResults: Record<string, boolean> = {};
+    let githubUrls: Record<string, string | null> = {};
     if (arxivIds.length > 0) {
       try {
         const backendUrl = `${BACKEND_URL}/library/check_batch`;
@@ -60,6 +61,7 @@ export async function GET(request: NextRequest) {
         if (res.ok) {
           const data = await res.json();
           chromaResults = data.results || {};
+          githubUrls = data.github_urls || {};
         }
       } catch (fetchErr) {
         console.error("Failed to check ChromaDB status:", fetchErr);
@@ -70,6 +72,7 @@ export async function GET(request: NextRequest) {
     const results = data.papers.map((paper) => {
       const inChroma = chromaResults[paper.arxivId || ""] || false;
       const docId = paper.arxivId ? `${paper.arxivId}` : paper.id;
+      const githubUrl = githubUrls[paper.arxivId || ""] || null;
       return {
         id: docId,
         dataconnect_id: paper.id,
@@ -82,6 +85,7 @@ export async function GET(request: NextRequest) {
           ingestion_status: paper.ingestionStatus,
           pdf_url: paper.pdfUrl,
           is_favorite: paper.isFavorite || false,
+          github_url: githubUrl || undefined,
         },
         in_chromadb: inChroma,
       };

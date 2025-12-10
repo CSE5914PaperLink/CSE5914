@@ -54,27 +54,20 @@ class DoclingService:
     _converter_instance = None
 
     def __init__(self) -> None:
-        
+
         if DoclingService._converter_instance is None:
             pipeline_options = PdfPipelineOptions()
             pipeline_options.do_ocr = False
             pipeline_options.do_table_structure = False
             pipeline_options.generate_picture_images = True
             pipeline_options.images_scale = 2.0
-            
-            # Enable SmolVLM picture descriptions (local model)
-            pipeline_options.do_picture_description = False
-            pipeline_options.picture_description_options = PictureDescriptionVlmOptions(
-                repo_id="HuggingFaceTB/SmolVLM-256M-Instruct",
-                prompt="Give a detailed description of this image in 5 sentences or less."
-            )
-            
+
             DoclingService._converter_instance = DocumentConverter(
                 format_options={
                     InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
                 }
             )
-        
+
         self._converter = DoclingService._converter_instance
 
     def extract_chunks(self, doc) -> List[Dict[str, Any]]:
@@ -114,33 +107,42 @@ class DoclingService:
             # Initialize with extreme values
             min_l, min_t = float("inf"), float("inf")
             max_r, max_b = float("-inf"), float("-inf")
-            
+
             # Track page with most items to assign the chunk to a specific page
             page_counts = {}
-            
+
             found_bbox = False
-            
+
             for item in doc_items:
                 provs = item.get("prov", [])
                 for p in provs:
                     page_no = p.get("page_no")
                     if page_no:
                         page_counts[page_no] = page_counts.get(page_no, 0) + 1
-                    
+
                     bbox = p.get("bbox")
                     if bbox:
                         found_bbox = True
-                        l, t, r, b = bbox.get("l"), bbox.get("t"), bbox.get("r"), bbox.get("b")
-                        if l is not None: min_l = min(min_l, l)
-                        if t is not None: min_t = min(min_t, t)
-                        if r is not None: max_r = max(max_r, r)
-                        if b is not None: max_b = max(max_b, b)
+                        l, t, r, b = (
+                            bbox.get("l"),
+                            bbox.get("t"),
+                            bbox.get("r"),
+                            bbox.get("b"),
+                        )
+                        if l is not None:
+                            min_l = min(min_l, l)
+                        if t is not None:
+                            min_t = min(min_t, t)
+                        if r is not None:
+                            max_r = max(max_r, r)
+                        if b is not None:
+                            max_b = max(max_b, b)
 
             # Determine primary page
             if page_counts:
                 primary_page = max(page_counts, key=page_counts.get)
                 out["page"] = primary_page
-            
+
             if found_bbox:
                 # Default to US Letter size (612 x 792 points) if page size unknown
                 # TODO: Could extract actual page sizes from document
@@ -149,29 +151,38 @@ class DoclingService:
                 # Normalize coordinates to 0-1 range
                 bbox_left = min_l / page_width
                 bbox_right = max_r / page_width
-                
+
                 min_l, min_b = float("inf"), float("inf")
                 max_r, max_t = float("-inf"), float("-inf")
-                
+
                 for item in doc_items:
                     provs = item.get("prov", [])
                     for p in provs:
                         bbox = p.get("bbox")
                         if bbox:
-                            l, t, r, b = bbox.get("l"), bbox.get("t"), bbox.get("r"), bbox.get("b")
-                            # Docling v2: l, r, t, b. 
+                            l, t, r, b = (
+                                bbox.get("l"),
+                                bbox.get("t"),
+                                bbox.get("r"),
+                                bbox.get("b"),
+                            )
+                            # Docling v2: l, r, t, b.
                             # Usually t is top (higher y), b is bottom (lower y).
-                            if l is not None: min_l = min(min_l, l)
-                            if r is not None: max_r = max(max_r, r)
-                            if t is not None: max_t = max(max_t, t)
-                            if b is not None: min_b = min(min_b, b)
-                
+                            if l is not None:
+                                min_l = min(min_l, l)
+                            if r is not None:
+                                max_r = max(max_r, r)
+                            if t is not None:
+                                max_t = max(max_t, t)
+                            if b is not None:
+                                min_b = min(min_b, b)
+
                 bbox_left = min_l / page_width
                 bbox_right = max_r / page_width
-                
+
                 # Screen Top = (Page Height - PDF Top) / Page Height
                 bbox_top = (page_height - max_t) / page_height
-                
+
                 # Screen Bottom = (Page Height - PDF Bottom) / Page Height
                 bbox_bottom = (page_height - min_b) / page_height
 
@@ -224,7 +235,7 @@ class DoclingService:
             buf = io.BytesIO()
             img.save(buf, format="PNG")
             b64_data = base64.b64encode(buf.getvalue()).decode("utf-8")
-            
+
             # Extract VLM annotations
             annotation_text = ""
             pic_annotations = getattr(pic, "annotations", [])

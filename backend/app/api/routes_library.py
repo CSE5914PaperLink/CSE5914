@@ -119,6 +119,7 @@ def _fetch_arxiv_metadata(doc_id: str) -> dict:
 def check_batch_papers(doc_ids: List[str]):
     chroma = ChromaService()
     results = {}
+    github_urls = {}
 
     doc_id_list = [f"{aid}" for aid in doc_ids]
 
@@ -129,27 +130,48 @@ def check_batch_papers(doc_ids: List[str]):
         )
 
         existing_doc_ids = set()
+        doc_id_to_metadata = {}
+
         for i, chunk_id in enumerate(data.get("ids", [])):
             md = (data.get("metadatas") or [{}])[i] or {}
             if md.get("doc_id"):
-                existing_doc_ids.add(md["doc_id"])
+                doc_id_val = md["doc_id"]
+                existing_doc_ids.add(doc_id_val)
+
+                # Track GitHub URL or repo_url for this doc_id
+                if doc_id_val not in doc_id_to_metadata:
+                    github_url = md.get("github_url") or md.get("repo_url")
+                    if github_url:
+                        doc_id_to_metadata[doc_id_val] = github_url
 
         for doc_id in doc_ids:
             doc_id_str = f"{doc_id}"
             results[doc_id] = doc_id_str in existing_doc_ids
+            github_urls[doc_id] = doc_id_to_metadata.get(doc_id_str)
 
     except Exception as e:
         for doc_id in doc_ids:
             doc_id_str = f"{doc_id}"
             try:
                 data = chroma.collection.get(
-                    where={"doc_id": doc_id_str}, limit=1, include=[]
+                    where={"doc_id": doc_id_str}, limit=1, include=["metadatas"]
                 )
                 results[doc_id] = len(data.get("ids", [])) > 0
+
+                # Try to get GitHub URL from metadata
+                metas = data.get("metadatas", [])
+                if metas and len(metas) > 0:
+                    md = metas[0] or {}
+                    github_url = md.get("github_url") or md.get("repo_url")
+                    github_urls[doc_id] = github_url
+                else:
+                    github_urls[doc_id] = None
             except Exception:
                 results[doc_id] = False
+                github_urls[doc_id] = None
+                github_urls[doc_id] = None
 
-    return JSONResponse({"results": results})
+    return JSONResponse({"results": results, "github_urls": github_urls})
 
 
 @router.post("/add/{doc_id}")
@@ -180,7 +202,7 @@ async def add_arxiv(doc_id: str, request: Optional[AddArxivRequest] = None):
         summary=meta.get("summary", ""),
         published=meta.get("published", ""),
         authors=meta.get("authors", []),
-        github_url=github_url, 
+        github_url=github_url,
     )
 
     stats = ingest_pdf_bytes_into_chroma(pdf_bytes, extra_metadata=pdf_meta)
