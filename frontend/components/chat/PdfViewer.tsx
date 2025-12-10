@@ -239,7 +239,7 @@ export function PdfViewer({
   // Use backend proxy for PDF URLs to avoid CORS issues
   const docId = active?.metadata?.doc_id;
   const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+    process.env.BACKEND_URL || "http://localhost:8000";
   const pdfUrl = docId
     ? `${backendUrl}/arxiv/download/${docId}`
     : active?.metadata?.pdf_url;
