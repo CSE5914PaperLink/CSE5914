@@ -49,7 +49,8 @@ class NomicEmbeddingService:
     def __init__(self):
         self.embedder = NomicEmbeddings(  # type: ignore[call-arg]
             model="nomic-embed-text-v1.5",
-            inference_mode="local",
+            inference_mode="remote",
+            nomic_api_key=settings.nomic_api_key,
             vision_model="nomic-embed-vision-v1.5",
         )
 
@@ -124,7 +125,7 @@ def extract_github_url(text: str) -> Optional[str]:
     Example matches:
         https://github.com/owner/repo
     """
-    pattern = r"https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+"
+    pattern = r"https://github\.com/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+"
     match = re.search(pattern, text)
     return match.group(0) if match else None
 

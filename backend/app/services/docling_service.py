@@ -63,7 +63,7 @@ class DoclingService:
             pipeline_options.images_scale = 2.0
             
             # Enable SmolVLM picture descriptions (local model)
-            pipeline_options.do_picture_description = False
+            pipeline_options.do_picture_description = True
             pipeline_options.picture_description_options = PictureDescriptionVlmOptions(
                 repo_id="HuggingFaceTB/SmolVLM-256M-Instruct",
                 prompt="Give a detailed description of this image in 5 sentences or less."
@@ -83,7 +83,7 @@ class DoclingService:
         Normalizes bbox coordinates to 0-1 range.
         """
         tokenizer = HuggingFaceTokenizer(
-            tokenizer=AutoTokenizer.from_pretrained("nomic-ai/nomic-embed-text-v1.5"),
+            tokenizer=AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2"),
         )
         chunker = HybridChunker(tokenizer=tokenizer, merge_chunks=False)
         results = []
