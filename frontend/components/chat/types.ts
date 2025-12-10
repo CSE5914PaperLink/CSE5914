@@ -36,6 +36,7 @@ export type SourceChunk = {
   page?: number;
   filename?: string;
   url?: string;
+  github_url?: string; // GitHub repository URL for GitHub sources
   image_data?: string; // base64 encoded image data
   citation_number?: number;
   bbox?: {

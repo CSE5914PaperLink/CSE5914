@@ -81,8 +81,10 @@ const InlineCitation = ({
     );
   }
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
     if (!primarySource) return;
+    e.preventDefault();
+    e.stopPropagation();
     handleSourceInteraction(primarySource, onSourceClick);
   };
 
@@ -102,6 +104,13 @@ const handleSourceInteraction = (
   source: SourceChunk,
   callback?: (source: SourceChunk) => void
 ) => {
+  // If it's a GitHub source with a URL, redirect to it
+  if (source.github_url) {
+    console.log("Redirecting to GitHub URL:", source.github_url);
+    window.open(source.github_url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  
   if (source.type === "text" && source.content) {
     console.log("Source content:", source.content);
   }
@@ -131,6 +140,7 @@ const SourceList = ({
         {sources.map((source, idx) => {
           const citationLabel = source.citation_number ?? idx + 1;
           const rawTitle = source.title || source.doc_id || source.filename;
+          const githubUrl = source.github_url;
           const isGithubSource = [
             source.title,
             source.doc_id,
@@ -141,6 +151,7 @@ const SourceList = ({
             /readme\.md/i.test(source.filename);
           const showGithub =
             isGithubSource ||
+            Boolean(githubUrl) ||
             (isReadme && (!source.heading || /unknown/i.test(source.heading)));
           const fullTitle =
             showGithub && (!source.heading || /unknown/i.test(source.heading))
@@ -161,6 +172,15 @@ const SourceList = ({
             .filter(Boolean)
             .join(" • ");
           const isImage = source.type === "image";
+          
+          const handleSourceClick = (e: React.MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Always use handleSourceInteraction which will check for github_url
+            handleSourceInteraction(source, onSourceClick);
+          };
+          
           const icon = showGithub ? (
             <svg
               className="h-4 w-4 text-slate-900"
@@ -203,9 +223,9 @@ const SourceList = ({
             <li key={source.id || `${source.doc_id}-${idx}`}>
               <button
                 type="button"
-                onClick={() => handleSourceInteraction(source, onSourceClick)}
+                onClick={handleSourceClick}
                 className="flex h-full w-full cursor-pointer flex-col rounded-xl border border-slate-200 bg-white/95 px-2 py-1.5 text-left shadow-sm shadow-slate-200/60 transition hover:border-blue-300 hover:shadow-md"
-                title={fullTitle}
+                title={githubUrl ? `${fullTitle} - Click to open GitHub repository` : fullTitle}
               >
                 <div className="flex items-center justify-between text-[0.55rem] uppercase tracking-[0.35em] text-slate-500">
                   <span>Source {citationLabel}</span>
