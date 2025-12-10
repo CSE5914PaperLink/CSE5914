@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # ChromaDB configuration
     chroma_persist_path: str = "./chroma"  # relative to backend working dir
     chroma_collection_name: str = "documents"
+    
+    backend_cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

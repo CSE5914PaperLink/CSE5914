@@ -165,7 +165,7 @@ export default function LibraryPage() {
     setLoadingImages((prev) => ({ ...prev, [docId]: true }));
     try {
       const backendUrl =
-        process.env.BACKEND_URL || "http://localhost:8000";
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
       const res = await fetch(`${backendUrl}/library/images/${docId}`);
       if (!res.ok) {
         if (res.status === 404) {
